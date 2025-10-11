@@ -9,6 +9,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:math' as math; // استيراد مكتبة الرياضيات لتحديد الحجم الأقصى
 
 // --- MODIFIED: Added simple_speed_dial package import ---
 import 'package:simple_speed_dial/simple_speed_dial.dart';
@@ -287,40 +288,44 @@ class _WelcomePageState extends State<WelcomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // ---=== التعديل الأول: إزالة الشريط العلوي (AppBar) ===---
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('بوابة مدرسة المعرفة الاهلية'),
-        actions: [
-          if (_isInstallable)
-            IconButton(
-              icon: const Icon(Icons.download_for_offline),
-              tooltip: 'تثبيت التطبيق على جهازك',
-              onPressed: _showInstallPrompt,
-            ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: (constraints.maxWidth > 900)
-                          ? _buildWideLayout()
-                          : _buildMobileLayout(),
-                    ),
-                    _buildFooter(),
-                  ],
+      body: SafeArea( // استخدام SafeArea لتجنب تداخل المحتوى مع شريط الحالة العلوي
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      // ---=== إضافة زر التثبيت في الزاوية العلوية ===---
+                      if (_isInstallable)
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Align(
+                            alignment: Alignment.topLeft,
+                            child: IconButton(
+                              icon: const Icon(Icons.download_for_offline),
+                              tooltip: 'تثبيت التطبيق على جهازك',
+                              onPressed: _showInstallPrompt,
+                            ),
+                          ),
+                        ),
+                      Expanded(
+                        child: (constraints.maxWidth > 900)
+                            ? _buildWideLayout()
+                            : _buildMobileLayout(),
+                      ),
+                      _buildFooter(),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
-      // --- MODIFIED: Changed layout to a Row and fixed 6 issues ---
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -345,7 +350,6 @@ class _WelcomePageState extends State<WelcomePage> {
                   onPressed: () => _launchUrlHelper('https://instagram.com/your_school_handle'),
                 ),
                 SpeedDialChild(
-                  // FIX 6: Made icon color consistent with others
                   child: const Icon(Icons.camera, color: Colors.white),
                   label: 'Snapchat',
                   backgroundColor: Colors.yellow,
@@ -379,13 +383,11 @@ class _WelcomePageState extends State<WelcomePage> {
                   onPressed: () => _launchUrlHelper('tel:+966501468550'),
                 ),
                 SpeedDialChild(
-                  // FIX 4 & 5: Differentiated label and made icon consistent
                   child: const Icon(Icons.support_agent),
                   label: 'موجه الطلاب: أ/ عبدالرحمن عثمان',
                   onPressed: () => _launchUrlHelper('tel:+966500971015'),
                 ),
                 SpeedDialChild(
-                  // FIX 4 & 5: Differentiated label and made icon consistent
                   child: const Icon(Icons.support_agent),
                   label: 'موجه الطلاب: أ/ يحيي',
                   onPressed: () => _launchUrlHelper('tel:+966502649649'),
@@ -426,13 +428,19 @@ class _WelcomePageState extends State<WelcomePage> {
   }
 
   Widget _buildLoginCard() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    // --- MODIFICATION START ---
+    // Doubled the image size parameters while keeping it dynamic.
+    final logoSize = math.min(screenWidth * 0.5, 240.0);
+    // --- MODIFICATION END ---
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            const Icon(Icons.school, size: 100, color: Color(0xFF1976D2)),
+            Image.asset('assets/m1.png', height: logoSize, width: logoSize),
             const SizedBox(height: 24),
             Text(
               'بوابة مدرسة المعرفة الاهلية',
@@ -498,7 +506,7 @@ class _WelcomePageState extends State<WelcomePage> {
             _buildFooterColumn(
               'الدعم الفني والتسجيل',
               [
-                'منشئ المنصة: أ/مصطفي سعيد (966569064173+)',
+                '</> أ/مصطفي سعيد (966569064173+)',
               ],
             ),
           ],
@@ -608,75 +616,83 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final isTeacher = widget.accountType == 'teacher';
-    final title = isTeacher ? 'تسجيل دخول المعلم' : 'تسجيل دخول الطالب';
     final portalName = isTeacher ? 'بوابة المعلمين' : 'بوابة الطلاب';
+    final screenWidth = MediaQuery.of(context).size.width;
+    // --- MODIFICATION START ---
+    // Doubled the image size parameters while keeping it dynamic.
+    final logoSize = math.min(screenWidth * 0.5, 240.0);
+    // --- MODIFICATION END ---
 
+
+    // ---=== التعديل الثاني: إزالة الشريط العلوي (AppBar) ===---
     return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Image.asset('assets/2.png'),
-          ),
-        ],
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 450),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      const Icon(Icons.school,
-                          size: 100, color: Color(0xFF1976D2)),
-                      const SizedBox(height: 24),
-                      Text(portalName,
-                          style: TextStyle(
-                              fontSize: 26,
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).primaryColor)),
-                      const SizedBox(height: 32),
-                      TextFormField(
-                        controller: _emailController,
-                        decoration: const InputDecoration(
-                            labelText: 'البريد الإلكتروني',
-                            prefixIcon: Icon(Icons.email_outlined)),
-                        validator: (value) => value!.isEmpty
-                            ? 'الرجاء إدخال البريد الإلكتروني'
-                            : null,
-                        keyboardType: TextInputType.emailAddress,
-                        textDirection: TextDirection.ltr,
-                        textAlign: TextAlign.left,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                            labelText: 'كلمة المرور',
-                            prefixIcon: Icon(Icons.lock_outline)),
-                        validator: (value) =>
-                        value!.isEmpty ? 'الرجاء إدخال كلمة المرور' : null,
-                        textDirection: TextDirection.ltr,
-                        textAlign: TextAlign.left,
-                      ),
-                      const SizedBox(height: 32),
-                      SizedBox(
-                        width: double.infinity,
-                        child: _isLoading
-                            ? const Center(child: CircularProgressIndicator())
-                            : ElevatedButton(
-                            onPressed: _signIn,
-                            child: const Text('تسجيل دخول')),
-                      ),
-                    ],
+      body: SafeArea( // استخدام SafeArea
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 450),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        // ---=== إضافة زر الرجوع يدوياً ===---
+                        Align(
+                          alignment: Alignment.topLeft,
+                          child: IconButton(
+                            icon: const Icon(Icons.arrow_back_ios),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                        ),
+                        Image.asset('assets/m1.png', height: logoSize, width: logoSize),
+                        const SizedBox(height: 24),
+                        Text(portalName,
+                            style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).primaryColor)),
+                        const SizedBox(height: 32),
+                        TextFormField(
+                          controller: _emailController,
+                          decoration: const InputDecoration(
+                              labelText: 'البريد الإلكتروني',
+                              prefixIcon: Icon(Icons.email_outlined)),
+                          validator: (value) => value!.isEmpty
+                              ? 'الرجاء إدخال البريد الإلكتروني'
+                              : null,
+                          keyboardType: TextInputType.emailAddress,
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                              labelText: 'كلمة المرور',
+                              prefixIcon: Icon(Icons.lock_outline)),
+                          validator: (value) =>
+                          value!.isEmpty ? 'الرجاء إدخال كلمة المرور' : null,
+                          textDirection: TextDirection.ltr,
+                          textAlign: TextAlign.left,
+                        ),
+                        const SizedBox(height: 32),
+                        SizedBox(
+                          width: double.infinity,
+                          child: _isLoading
+                              ? const Center(child: CircularProgressIndicator())
+                              : ElevatedButton(
+                              onPressed: _signIn,
+                              child: const Text('تسجيل دخول')),
+                          //lghp
+
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
