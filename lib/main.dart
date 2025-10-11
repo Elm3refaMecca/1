@@ -675,7 +675,6 @@ class _LoginPageState extends State<LoginPage> {
                             : ElevatedButton(
                             onPressed: _signIn,
                             child: const Text('تسجيل دخول')),
-                        //ملاحظة
                       ),
                     ],
                   ),
