@@ -18,12 +18,6 @@ import 'package:almarefamecca/add.dart' deferred as add_page;
 import 'package:almarefamecca/student_view.dart' deferred as student_view_page;
 import 'package:almarefamecca/firebase_options.dart';
 
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// ~~~~~~~~~~~~~~~~~ (جديد) تم حذف المكونات المخصصة ~~~~~~~~~~~~~~~~~~~~~~
-// ~ The custom SpeedDialAction class and CustomSpeedDial widget have been removed.
-// ~ They are replaced by the 'simple_speed_dial' package.
-// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 class DeferredLoader extends StatefulWidget {
   final Future<void> libraryFuture;
@@ -262,12 +256,12 @@ class WelcomePage extends StatefulWidget {
 
 class _WelcomePageState extends State<WelcomePage> {
   bool _isInstallable = false;
-  int? _openSpeedDialIndex;
 
   @override
   void initState() {
     super.initState();
-    js.context['pwa-installable-listener'] = (event) {
+    // This function allows JavaScript to call back into Dart to update the state.
+    js.context['pwaInstallableListener'] = (event) {
       final isReady = js.context['isInstallable'];
       if (mounted && _isInstallable != isReady) {
         setState(() {
@@ -275,22 +269,24 @@ class _WelcomePageState extends State<WelcomePage> {
         });
       }
     };
-    js.context.callMethod('addEventListener', ['pwa-installable', js.context['pwa-installable-listener']]);
+    // This tells the browser to call our Dart function whenever the 'pwa-installable' event occurs.
+    js.context.callMethod('addEventListener', ['pwa-installable', js.context['pwaInstallableListener']]);
 
+    // Check the initial value when the widget is first created.
     if (js.context.hasProperty('isInstallable')) {
       _isInstallable = js.context['isInstallable'];
     }
   }
 
   void _showInstallPrompt() {
+    // This calls the JavaScript function that triggers the browser's install prompt.
     js.context.callMethod('showInstallPrompt');
   }
 
   @override
   Widget build(BuildContext context) {
-    // ---=== التعديل الأول: إزالة الشريط العلوي (AppBar) ===---
     return Scaffold(
-      body: SafeArea( // استخدام SafeArea لتجنب تداخل المحتوى مع شريط الحالة العلوي
+      body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
@@ -299,19 +295,6 @@ class _WelcomePageState extends State<WelcomePage> {
                 child: IntrinsicHeight(
                   child: Column(
                     children: [
-                      // ---=== إضافة زر التثبيت في الزاوية العلوية ===---
-                      if (_isInstallable)
-                        Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Align(
-                            alignment: Alignment.topLeft,
-                            child: IconButton(
-                              icon: const Icon(Icons.download_for_offline),
-                              tooltip: 'تثبيت التطبيق على جهازك',
-                              onPressed: _showInstallPrompt,
-                            ),
-                          ),
-                        ),
                       Expanded(
                         child: (constraints.maxWidth > 900)
                             ? _buildWideLayout()
@@ -334,7 +317,6 @@ class _WelcomePageState extends State<WelcomePage> {
           children: [
             // Social Media FAB (Left)
             SpeedDial(
-
               child: const Icon(Icons.public),
               speedDialChildren: <SpeedDialChild>[
                 SpeedDialChild(
@@ -359,7 +341,6 @@ class _WelcomePageState extends State<WelcomePage> {
             ),
             // Support FAB (Right)
             SpeedDial(
-
               child: const Icon(Icons.support_agent),
               speedDialChildren: <SpeedDialChild>[
                 SpeedDialChild(
@@ -429,10 +410,7 @@ class _WelcomePageState extends State<WelcomePage> {
 
   Widget _buildLoginCard() {
     final screenWidth = MediaQuery.of(context).size.width;
-    // --- MODIFICATION START ---
-    // Doubled the image size parameters while keeping it dynamic.
     final logoSize = math.min(screenWidth * 0.5, 240.0);
-    // --- MODIFICATION END ---
 
     return Card(
       child: Padding(
@@ -451,6 +429,7 @@ class _WelcomePageState extends State<WelcomePage> {
                   color: Theme.of(context).primaryColor),
             ),
             const SizedBox(height: 48),
+            // 1. Teacher Login Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -464,6 +443,7 @@ class _WelcomePageState extends State<WelcomePage> {
               ),
             ),
             const SizedBox(height: 20),
+            // 2. Student Login Button
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -476,6 +456,31 @@ class _WelcomePageState extends State<WelcomePage> {
                 },
               ),
             ),
+            const SizedBox(height: 20),
+            // 3. --- NEW: PWA Install Button ---
+            // This button only shows up if the `_isInstallable` flag is true.
+            if (_isInstallable)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.download_for_offline_outlined),
+                  label: const Text('تثبيت كتطبيق موبيل'),
+                  onPressed: _showInstallPrompt,
+                  // Custom styling to make it stand out as requested.
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF00897B), // A distinct teal color
+                    side: const BorderSide(color: Color(0xFF00897B), width: 2),
+                    shape:
+                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+                    textStyle: const TextStyle(
+                      fontFamily: 'Cairo',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -618,15 +623,11 @@ class _LoginPageState extends State<LoginPage> {
     final isTeacher = widget.accountType == 'teacher';
     final portalName = isTeacher ? 'بوابة المعلمين' : 'بوابة الطلاب';
     final screenWidth = MediaQuery.of(context).size.width;
-    // --- MODIFICATION START ---
-    // Doubled the image size parameters while keeping it dynamic.
-    final logoSize = math.min(screenWidth * 0.5, 240.0);
-    // --- MODIFICATION END ---
+    final logoSize = math.min(screenWidth * 0.4, 200.0);
 
-
-    // ---=== التعديل الثاني: إزالة الشريط العلوي (AppBar) ===---
     return Scaffold(
-      body: SafeArea( // استخدام SafeArea
+      body: SafeArea(
+        // The structure that combines centering and scrolling when needed (solves keyboard issue)
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
@@ -640,7 +641,6 @@ class _LoginPageState extends State<LoginPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
-                        // ---=== إضافة زر الرجوع يدوياً ===---
                         Align(
                           alignment: Alignment.topLeft,
                           child: IconButton(
@@ -688,8 +688,6 @@ class _LoginPageState extends State<LoginPage> {
                               : ElevatedButton(
                               onPressed: _signIn,
                               child: const Text('تسجيل دخول')),
-                          //lghp
-
                         ),
                       ],
                     ),
