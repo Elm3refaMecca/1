@@ -7,26 +7,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:intl/date_symbol_data_local.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'dart:math' as math; // استيراد مكتبة الرياضيات لتحديد الحجم الأقصى
 
-// --- MODIFIED: Added simple_speed_dial package import ---
 import 'package:simple_speed_dial/simple_speed_dial.dart';
 
 import 'package:almarefamecca/add.dart' deferred as add_page;
 import 'package:almarefamecca/student_view.dart' deferred as student_view_page;
 import 'package:almarefamecca/firebase_options.dart';
 
-
+// --- MODIFIED: DeferredLoader now accepts a function to enable retries ---
 class DeferredLoader extends StatefulWidget {
-  final Future<void> libraryFuture;
+  final Future<void> Function() libraryLoader;
   final Widget Function() builder;
 
   const DeferredLoader({
-    required this.libraryFuture,
+    required this.libraryLoader,
     required this.builder,
-    super.key
+    super.key,
   });
 
   @override
@@ -34,14 +31,60 @@ class DeferredLoader extends StatefulWidget {
 }
 
 class _DeferredLoaderState extends State<DeferredLoader> {
+  late Future<void> _loadFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFuture = widget.libraryLoader();
+  }
+
+  void _retry() {
+    setState(() {
+      // By calling the loader function again, we create a new Future to retry the operation.
+      _loadFuture = widget.libraryLoader();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future: widget.libraryFuture,
+    return FutureBuilder<void>(
+      future: _loadFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
           if (snapshot.hasError) {
-            return Scaffold(body: Center(child: Text('حدث خطأ أثناء تحميل الصفحة: ${snapshot.error}')));
+            // --- NEW: Error screen with a retry button ---
+            return Scaffold(
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 60),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'حدث خطأ أثناء تحميل الصفحة.',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'قد يكون هذا بسبب ضعف اتصال الإنترنت. يرجى المحاولة مرة أخرى.',
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 30),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.refresh),
+                        onPressed: _retry,
+                        label: const Text('إعادة المحاولة'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
           }
           return widget.builder();
         }
@@ -53,9 +96,7 @@ class _DeferredLoaderState extends State<DeferredLoader> {
 
 Future<void> _launchUrlHelper(String url) async {
   final Uri uri = Uri.parse(url);
-  if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-    throw 'Could not launch $url';
-  }
+
 }
 
 void main() async {
@@ -63,7 +104,6 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await initializeDateFormatting('ar', null);
   runApp(const TeacherLoginApp());
 }
 
@@ -166,12 +206,13 @@ class TeacherLoginApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const AuthWrapper(),
+        // --- MODIFIED: Passing functions instead of futures to DeferredLoader ---
         '/add': (context) => DeferredLoader(
-          libraryFuture: add_page.loadLibrary(),
+          libraryLoader: add_page.loadLibrary,
           builder: () => add_page.AddPage(),
         ),
         '/student_view': (context) => DeferredLoader(
-          libraryFuture: student_view_page.loadLibrary(),
+          libraryLoader: student_view_page.loadLibrary,
           builder: () => student_view_page.StudentViewPage(),
         ),
       },
@@ -226,12 +267,12 @@ class AuthWrapper extends StatelessWidget {
               switch (roleSnapshot.data) {
                 case 'teacher':
                   return DeferredLoader(
-                    libraryFuture: add_page.loadLibrary(),
+                    libraryLoader: add_page.loadLibrary,
                     builder: () => add_page.AddPage(),
                   );
                 case 'student':
                   return DeferredLoader(
-                    libraryFuture: student_view_page.loadLibrary(),
+                    libraryLoader: student_view_page.loadLibrary,
                     builder: () => student_view_page.StudentViewPage(),
                   );
                 default:
@@ -260,7 +301,6 @@ class _WelcomePageState extends State<WelcomePage> {
   @override
   void initState() {
     super.initState();
-    // التحقق مما إذا كان التطبيق قابلاً للتثبيت
     js.context['pwa-installable-listener'] = (event) {
       final isReady = js.context['isInstallable'];
       if (mounted && _isInstallable != isReady) {
@@ -269,17 +309,13 @@ class _WelcomePageState extends State<WelcomePage> {
         });
       }
     };
-    // إضافة المستمع إلى حدث 'pwa-installable'
     js.context.callMethod('addEventListener', ['pwa-installable', js.context['pwa-installable-listener']]);
-
-    // تعيين القيمة الأولية إذا كانت متاحة
     if (js.context.hasProperty('isInstallable')) {
       _isInstallable = js.context['isInstallable'];
     }
   }
 
   void _showInstallPrompt() {
-    // استدعاء دالة JavaScript لفتح نافذة التثبيت
     js.context.callMethod('showInstallPrompt');
   }
 
@@ -315,7 +351,6 @@ class _WelcomePageState extends State<WelcomePage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Social Media FAB (Left)
             SpeedDial(
               child: const Icon(Icons.public),
               speedDialChildren: <SpeedDialChild>[
@@ -339,7 +374,6 @@ class _WelcomePageState extends State<WelcomePage> {
                 ),
               ],
             ),
-            // Support FAB (Right)
             SpeedDial(
               child: const Icon(Icons.support_agent),
               speedDialChildren: <SpeedDialChild>[
@@ -429,7 +463,6 @@ class _WelcomePageState extends State<WelcomePage> {
                   color: Theme.of(context).primaryColor),
             ),
             const SizedBox(height: 48),
-            // 1. زر دخول المعلمين
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -443,7 +476,6 @@ class _WelcomePageState extends State<WelcomePage> {
               ),
             ),
             const SizedBox(height: 20),
-            // 2. زر دخول الطلاب
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -457,7 +489,6 @@ class _WelcomePageState extends State<WelcomePage> {
               ),
             ),
             const SizedBox(height: 20),
-            // 3. زر تثبيت التطبيق (تم تعديل تنسيقه ليكون مثل الأزرار الأخرى)
             if (_isInstallable)
               SizedBox(
                 width: double.infinity,
@@ -465,9 +496,8 @@ class _WelcomePageState extends State<WelcomePage> {
                   icon: const Icon(Icons.download_for_offline_outlined, size: 28),
                   label: const Text('ثبت التطبيق الان'),
                   onPressed: _showInstallPrompt,
-                  // تنسيق متناسق مع باقي الأزرار ولكن بلون مختلف للتمييز
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF00897B), // لون مميز (أخضر مائل للزرقة)
+                    foregroundColor: const Color(0xFF00897B),
                     side: const BorderSide(color: Color(0xFF00897B), width: 2),
                     shape:
                     RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -500,7 +530,7 @@ class _WelcomePageState extends State<WelcomePage> {
             _buildFooterColumn(
               'للشكاوي والملاحظات',
               [
-                'مدير المدرسة: أ/ عبدالله المطرفي (966539547972+)',
+                'مدير المدرسة: عبدالله المطرفي (966539547972+)',
                 'وكيل الشئون التعليمية: أ/عماد الجندي (966502361091+)',
                 'وكيل المدرسة: ا عصام المطرفي (966501468550+)',
                 'موجه الطلاب: أ عبدالرحمن عثمان (966500971015+)',
@@ -622,73 +652,73 @@ class _LoginPageState extends State<LoginPage> {
     final isTeacher = widget.accountType == 'teacher';
     final portalName = isTeacher ? 'بوابة المعلمين' : 'بوابة الطلاب';
     final screenWidth = MediaQuery.of(context).size.width;
-    final logoSize = math.min(screenWidth * 0.4, 180.0); // Slightly smaller logo for more space
+    final logoSize = math.min(screenWidth * 0.4, 180.0);
 
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 450),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0), // Reduced padding inside card
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Align(
-                          alignment: Alignment.topLeft,
-                          child: IconButton(
-                            icon: const Icon(Icons.arrow_back_ios),
-                            onPressed: () => Navigator.of(context).pop(),
-                          ),
+        // --- MODIFIED: Removed Center and adjusted the structure ---
+        // This makes the view align to the top and scroll naturally without the large gap.
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 450),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Align(
+                        alignment: Alignment.topLeft,
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_ios),
+                          onPressed: () => Navigator.of(context).pop(),
                         ),
-                        Image.asset('assets/m1.png', height: logoSize, width: logoSize),
-                        const SizedBox(height: 16), // MODIFIED: Reduced space
-                        Text(portalName,
-                            style: TextStyle(
-                                fontSize: 24, // Slightly smaller text
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor)),
-                        const SizedBox(height: 24), // MODIFIED: Reduced space
-                        TextFormField(
-                          controller: _emailController,
-                          decoration: const InputDecoration(
-                              labelText: 'البريد الإلكتروني',
-                              prefixIcon: Icon(Icons.email_outlined)),
-                          validator: (value) => value!.isEmpty
-                              ? 'الرجاء إدخال البريد الإلكتروني'
-                              : null,
-                          keyboardType: TextInputType.emailAddress,
-                          textDirection: TextDirection.ltr,
-                          textAlign: TextAlign.left,
-                        ),
-                        const SizedBox(height: 12), // MODIFIED: Reduced space
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                              labelText: 'كلمة المرور',
-                              prefixIcon: Icon(Icons.lock_outline)),
-                          validator: (value) =>
-                          value!.isEmpty ? 'الرجاء إدخال كلمة المرور' : null,
-                          textDirection: TextDirection.ltr,
-                          textAlign: TextAlign.left,
-                        ),
-                        const SizedBox(height: 24), // MODIFIED: Reduced space
-                        SizedBox(
-                          width: double.infinity,
-                          child: _isLoading
-                              ? const Center(child: CircularProgressIndicator())
-                              : ElevatedButton(
-                              onPressed: _signIn,
-                              child: const Text('تسجيل دخول')),
-                        ),
-                      ],
-                    ),
+                      ),
+                      Image.asset('assets/m1.png', height: logoSize, width: logoSize),
+                      const SizedBox(height: 24),
+                      Text(portalName,
+                          style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).primaryColor)),
+                      const SizedBox(height: 32),
+                      TextFormField(
+                        controller: _emailController,
+                        decoration: const InputDecoration(
+                            labelText: 'البريد الإلكتروني',
+                            prefixIcon: Icon(Icons.email_outlined)),
+                        validator: (value) => value!.isEmpty
+                            ? 'الرجاء إدخال البريد الإلكتروني'
+                            : null,
+                        keyboardType: TextInputType.emailAddress,
+                        textDirection: TextDirection.ltr,
+                        textAlign: TextAlign.left,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                            labelText: 'كلمة المرور',
+                            prefixIcon: Icon(Icons.lock_outline)),
+                        validator: (value) =>
+                        value!.isEmpty ? 'الرجاء إدخال كلمة المرور' : null,
+                        textDirection: TextDirection.ltr,
+                        textAlign: TextAlign.left,
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : ElevatedButton(
+                            onPressed: _signIn,
+                            child: const Text('تسجيل دخول')),
+                      ),
+                    ],
                   ),
                 ),
               ),
