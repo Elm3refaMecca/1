@@ -457,13 +457,13 @@ class _WelcomePageState extends State<WelcomePage> {
               ),
             ),
             const SizedBox(height: 20),
-            // 3. --- MODIFIED: PWA Install Button with new text and larger icon ---
+            // 3. زر تثبيت التطبيق (تم تعديل تنسيقه ليكون مثل الأزرار الأخرى)
             if (_isInstallable)
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.download_for_offline_outlined, size: 28), // Larger icon
-                  label: const Text('ثبت التطبيق الان'), // New text
+                  icon: const Icon(Icons.download_for_offline_outlined, size: 28),
+                  label: const Text('ثبت التطبيق الان'),
                   onPressed: _showInstallPrompt,
                   // تنسيق متناسق مع باقي الأزرار ولكن بلون مختلف للتمييز
                   style: OutlinedButton.styleFrom(
@@ -500,7 +500,7 @@ class _WelcomePageState extends State<WelcomePage> {
             _buildFooterColumn(
               'للشكاوي والملاحظات',
               [
-                'مدير المدرسة: عبدالله المطرفي (966539547972+)',
+                'مدير المدرسة: أ/ عبدالله المطرفي (966539547972+)',
                 'وكيل الشئون التعليمية: أ/عماد الجندي (966502361091+)',
                 'وكيل المدرسة: ا عصام المطرفي (966501468550+)',
                 'موجه الطلاب: أ عبدالرحمن عثمان (966500971015+)',
@@ -622,13 +622,10 @@ class _LoginPageState extends State<LoginPage> {
     final isTeacher = widget.accountType == 'teacher';
     final portalName = isTeacher ? 'بوابة المعلمين' : 'بوابة الطلاب';
     final screenWidth = MediaQuery.of(context).size.width;
-    final logoSize = math.min(screenWidth * 0.4, 200.0);
+    final logoSize = math.min(screenWidth * 0.4, 180.0); // Slightly smaller logo for more space
 
     return Scaffold(
       body: SafeArea(
-        // --- MODIFIED: Wrapped the content in a Center and SingleChildScrollView ---
-        // This structure ensures the content is centered but becomes scrollable
-        // when the keyboard appears, preventing the UI from being pushed off-screen.
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
@@ -636,7 +633,7 @@ class _LoginPageState extends State<LoginPage> {
               constraints: const BoxConstraints(maxWidth: 450),
               child: Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(32.0),
+                  padding: const EdgeInsets.all(24.0), // Reduced padding inside card
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -650,13 +647,13 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         Image.asset('assets/m1.png', height: logoSize, width: logoSize),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 16), // MODIFIED: Reduced space
                         Text(portalName,
                             style: TextStyle(
-                                fontSize: 26,
+                                fontSize: 24, // Slightly smaller text
                                 fontWeight: FontWeight.bold,
                                 color: Theme.of(context).primaryColor)),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24), // MODIFIED: Reduced space
                         TextFormField(
                           controller: _emailController,
                           decoration: const InputDecoration(
@@ -669,7 +666,7 @@ class _LoginPageState extends State<LoginPage> {
                           textDirection: TextDirection.ltr,
                           textAlign: TextAlign.left,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12), // MODIFIED: Reduced space
                         TextFormField(
                           controller: _passwordController,
                           obscureText: true,
@@ -681,7 +678,7 @@ class _LoginPageState extends State<LoginPage> {
                           textDirection: TextDirection.ltr,
                           textAlign: TextAlign.left,
                         ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 24), // MODIFIED: Reduced space
                         SizedBox(
                           width: double.infinity,
                           child: _isLoading
