@@ -260,8 +260,8 @@ class _WelcomePageState extends State<WelcomePage> {
   @override
   void initState() {
     super.initState();
-    // This function allows JavaScript to call back into Dart to update the state.
-    js.context['pwaInstallableListener'] = (event) {
+    // التحقق مما إذا كان التطبيق قابلاً للتثبيت
+    js.context['pwa-installable-listener'] = (event) {
       final isReady = js.context['isInstallable'];
       if (mounted && _isInstallable != isReady) {
         setState(() {
@@ -269,17 +269,17 @@ class _WelcomePageState extends State<WelcomePage> {
         });
       }
     };
-    // This tells the browser to call our Dart function whenever the 'pwa-installable' event occurs.
-    js.context.callMethod('addEventListener', ['pwa-installable', js.context['pwaInstallableListener']]);
+    // إضافة المستمع إلى حدث 'pwa-installable'
+    js.context.callMethod('addEventListener', ['pwa-installable', js.context['pwa-installable-listener']]);
 
-    // Check the initial value when the widget is first created.
+    // تعيين القيمة الأولية إذا كانت متاحة
     if (js.context.hasProperty('isInstallable')) {
       _isInstallable = js.context['isInstallable'];
     }
   }
 
   void _showInstallPrompt() {
-    // This calls the JavaScript function that triggers the browser's install prompt.
+    // استدعاء دالة JavaScript لفتح نافذة التثبيت
     js.context.callMethod('showInstallPrompt');
   }
 
@@ -429,7 +429,7 @@ class _WelcomePageState extends State<WelcomePage> {
                   color: Theme.of(context).primaryColor),
             ),
             const SizedBox(height: 48),
-            // 1. Teacher Login Button
+            // 1. زر دخول المعلمين
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -443,7 +443,7 @@ class _WelcomePageState extends State<WelcomePage> {
               ),
             ),
             const SizedBox(height: 20),
-            // 2. Student Login Button
+            // 2. زر دخول الطلاب
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -457,18 +457,17 @@ class _WelcomePageState extends State<WelcomePage> {
               ),
             ),
             const SizedBox(height: 20),
-            // 3. --- NEW: PWA Install Button ---
-            // This button only shows up if the `_isInstallable` flag is true.
+            // 3. --- MODIFIED: PWA Install Button with new text and larger icon ---
             if (_isInstallable)
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.download_for_offline_outlined),
-                  label: const Text('تثبيت كتطبيق موبيل'),
+                  icon: const Icon(Icons.download_for_offline_outlined, size: 28), // Larger icon
+                  label: const Text('ثبت التطبيق الان'), // New text
                   onPressed: _showInstallPrompt,
-                  // Custom styling to make it stand out as requested.
+                  // تنسيق متناسق مع باقي الأزرار ولكن بلون مختلف للتمييز
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF00897B), // A distinct teal color
+                    foregroundColor: const Color(0xFF00897B), // لون مميز (أخضر مائل للزرقة)
                     side: const BorderSide(color: Color(0xFF00897B), width: 2),
                     shape:
                     RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -627,7 +626,9 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       body: SafeArea(
-        // The structure that combines centering and scrolling when needed (solves keyboard issue)
+        // --- MODIFIED: Wrapped the content in a Center and SingleChildScrollView ---
+        // This structure ensures the content is centered but becomes scrollable
+        // when the keyboard appears, preventing the UI from being pushed off-screen.
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
