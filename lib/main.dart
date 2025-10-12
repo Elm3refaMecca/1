@@ -564,75 +564,86 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       body: SafeArea(
-        // --- MODIFIED: Center the content and make it scrollable ---
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 450),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Align(
-                          alignment: Alignment.topLeft,
-                          child: IconButton(
-                            icon: const Icon(Icons.arrow_back_ios),
-                            onPressed: () => Navigator.of(context).pop(),
+        // --- MODIFIED: The new layout structure to prevent keyboard UI jump ---
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight, // Ensures scrollable area is at least the screen height
+                ),
+                child: IntrinsicHeight(
+                  child: Center( // Centers the card within the full-height scrollable area
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 450),
+                      child: Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: <Widget>[
+                                Align(
+                                  alignment: Alignment.topLeft,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.arrow_back_ios),
+                                    onPressed: () => Navigator.of(context).pop(),
+                                  ),
+                                ),
+                                Image.asset('assets/m1.png', height: logoSize, width: logoSize),
+                                const SizedBox(height: 24),
+                                Text(portalName,
+                                    style: TextStyle(
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.bold,
+                                        color: Theme.of(context).primaryColor)),
+                                const SizedBox(height: 32),
+                                TextFormField(
+                                  controller: _emailController,
+                                  decoration: const InputDecoration(
+                                      labelText: 'البريد الإلكتروني',
+                                      prefixIcon: Icon(Icons.email_outlined)),
+                                  validator: (value) => value!.isEmpty
+                                      ? 'الرجاء إدخال البريد الإلكتروني'
+                                      : null,
+                                  keyboardType: TextInputType.emailAddress,
+                                  textDirection: TextDirection.ltr,
+                                  textAlign: TextAlign.left,
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  controller: _passwordController,
+                                  obscureText: true,
+                                  decoration: const InputDecoration(
+                                      labelText: 'كلمة المرور',
+                                      prefixIcon: Icon(Icons.lock_outline)),
+                                  validator: (value) =>
+                                  value!.isEmpty ? 'الرجاء إدخال كلمة المرور' : null,
+                                  textDirection: TextDirection.ltr,
+                                  textAlign: TextAlign.left,
+                                ),
+                                const SizedBox(height: 32),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: _isLoading
+                                      ? const Center(child: CircularProgressIndicator())
+                                      : ElevatedButton(
+                                      onPressed: _signIn,
+                                      child: const Text('تسجيل دخول')),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                        Image.asset('assets/m1.png', height: logoSize, width: logoSize),
-                        const SizedBox(height: 24),
-                        Text(portalName,
-                            style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor)),
-                        const SizedBox(height: 32),
-                        TextFormField(
-                          controller: _emailController,
-                          decoration: const InputDecoration(
-                              labelText: 'البريد الإلكتروني',
-                              prefixIcon: Icon(Icons.email_outlined)),
-                          validator: (value) => value!.isEmpty
-                              ? 'الرجاء إدخال البريد الإلكتروني'
-                              : null,
-                          keyboardType: TextInputType.emailAddress,
-                          textDirection: TextDirection.ltr,
-                          textAlign: TextAlign.left,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                              labelText: 'كلمة المرور',
-                              prefixIcon: Icon(Icons.lock_outline)),
-                          validator: (value) =>
-                          value!.isEmpty ? 'الرجاء إدخال كلمة المرور' : null,
-                          textDirection: TextDirection.ltr,
-                          textAlign: TextAlign.left,
-                        ),
-                        const SizedBox(height: 32),
-                        SizedBox(
-                          width: double.infinity,
-                          child: _isLoading
-                              ? const Center(child: CircularProgressIndicator())
-                              : ElevatedButton(
-                              onPressed: _signIn,
-                              child: const Text('تسجيل دخول')),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

@@ -1,5 +1,6 @@
 // student_view.dart
 
+import 'dart:async'; // <-- Required for the marquee timer
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -373,11 +374,12 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: GridView.count(
-        crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 3,
+      // --- MODIFIED: Replaced GridView.count with GridView.extent for responsiveness ---
+      child: GridView.extent(
+        maxCrossAxisExtent: 150, // Each item will have a maximum width of 150
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 0.9, // Adjust aspect ratio for better look
+        childAspectRatio: 0.9,
         children: [
           _buildDashboardButton(
             title: 'النتائج والتحليل',
@@ -471,7 +473,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // --- MODIFIED: Redesigned dashboard button ---
+  // --- MODIFIED: Redesigned dashboard button with marquee title ---
   Widget _buildDashboardButton({
     required String title,
     required IconData icon,
@@ -507,15 +509,31 @@ class _StudentViewPageState extends State<StudentViewPage>
                 const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                  child: Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                  // --- MODIFIED: Logic to use marquee for overflowing text ---
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      const style = TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      );
+                      final painter = TextPainter(
+                        text: TextSpan(text: title, style: style),
+                        maxLines: 1,
+                        textDirection: TextDirection.rtl,
+                      )..layout();
+
+                      if (painter.width > constraints.maxWidth) {
+                        return _MarqueeText(text: title, style: style);
+                      } else {
+                        return Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          style: style,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      }
+                    },
                   ),
                 ),
               ],
@@ -2113,6 +2131,77 @@ class _PerformanceTrendChart extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 8.0),
       child: Text('الاختبار ${value.toInt() + 1}', style: style),
+    );
+  }
+}
+
+// --- NEW: Widget for scrolling (marquee) text ---
+class _MarqueeText extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  const _MarqueeText({required this.text, required this.style});
+  @override
+  _MarqueeTextState createState() => _MarqueeTextState();
+}
+
+class _MarqueeTextState extends State<_MarqueeText> {
+  late ScrollController _scrollController;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startScrolling());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _startScrolling() {
+    if (!mounted || !_scrollController.hasClients || !_scrollController.position.hasContentDimensions || _scrollController.position.maxScrollExtent == 0) {
+      return;
+    }
+    _timer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      await _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: Duration(milliseconds: (60 * _scrollController.position.maxScrollExtent).toInt()),
+        curve: Curves.ease,
+      );
+      await Future.delayed(const Duration(seconds: 2));
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      await _scrollController.animateTo(
+        0.0,
+        duration: Duration(milliseconds: (60 * _scrollController.position.maxScrollExtent).toInt()),
+        curve: Curves.ease,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      controller: _scrollController,
+      physics: const NeverScrollableScrollPhysics(),
+      child: Text(
+        widget.text,
+        style: widget.style,
+        maxLines: 1,
+        softWrap: false, // Prevent wrapping to ensure horizontal scroll
+      ),
     );
   }
 }
