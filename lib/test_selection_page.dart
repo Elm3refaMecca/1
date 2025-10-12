@@ -1,8 +1,8 @@
 import 'dart:async'; // <-- إضافة مهمة للتعامل مع StreamSubscription
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-// --- MODIFIED: Deferred import for GradeEntryPage ---
-import 'package:almarefamecca/grade_entry_page.dart' deferred as grade_entry;
+// --- MODIFIED: Direct import for GradeEntryPage ---
+import 'package:almarefamecca/grade_entry_page.dart';
 
 
 class TestItem {
@@ -17,69 +17,7 @@ class TestItem {
   });
 }
 
-// --- NEW: Helper widget to load GradeEntryPage library ---
-class _GradeEntryLoader extends StatefulWidget {
-  final String stage;
-  final String grade;
-  final String className;
-  final String subject;
-  final String testFieldKey;
-  final String testName;
-  final bool isBehaviorMode;
-
-  const _GradeEntryLoader({
-    required this.stage,
-    required this.grade,
-    required this.className,
-    required this.subject,
-    required this.testFieldKey,
-    required this.testName,
-    required this.isBehaviorMode,
-  });
-
-  @override
-  _GradeEntryLoaderState createState() => _GradeEntryLoaderState();
-}
-
-class _GradeEntryLoaderState extends State<_GradeEntryLoader> {
-  bool _isLibraryLoaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    await grade_entry.loadLibrary();
-    if (mounted) {
-      setState(() {
-        _isLibraryLoaded = true;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLibraryLoaded) {
-      return grade_entry.GradeEntryPage(
-        stage: widget.stage,
-        grade: widget.grade,
-        className: widget.className,
-        subject: widget.subject,
-        testFieldKey: widget.testFieldKey,
-        testName: widget.testName,
-        isBehaviorMode: widget.isBehaviorMode,
-      );
-    } else {
-      // Return a loading screen while the library is loading
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-  }
-}
-
+// --- REMOVED: _GradeEntryLoader widget is no longer needed ---
 
 class TestSelectionPage extends StatelessWidget {
   final String stage;
@@ -140,10 +78,10 @@ class TestSelectionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // --- MODIFIED: Use the loader widget for deferred loading ---
+    // --- MODIFIED: Navigate directly to GradeEntryPage ---
     if (isBehaviorMode) {
-      // For behavior mode, navigate directly to a loader which will then show the page.
-      return _GradeEntryLoader(
+      // For behavior mode, navigate directly to the page.
+      return GradeEntryPage(
         stage: stage,
         grade: grade,
         className: className,
@@ -201,7 +139,7 @@ class TestSelectionPage extends StatelessWidget {
           return _TestTile(
             test: test,
             isAdmin: isAdmin,
-            // --- MODIFIED: onTap now uses the loader widget for navigation ---
+            // --- MODIFIED: onTap now navigates directly ---
             onTap: (isLocked) {
               if (isLocked && !isAdmin) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -211,7 +149,7 @@ class TestSelectionPage extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => _GradeEntryLoader( // Use the loader
+                    builder: (context) => GradeEntryPage(
                       stage: stage,
                       grade: grade,
                       className: className,

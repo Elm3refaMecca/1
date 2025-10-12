@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// --- MODIFIED: Deferred imports for image picking/uploading ---
-import 'dart:io' deferred as io;
-import 'package:firebase_storage/firebase_storage.dart' deferred as storage;
-import 'package:image_picker/image_picker.dart' deferred as image_picker;
+// --- MODIFIED: Direct imports for image picking/uploading ---
+import 'dart:io';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 
 class ProfilePage extends StatefulWidget {
@@ -48,26 +48,19 @@ class _ProfilePageState extends State<ProfilePage> {
 
   /// Picks an image from the gallery and uploads it to Firebase Storage.
   /// The storage path is 'photosT/{userId}.jpg' to match security rules.
-  // --- MODIFIED: with Deferred Loading ---
+  // --- MODIFIED: with direct imports ---
   Future<void> _pickAndUploadImage() async {
-    // Load necessary libraries on demand
-    await Future.wait([
-      io.loadLibrary(),
-      storage.loadLibrary(),
-      image_picker.loadLibrary(),
-    ]);
-
-    final picker = image_picker.ImagePicker();
-    final pickedFile = await picker.pickImage(source: image_picker.ImageSource.gallery, imageQuality: 50);
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
 
     if (pickedFile == null) return;
 
     setState(() => _isUploading = true);
 
     try {
-      final file = io.File(pickedFile.path);
+      final file = File(pickedFile.path);
 
-      final ref = storage.FirebaseStorage.instance.ref('photosT/${_user!.uid}.jpg');
+      final ref = FirebaseStorage.instance.ref('photosT/${_user!.uid}.jpg');
 
       await ref.putFile(file);
       final url = await ref.getDownloadURL();
