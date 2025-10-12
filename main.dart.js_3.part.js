@@ -132,7 +132,7 @@ u=w}u=v.c=u.a4u(v.d,v.e)}return A.a5P(v,u.IJ(d.length===0?"/":d))},
 k(d,e){if(e==null)return!1
 return e instanceof A.Cc&&e.d.a.a===this.d.a.a&&e.e===this.e},
 gq(d){return B.Y(this.d.a.a,this.e,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c)},
-j(d){return D.buN.j(0)+"(app: "+this.d.a.a+", bucket: "+this.e+")"}}
+j(d){return D.buM.j(0)+"(app: "+this.d.a.a+", bucket: "+this.e+")"}}
 A.MS.prototype={
 kN(){return this.a.kN()},
 aLa(d){var w=this.a.a7P(d,null)
@@ -141,7 +141,7 @@ return new A.a8Z(w,this.b)},
 k(d,e){if(e==null)return!1
 return e instanceof A.MS&&e.a.a.a===this.a.a.a&&e.b.k(0,this.b)},
 gq(d){return B.Y(this.b,this.a.a.a,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c)},
-j(d){return D.bv5.j(0)+"(app: "+this.b.d.a.a+", fullPath: "+this.a.a.a+")"}}
+j(d){return D.bv4.j(0)+"(app: "+this.b.d.a.a+", fullPath: "+this.a.a.a+")"}}
 A.a8d.prototype={
 ld(d,e){return this.aBP(d,e)},
 lT(d){return this.ld(d,null)},
@@ -183,7 +183,7 @@ return w},
 gq(d){var w=this.b
 return B.Y(w,A.a5P(w,this.a.gII()),C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c,C.c)},
 j(d){var w=this.a
-return D.bve.j(0)+"(ref: "+A.a5P(this.b,w.gII()).j(0)+", state: "+w.a.j(0)+")"}}
+return D.bvd.j(0)+"(ref: "+A.a5P(this.b,w.gII()).j(0)+", state: "+w.a.j(0)+")"}}
 A.awx.prototype={}
 A.Ls.prototype={
 a4u(d,e){var w,v=d.a.a+"|"+e,u=$.bwA,t=u.h(0,v)
@@ -229,7 +229,7 @@ return A.bwD(w,this.b,this.a.a,d,e)}}
 A.aDk.prototype={
 agK(d,e,f,g){var w=this,v=new A.aDn(w,f).$0()
 w.e=B.bkg(v,new A.aDl(),new A.aDm(),B.n(v).i("cJ.T"))
-w.x=A.bwF(w.w,D.Bi,B.a6(["path",f,"bytesTransferred",0,"totalBytes",1],x.N,x.A))},
+w.x=A.bwF(w.w,D.Bh,B.a6(["path",f,"bytesTransferred",0,"totalBytes",1],x.N,x.A))},
 gBz(d){var w=0,v=B.K(x.i),u,t=this,s
 var $async$gBz=B.G(function(e,f){if(e===1)return B.H(f,v)
 while(true)switch(w){case 0:s=t.c
@@ -337,7 +337,7 @@ aLt(d,e){var w=0,v=B.K(x.N),u,t,s,r,q,p
 var $async$IK=B.G(function(f,g){if(f===1)return B.H(g,v)
 while(true)switch(w){case 0:p=x.z
 w=3
-return B.P(new B.eM("dev.flutter.pigeon.firebase_storage_platform_interface.FirebaseStorageHostApi.referenceGetDownloadURL",D.Df,null,x.q).fg(0,[d,e]),$async$IK)
+return B.P(new B.eM("dev.flutter.pigeon.firebase_storage_platform_interface.FirebaseStorageHostApi.referenceGetDownloadURL",D.De,null,x.q).fg(0,[d,e]),$async$IK)
 case 3:q=p.a(g)
 if(q==null)throw B.c(B.cT("channel-error",null,y.e,null))
 else{t=J.a4(q)
@@ -357,7 +357,7 @@ aLu(d,e,f,g,h){var w=0,v=B.K(x.N),u,t,s,r,q,p
 var $async$IL=B.G(function(i,j){if(i===1)return B.H(j,v)
 while(true)switch(w){case 0:p=x.z
 w=3
-return B.P(new B.eM("dev.flutter.pigeon.firebase_storage_platform_interface.FirebaseStorageHostApi.referencePutFile",D.Df,null,x.q).fg(0,[d,e,f,g,h]),$async$IL)
+return B.P(new B.eM("dev.flutter.pigeon.firebase_storage_platform_interface.FirebaseStorageHostApi.referencePutFile",D.De,null,x.q).fg(0,[d,e,f,g,h]),$async$IL)
 case 3:q=p.a(j)
 if(q==null)throw B.c(B.cT("channel-error",null,y.e,null))
 else{t=J.a4(q)
@@ -401,8 +401,8 @@ case 11:w=13
 return B.kD(g.p(),$async$$0,v)
 case 13:if(!b0){w=12
 break}p=g.gM(0)
-o=D.b9P[J.p(p,"taskState")]
-if(o===D.a3k){a4.c=!0
+o=D.b9O[J.p(p,"taskState")]
+if(o===D.a3j){a4.c=!0
 n=B.hJ(J.p(p,"error"),e,d)
 m=J.p(n,"code")
 a0=m
@@ -424,7 +424,7 @@ f=a4.d
 if(f!=null){a4=f.a
 if((a4.a&30)!==0)B.a1(B.aj("Future already completed"))
 a4.oI(B.GO(l,null))}w=12
-break}if(o===D.Bk){a4.c=!0
+break}if(o===D.Bj){a4.c=!0
 a0=B.hJ(J.p(p,"snapshot"),e,d)
 a1=$.VA()
 j=new A.xP(f,a0,o,a0)
@@ -433,9 +433,9 @@ a0.a.set(j,a1)
 k=j
 a4.x=k
 w=12
-break}if(o===D.Bj||o===D.Bi||o===D.a3j){a0=a4.x
+break}if(o===D.Bi||o===D.Bh||o===D.a3i){a0=a4.x
 a0===$&&B.a()
-a0=a0.a!==D.Bk}else a0=!1
+a0=a0.a!==D.Bj}else a0=!1
 w=a0?14:15
 break
 case 14:a0=B.hJ(J.p(p,"snapshot"),e,d)
@@ -448,7 +448,7 @@ a4.x=j
 w=16
 u=[1,9]
 return B.kD(B.bbH(j),$async$$0,v)
-case 16:case 15:if(o===D.Bj){a4.c=!0
+case 16:case 15:if(o===D.Bi){a4.c=!0
 f=a4.d
 if(f!=null){e=a4.x
 e===$&&B.a()
@@ -511,19 +511,19 @@ B.Ag(b.typeUniverse,JSON.parse('{"a8d":{"al":["uO"]},"a8Z":{"al":["uO"]},"a4_":{
 var y={f:"Host platform returned null value for non-null return value.",e:"Unable to establish connection on channel."}
 var x=(function rtii(){var w=B.a5
 return{q:w("eM<w?>"),L:w("c3"),W:w("y<w?>"),K:w("w"),N:w("d"),h:w("uO"),i:w("kr"),M:w("bG<kr>"),v:w("aw<kr>"),y:w("Ae<@>"),A:w("@"),z:w("y<w?>?"),H:w("af<w?,w?>?"),X:w("w?"),u:w("y6?"),T:w("d?")}})();(function constants(){var w=a.makeConstList
-D.Df=new A.aUM()
-D.a3j=new A.uP(0,"paused")
-D.Bi=new A.uP(1,"running")
-D.Bj=new A.uP(2,"success")
-D.Bk=new A.uP(3,"canceled")
-D.a3k=new A.uP(4,"error")
-D.b9P=w([D.a3j,D.Bi,D.Bj,D.Bk,D.a3k],B.a5("r<uP>"))
-D.buN=B.b4("Cc")
-D.bv5=B.b4("MS")
-D.bve=B.b4("uO")})();(function staticFields(){$.b9I=B.t(x.N,B.a5("Cc"))
+D.De=new A.aUM()
+D.a3i=new A.uP(0,"paused")
+D.Bh=new A.uP(1,"running")
+D.Bi=new A.uP(2,"success")
+D.Bj=new A.uP(3,"canceled")
+D.a3j=new A.uP(4,"error")
+D.b9O=w([D.a3i,D.Bh,D.Bi,D.Bj,D.a3j],B.a5("r<uP>"))
+D.buM=B.b4("Cc")
+D.bv4=B.b4("MS")
+D.bvd=B.b4("uO")})();(function staticFields(){$.b9I=B.t(x.N,B.a5("Cc"))
 $.bwA=B.t(x.N,B.a5("Ls"))
 $.bhx=0})();(function lazyInitializers(){var w=a.lazyFinal
 w($,"bLI","bdn",()=>new A.avv())
 w($,"bMC","bdw",()=>new B.w())
 w($,"bMD","VA",()=>new B.w())})()};
-(a=>{a["ntVgsrbjCzBxI+yXNnsGpBDQyDU="]=a.current})($__dart_deferred_initializers__);
+(a=>{a["ZsP+IHPOoGy/+2z+7dwWPeAhxPM="]=a.current})($__dart_deferred_initializers__);
