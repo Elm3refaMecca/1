@@ -15,7 +15,7 @@ import 'package:almarefamecca/add.dart' deferred as add_page;
 import 'package:almarefamecca/student_view.dart' deferred as student_view_page;
 import 'package:almarefamecca/firebase_options.dart';
 
-// --- MODIFIED: DeferredLoader now accepts a function to enable retries ---
+// --- MODIFIED: DeferredLoader now has automatic retries ---
 class DeferredLoader extends StatefulWidget {
   final Future<void> Function() libraryLoader;
   final Widget Function() builder;
@@ -36,13 +36,32 @@ class _DeferredLoaderState extends State<DeferredLoader> {
   @override
   void initState() {
     super.initState();
-    _loadFuture = widget.libraryLoader();
+    _loadFuture = _loadLibraryWithRetries();
   }
 
-  void _retry() {
+  /// This method attempts to load the library, retrying up to 3 times with increasing delays.
+  Future<void> _loadLibraryWithRetries() async {
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await widget.libraryLoader();
+        return; // Success! Exit the loop and complete the Future.
+      } catch (e) {
+        if (attempt >= 3) {
+          // Max retries reached, re-throw the error to be caught by the FutureBuilder.
+          debugPrint('Deferred loading failed after 3 attempts.');
+          rethrow;
+        }
+        // Wait for an increasing amount of time before the next attempt.
+        await Future.delayed(Duration(seconds: attempt));
+      }
+    }
+  }
+
+  /// Called when the user presses the manual retry button.
+  void _manualRetry() {
     setState(() {
-      // By calling the loader function again, we create a new Future to retry the operation.
-      _loadFuture = widget.libraryLoader();
+      // Create a new future to re-trigger the FutureBuilder and the automatic retry logic.
+      _loadFuture = _loadLibraryWithRetries();
     });
   }
 
@@ -53,7 +72,7 @@ class _DeferredLoaderState extends State<DeferredLoader> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
           if (snapshot.hasError) {
-            // --- NEW: Error screen with a retry button ---
+            // This UI is now shown only after all automatic retries have failed.
             return Scaffold(
               body: Center(
                 child: Padding(
@@ -70,14 +89,14 @@ class _DeferredLoaderState extends State<DeferredLoader> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'قد يكون هذا بسبب ضعف اتصال الإنترنت. يرجى المحاولة مرة أخرى.',
+                        'فشل تحميل بعض المكونات الأساسية. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.',
                         style: TextStyle(fontSize: 14, color: Colors.grey),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 30),
                       ElevatedButton.icon(
                         icon: const Icon(Icons.refresh),
-                        onPressed: _retry,
+                        onPressed: _manualRetry,
                         label: const Text('إعادة المحاولة'),
                       ),
                     ],
@@ -86,13 +105,16 @@ class _DeferredLoaderState extends State<DeferredLoader> {
               ),
             );
           }
+          // On success, build the requested page.
           return widget.builder();
         }
+        // While waiting for the future to complete (including during retries), show a loading indicator.
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       },
     );
   }
 }
+
 
 Future<void> _launchUrlHelper(String url) async {
   final Uri uri = Uri.parse(url);
@@ -206,7 +228,6 @@ class TeacherLoginApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const AuthWrapper(),
-        // --- MODIFIED: Passing functions instead of futures to DeferredLoader ---
         '/add': (context) => DeferredLoader(
           libraryLoader: add_page.loadLibrary,
           builder: () => add_page.AddPage(),
@@ -656,8 +677,6 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       body: SafeArea(
-        // --- MODIFIED: Removed Center and adjusted the structure ---
-        // This makes the view align to the top and scroll naturally without the large gap.
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
           child: ConstrainedBox(
