@@ -1,3 +1,5 @@
+// student_view.dart
+
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -367,14 +369,22 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
+  // --- NEW: Helper method to show placeholder messages ---
+  void _showPlaceholderSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   Widget _buildDashboard() {
     final int totalLikes = _studentData?['totalLikes'] ?? 0;
     final int totalDislikes = _studentData?['totalDislikes'] ?? 0;
 
+    // --- MODIFIED: Added all new placeholder buttons to the GridView ---
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: GridView.count(
-        crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 2,
+        crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 3, // Changed to 3 for better fit
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
         childAspectRatio: 1,
@@ -399,6 +409,73 @@ class _StudentViewPageState extends State<StudentViewPage>
             count: totalDislikes,
             onTap: () =>
                 setState(() => _currentView = StudentView.behaviorNotes),
+          ),
+          // --- NEW BUTTONS START HERE ---
+          _buildDashboardButton(
+            title: 'فيزا الطلاب',
+            icon: Icons.credit_card,
+            color: Colors.deepPurple.shade500,
+            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا جدا'),
+          ),
+          _buildDashboardButton(
+            title: 'الكتاب المدرسي',
+            icon: Icons.menu_book,
+            color: Colors.brown.shade500,
+            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+          ),
+          _buildDashboardButton(
+            title: 'الاحتفالات',
+            icon: Icons.celebration,
+            color: Colors.pink.shade500,
+            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+          ),
+          _buildDashboardButton(
+            title: 'استديو الطالب',
+            icon: Icons.photo_library,
+            color: Colors.orange.shade700,
+            onTap: () => _showPlaceholderSnackBar('لا يوجد صور لك متوفرة حالياً.'),
+          ),
+          _buildDashboardButton(
+            title: 'انجازات الطالب',
+            icon: Icons.emoji_events,
+            color: Colors.amber.shade800,
+            onTap: () => _showPlaceholderSnackBar('لا يوجد لديك أي إنجازات مسجلة حالياً.'),
+          ),
+          _buildDashboardButton(
+            title: 'مسابقات الطلاب',
+            icon: Icons.military_tech,
+            color: Colors.lightGreen.shade700,
+            onTap: () => _showPlaceholderSnackBar('لا توجد مسابقات حالية الآن.'),
+          ),
+          _buildDashboardButton(
+            title: 'الإذاعة المدرسية',
+            icon: Icons.mic,
+            color: Colors.cyan.shade600,
+            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+          ),
+          _buildDashboardButton(
+            title: 'دوري كرة القدم',
+            icon: Icons.sports_soccer,
+            color: Colors.black,
+            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+          ),
+          _buildDashboardButton(
+            title: 'دوري الكاراتيه',
+            icon: Icons.sports_kabaddi,
+            color: Colors.red.shade900,
+            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+          ),
+          _buildDashboardButton(
+            title: 'دوري السباحة',
+            icon: Icons.pool,
+            color: Colors.blue.shade900,
+            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+          ),
+          _buildDashboardButton(
+            title: 'المسابقات الرقمية',
+            icon: Icons.laptop_chromebook,
+            color: Colors.grey.shade700,
+            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
           ),
         ],
       ),
@@ -426,9 +503,9 @@ class _StudentViewPageState extends State<StudentViewPage>
               alignment: Alignment.center,
               children: [
                 CircleAvatar(
-                  radius: 32,
+                  radius: 28, // Reduced radius to fit more items
                   backgroundColor: color.withOpacity(0.15),
-                  child: Icon(icon, size: 36, color: color),
+                  child: Icon(icon, size: 30, color: color), // Adjusted icon size
                 ),
                 if (count > 0)
                   Positioned(
@@ -454,14 +531,14 @@ class _StudentViewPageState extends State<StudentViewPage>
                   ),
               ],
             ),
-            const SizedBox(height: 15),
+            const SizedBox(height: 12), // Reduced space
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4.0),
               child: Text(
                 title,
                 textAlign: TextAlign.center,
                 style:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), // Adjusted font size
                 overflow: TextOverflow.ellipsis,
               ),
             ),
