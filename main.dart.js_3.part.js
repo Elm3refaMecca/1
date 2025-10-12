@@ -1,12 +1,12 @@
 ((a,b)=>{a[b]=a[b]||{}})(self,"$__dart_deferred_initializers__")
 $__dart_deferred_initializers__.current=function(a,b,c,$){var J,B,C,A={
-buJ(){var w=$.aN,v=(w==null?$.aN=$.cb():w).cp("[DEFAULT]")
+buL(){var w=$.aN,v=(w==null?$.aN=$.cb():w).cp("[DEFAULT]")
 B.bh(v,$.cF(),!0)
-return A.buK(new B.bX(v))},
-buK(d){var w,v,u,t,s=d.a,r=s.b.r
+return A.buM(new B.bX(v))},
+buM(d){var w,v,u,t,s=d.a,r=s.b.r
 if(r==null){w=s.a
-if(w==="[DEFAULT]")A.bms("No default storage bucket could be found. Ensure you have correctly followed the Getting Started guide.")
-else A.bms("No storage bucket could be found for the app '"+w+"'. Ensure you have set the [storageBucket] on [FirebaseOptions] whilst initializing the secondary Firebase app.")}r.toString
+if(w==="[DEFAULT]")A.bmu("No default storage bucket could be found. Ensure you have correctly followed the Getting Started guide.")
+else A.bmu("No storage bucket could be found for the app '"+w+"'. Ensure you have set the [storageBucket] on [FirebaseOptions] whilst initializing the secondary Firebase app.")}r.toString
 if(C.p.cJ(r,"gs://"))v=C.p.rg(r,"gs://","")
 else v=r
 s=s.a
@@ -18,7 +18,7 @@ t=new A.Cc(d,v,s,"plugins.flutter.io/firebase_storage")
 $.cw().l(0,t,r)
 $.b9I.l(0,u,t)
 return t},
-bms(d){throw B.c(B.tk("no-bucket",d,"firebase_storage"))},
+bmu(d){throw B.c(B.tk("no-bucket",d,"firebase_storage"))},
 a5P(d,e){B.bh(e,$.b8d(),!0)
 return new A.MS(e,d)},
 bb2(d,e){B.bh(e,$.VA(),!0)
@@ -40,7 +40,7 @@ this.b=e},
 uO:function uO(d,e){this.a=d
 this.b=e},
 awx:function awx(d){this.a=d},
-bwz(d){var w=null
+bwB(d){var w=null
 return new A.Mq(w,w,w,w,w,w)},
 Ls:function Ls(d,e,f,g,h){var _=this
 _.e=d
@@ -48,14 +48,14 @@ _.f=e
 _.r=f
 _.a=g
 _.b=h},
-bhA(d,e){var w=B.bia(e),v=$.b8d()
+bhA(d,e){var w=B.bic(e),v=$.b8d()
 w=new A.a4_(w,d)
 $.cw().l(0,w,v)
 return w},
 a4_:function a4_(d,e){this.a=d
 this.b=e},
-bwB(d,e,f,g,h){var w,v,u,t
-if(B.bf()===C.dn)w=A.bwz(h)
+bwD(d,e,f,g,h){var w,v,u,t
+if(B.bf()===C.dn)w=A.bwB(h)
 else w=null
 v=e.b
 v=$.bdn().IL(new A.DC(e.glb().a.a,null,v),new A.y6(v,f,"putFile"),g.gf1(0),w,d)
@@ -78,7 +78,7 @@ _.e=$
 _.f=d
 _.w=e
 _.x=$},
-bwD(d,e,f){var w=$.VA(),v=new A.xP(d,f,e,f)
+bwF(d,e,f){var w=$.VA(),v=new A.xP(d,f,e,f)
 $.cw().l(0,v,w)
 return v},
 xP:function xP(d,e,f,g){var _=this
@@ -111,7 +111,7 @@ aNc:function aNc(){},
 kr:function kr(){},
 uP:function uP(d,e){this.a=d
 this.b=e},
-bmL(d,e){if(!x.L.b(d)||!(d instanceof B.nq))B.lO(d,e)
+bmN(d,e){if(!x.L.b(d)||!(d instanceof B.nq))B.lO(d,e)
 B.lO(B.tk(d.a,d.b,"firebase_storage"),e)},
 bFN(d,e,f){var w=B.GO(d,e),v=new B.aw($.aG,f.i("aw<0>"))
 v.oI(w)
@@ -186,7 +186,7 @@ j(d){var w=this.a
 return D.bvd.j(0)+"(ref: "+A.a5P(this.b,w.gII()).j(0)+", state: "+w.a.j(0)+")"}}
 A.awx.prototype={}
 A.Ls.prototype={
-a4u(d,e){var w,v=d.a.a+"|"+e,u=$.bwy,t=u.h(0,v)
+a4u(d,e){var w,v=d.a.a+"|"+e,u=$.bwA,t=u.h(0,v)
 if(t==null){t=$.anO()
 w=new A.Ls(12e4,6e5,6e5,d,e)
 $.cw().l(0,w,t)
@@ -215,7 +215,7 @@ case 4:t=3
 m=s.pop()
 p=B.ap(m)
 o=B.b0(m)
-A.bmL(p,o)
+A.bmN(p,o)
 w=6
 break
 case 3:w=2
@@ -225,11 +225,11 @@ case 2:return B.H(s.at(-1),v)}})
 return B.J($async$kN,v)},
 a7P(d,e){var w=$.bhx
 $.bhx=w+1
-return A.bwB(w,this.b,this.a.a,d,e)}}
+return A.bwD(w,this.b,this.a.a,d,e)}}
 A.aDk.prototype={
 agK(d,e,f,g){var w=this,v=new A.aDn(w,f).$0()
-w.e=B.bke(v,new A.aDl(),new A.aDm(),B.n(v).i("cJ.T"))
-w.x=A.bwD(w.w,D.Bg,B.a6(["path",f,"bytesTransferred",0,"totalBytes",1],x.N,x.A))},
+w.e=B.bkg(v,new A.aDl(),new A.aDm(),B.n(v).i("cI.T"))
+w.x=A.bwF(w.w,D.Bi,B.a6(["path",f,"bytesTransferred",0,"totalBytes",1],x.N,x.A))},
 gBz(d){var w=0,v=B.K(x.i),u,t=this,s
 var $async$gBz=B.G(function(e,f){if(e===1)return B.H(f,v)
 while(true)switch(w){case 0:s=t.c
@@ -245,7 +245,7 @@ break}else{s=t.e
 s===$&&B.a()
 s.gaf(0).lT(new A.aDo(t))
 s=t.d
-u=(s==null?t.d=new B.bF(new B.aw($.aG,x.v),x.M):s).a
+u=(s==null?t.d=new B.bG(new B.aw($.aG,x.v),x.M):s).a
 w=1
 break}case 1:return B.I(u,v)}})
 return B.J($async$gBz,v)}}
@@ -337,7 +337,7 @@ aLt(d,e){var w=0,v=B.K(x.N),u,t,s,r,q,p
 var $async$IK=B.G(function(f,g){if(f===1)return B.H(g,v)
 while(true)switch(w){case 0:p=x.z
 w=3
-return B.P(new B.eL("dev.flutter.pigeon.firebase_storage_platform_interface.FirebaseStorageHostApi.referenceGetDownloadURL",D.Dc,null,x.q).fg(0,[d,e]),$async$IK)
+return B.P(new B.eM("dev.flutter.pigeon.firebase_storage_platform_interface.FirebaseStorageHostApi.referenceGetDownloadURL",D.Df,null,x.q).fg(0,[d,e]),$async$IK)
 case 3:q=p.a(g)
 if(q==null)throw B.c(B.cT("channel-error",null,y.e,null))
 else{t=J.a4(q)
@@ -357,7 +357,7 @@ aLu(d,e,f,g,h){var w=0,v=B.K(x.N),u,t,s,r,q,p
 var $async$IL=B.G(function(i,j){if(i===1)return B.H(j,v)
 while(true)switch(w){case 0:p=x.z
 w=3
-return B.P(new B.eL("dev.flutter.pigeon.firebase_storage_platform_interface.FirebaseStorageHostApi.referencePutFile",D.Dc,null,x.q).fg(0,[d,e,f,g,h]),$async$IL)
+return B.P(new B.eM("dev.flutter.pigeon.firebase_storage_platform_interface.FirebaseStorageHostApi.referencePutFile",D.Df,null,x.q).fg(0,[d,e,f,g,h]),$async$IL)
 case 3:q=p.a(j)
 if(q==null)throw B.c(B.cT("channel-error",null,y.e,null))
 else{t=J.a4(q)
@@ -376,7 +376,7 @@ A.aNc.prototype={}
 A.kr.prototype={}
 A.uP.prototype={
 H(){return"TaskState."+this.b}}
-var z=a.updateTypes(["~(jB<kr>)","cJ<kr>()","al<kr>(@)"])
+var z=a.updateTypes(["~(jB<kr>)","cI<kr>()","al<kr>(@)"])
 A.aNd.prototype={
 $1(d){var w=this.a,v=w.a.x
 v===$&&B.a()
@@ -401,8 +401,8 @@ case 11:w=13
 return B.kD(g.p(),$async$$0,v)
 case 13:if(!b0){w=12
 break}p=g.gM(0)
-o=D.b9P[J.p(p,"taskState")]
-if(o===D.a3i){a4.c=!0
+o=D.b9O[J.p(p,"taskState")]
+if(o===D.a3k){a4.c=!0
 n=B.hJ(J.p(p,"error"),e,d)
 m=J.p(n,"code")
 a0=m
@@ -424,7 +424,7 @@ f=a4.d
 if(f!=null){a4=f.a
 if((a4.a&30)!==0)B.a1(B.aj("Future already completed"))
 a4.oI(B.GO(l,null))}w=12
-break}if(o===D.Bi){a4.c=!0
+break}if(o===D.Bk){a4.c=!0
 a0=B.hJ(J.p(p,"snapshot"),e,d)
 a1=$.VA()
 j=new A.xP(f,a0,o,a0)
@@ -433,9 +433,9 @@ a0.a.set(j,a1)
 k=j
 a4.x=k
 w=12
-break}if(o===D.Bh||o===D.Bg||o===D.a3h){a0=a4.x
+break}if(o===D.Bj||o===D.Bi||o===D.a3j){a0=a4.x
 a0===$&&B.a()
-a0=a0.a!==D.Bi}else a0=!1
+a0=a0.a!==D.Bk}else a0=!1
 w=a0?14:15
 break
 case 14:a0=B.hJ(J.p(p,"snapshot"),e,d)
@@ -448,7 +448,7 @@ a4.x=j
 w=16
 u=[1,9]
 return B.kD(B.bbH(j),$async$$0,v)
-case 16:case 15:if(o===D.Bh){a4.c=!0
+case 16:case 15:if(o===D.Bj){a4.c=!0
 f=a4.d
 if(f!=null){e=a4.x
 e===$&&B.a()
@@ -473,7 +473,7 @@ case 5:t=4
 a6=s.pop()
 i=B.ap(a6)
 h=B.b0(a6)
-A.bmL(i,h)
+A.bmN(i,h)
 w=7
 break
 case 4:w=2
@@ -510,20 +510,20 @@ w(A.uP,B.vf)})()
 B.Ag(b.typeUniverse,JSON.parse('{"a8d":{"al":["uO"]},"a8Z":{"al":["uO"]},"a4_":{"ns":[]},"xP":{"kr":[]}}'))
 var y={f:"Host platform returned null value for non-null return value.",e:"Unable to establish connection on channel."}
 var x=(function rtii(){var w=B.a5
-return{q:w("eL<w?>"),L:w("c3"),W:w("y<w?>"),K:w("w"),N:w("d"),h:w("uO"),i:w("kr"),M:w("bF<kr>"),v:w("aw<kr>"),y:w("Ae<@>"),A:w("@"),z:w("y<w?>?"),H:w("af<w?,w?>?"),X:w("w?"),u:w("y6?"),T:w("d?")}})();(function constants(){var w=a.makeConstList
-D.Dc=new A.aUM()
-D.a3h=new A.uP(0,"paused")
-D.Bg=new A.uP(1,"running")
-D.Bh=new A.uP(2,"success")
-D.Bi=new A.uP(3,"canceled")
-D.a3i=new A.uP(4,"error")
-D.b9P=w([D.a3h,D.Bg,D.Bh,D.Bi,D.a3i],B.a5("r<uP>"))
+return{q:w("eM<w?>"),L:w("c3"),W:w("y<w?>"),K:w("w"),N:w("d"),h:w("uO"),i:w("kr"),M:w("bG<kr>"),v:w("aw<kr>"),y:w("Ae<@>"),A:w("@"),z:w("y<w?>?"),H:w("af<w?,w?>?"),X:w("w?"),u:w("y6?"),T:w("d?")}})();(function constants(){var w=a.makeConstList
+D.Df=new A.aUM()
+D.a3j=new A.uP(0,"paused")
+D.Bi=new A.uP(1,"running")
+D.Bj=new A.uP(2,"success")
+D.Bk=new A.uP(3,"canceled")
+D.a3k=new A.uP(4,"error")
+D.b9O=w([D.a3j,D.Bi,D.Bj,D.Bk,D.a3k],B.a5("r<uP>"))
 D.buM=B.b4("Cc")
 D.bv4=B.b4("MS")
 D.bvd=B.b4("uO")})();(function staticFields(){$.b9I=B.t(x.N,B.a5("Cc"))
-$.bwy=B.t(x.N,B.a5("Ls"))
+$.bwA=B.t(x.N,B.a5("Ls"))
 $.bhx=0})();(function lazyInitializers(){var w=a.lazyFinal
 w($,"bLI","bdn",()=>new A.avv())
 w($,"bMC","bdw",()=>new B.w())
 w($,"bMD","VA",()=>new B.w())})()};
-(a=>{a["SgBE2wiF1phKnXG++QhzscwD/SM="]=a.current})($__dart_deferred_initializers__);
+(a=>{a["O7dnDp5ZkJ5ehoGNar+ZxTn1Ml0="]=a.current})($__dart_deferred_initializers__);
