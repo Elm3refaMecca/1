@@ -16,7 +16,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:screenshot/screenshot.dart';
-// --- (إضافة جديدة) المكتبات المطلوبة ---
 import 'package:url_launcher/url_launcher.dart';
 
 enum StudentView { dashboard, results, noble, behaviorNotes }
@@ -72,7 +71,6 @@ class _AnalysisResult {
 }
 
 class StudentViewPage extends StatefulWidget {
-  // >>> [MODIFIED] Added optional studentId
   final String? studentId;
 
   const StudentViewPage({super.key, this.studentId});
@@ -93,7 +91,6 @@ class _StudentViewPageState extends State<StudentViewPage>
 
   late final Map<String, TestInfo> _allTestsMap;
 
-  // --- controller for screenshot ---
   final ScreenshotController _screenshotController = ScreenshotController();
 
 
@@ -154,7 +151,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       tests.add(TestInfo(key: 'e1$profKey', name: 'الاختبار الأول (دوري)', subject: subjName));
       tests.add(TestInfo(key: 'e2$profKey', name: 'الاختبار الثاني (دوري)', subject: subjName));
       tests.add(TestInfo(key: 'e3$profKey', name: 'الاختبار الثالث (دوري)', subject: subjName));
-      // -- إضافة الاختبارات الجديدة --
       tests.add(TestInfo(key: 'e14$profKey', name: 'اختبار قبلي', subject: subjName));
       tests.add(TestInfo(key: 'e15$profKey', name: 'اختبار بعدي', subject: subjName));
       tests.add(TestInfo(key: 'e16$profKey', name: 'اختبار احتياطي', subject: subjName));
@@ -204,9 +200,8 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
-  // --- (إضافة جديدة) دالة الاتصال بواتساب ---
   Future<void> _launchWhatsApp() async {
-    const phoneNumber = '966569064173'; // رقم الهاتف بدون + أو 00
+    const phoneNumber = '966569064173';
     final Uri whatsappUri = Uri.parse('https://wa.me/$phoneNumber');
 
     if (!await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)) {
@@ -249,7 +244,6 @@ class _StudentViewPageState extends State<StudentViewPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
-      // --- [MODIFIED] Wrapped body in a Stack to add WhatsApp button ---
       body: Stack(
         children: [
           _buildBody(),
@@ -291,7 +285,6 @@ class _StudentViewPageState extends State<StudentViewPage>
         title = isTeacherView ? 'تقرير الطالب: ${_studentData?['name'] ?? ''}' : 'أهلاً بك، ${_studentData?['name'] ?? ''}';
     }
 
-    // --- [MODIFIED] Build actions list ---
     List<Widget> appBarActions = [];
     if (isDashboard && !isTeacherView) {
       appBarActions.addAll(_buildDashboardActions());
@@ -305,7 +298,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       );
     }
 
-    // --- [ADDED] Add school logo to all AppBars ---
     appBarActions.add(
       Padding(
         padding: const EdgeInsets.all(8.0),
@@ -332,7 +324,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         },
       )
           : null,
-      actions: appBarActions, // Use the new actions list
+      actions: appBarActions,
       automaticallyImplyLeading: !isDashboard || isTeacherView,
     );
   }
@@ -369,7 +361,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
-  // --- NEW: Helper method to show placeholder messages ---
   void _showPlaceholderSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
@@ -380,14 +371,13 @@ class _StudentViewPageState extends State<StudentViewPage>
     final int totalLikes = _studentData?['totalLikes'] ?? 0;
     final int totalDislikes = _studentData?['totalDislikes'] ?? 0;
 
-    // --- MODIFIED: Added all new placeholder buttons to the GridView ---
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: GridView.count(
-        crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 3, // Changed to 3 for better fit
+        crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 3,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 1,
+        childAspectRatio: 0.9, // Adjust aspect ratio for better look
         children: [
           _buildDashboardButton(
             title: 'النتائج والتحليل',
@@ -403,14 +393,13 @@ class _StudentViewPageState extends State<StudentViewPage>
             onTap: () => setState(() => _currentView = StudentView.noble),
           ),
           _buildDashboardButton(
-            title: 'الملاحظات السلوكية',
+            title: 'الملاحظات',
             icon: Icons.priority_high,
             color: Colors.red.shade600,
             count: totalDislikes,
             onTap: () =>
                 setState(() => _currentView = StudentView.behaviorNotes),
           ),
-          // --- NEW BUTTONS START HERE ---
           _buildDashboardButton(
             title: 'فيزا الطلاب',
             icon: Icons.credit_card,
@@ -436,13 +425,13 @@ class _StudentViewPageState extends State<StudentViewPage>
             onTap: () => _showPlaceholderSnackBar('لا يوجد صور لك متوفرة حالياً.'),
           ),
           _buildDashboardButton(
-            title: 'انجازات الطالب',
+            title: 'الانجازات',
             icon: Icons.emoji_events,
             color: Colors.amber.shade800,
             onTap: () => _showPlaceholderSnackBar('لا يوجد لديك أي إنجازات مسجلة حالياً.'),
           ),
           _buildDashboardButton(
-            title: 'مسابقات الطلاب',
+            title: 'المسابقات',
             icon: Icons.military_tech,
             color: Colors.lightGreen.shade700,
             onTap: () => _showPlaceholderSnackBar('لا توجد مسابقات حالية الآن.'),
@@ -454,19 +443,19 @@ class _StudentViewPageState extends State<StudentViewPage>
             onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
           ),
           _buildDashboardButton(
-            title: 'دوري كرة القدم',
+            title: 'كرة القدم',
             icon: Icons.sports_soccer,
             color: Colors.black,
             onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
           ),
           _buildDashboardButton(
-            title: 'دوري الكاراتيه',
+            title: 'الكاراتيه',
             icon: Icons.sports_kabaddi,
             color: Colors.red.shade900,
             onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
           ),
           _buildDashboardButton(
-            title: 'دوري السباحة',
+            title: 'السباحة',
             icon: Icons.pool,
             color: Colors.blue.shade900,
             onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
@@ -482,6 +471,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
+  // --- MODIFIED: Redesigned dashboard button ---
   Widget _buildDashboardButton({
     required String title,
     required IconData icon,
@@ -489,64 +479,75 @@ class _StudentViewPageState extends State<StudentViewPage>
     required VoidCallback onTap,
     int count = 0,
   }) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 5,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [color.withOpacity(0.8), color],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.4),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
           children: [
-            Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircleAvatar(
-                  radius: 28, // Reduced radius to fit more items
-                  backgroundColor: color.withOpacity(0.15),
-                  child: Icon(icon, size: 30, color: color), // Adjusted icon size
-                ),
-                if (count > 0)
-                  Positioned(
-                    top: -5,
-                    right: -5,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                Icon(icon, size: 40, color: Colors.white),
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
+                ),
               ],
             ),
-            const SizedBox(height: 12), // Reduced space
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-              child: Text(
-                title,
-                textAlign: TextAlign.center,
-                style:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), // Adjusted font size
-                overflow: TextOverflow.ellipsis,
+            if (count > 0)
+              Positioned(
+                top: -5,
+                right: -5,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: color, width: 2),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
+
 
   List<_AnalysisResult> _getAllAnalyses() {
     final Map<String, Map<String, num>> subjectGrades = {};
@@ -1480,18 +1481,8 @@ class _StudentViewPageState extends State<StudentViewPage>
           ),
         ),
 
-        // Display justifications permanently.
         _buildBehaviorJustifications(),
 
-        // --- Important note for the developer ---
-        // This query requires a composite index in Firestore to work correctly.
-        // If you encounter an error related to "missing index", please create the following index in your Firestore database:
-        // Collection: behavior_reports
-        // Fields:
-        // 1. studentId (Ascending)
-        // 2. type (Ascending)
-        // 3. timestamp (Descending)
-        // Without this index, the query will fail and the data will not be displayed.
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('behavior_reports')
@@ -1526,7 +1517,6 @@ class _StudentViewPageState extends State<StudentViewPage>
                 ),
               );
             }
-            // Using a Column here because the parent is a ListView.
             return Column(
               children: snapshot.data!.docs.map((doc) {
                 var data = doc.data() as Map<String, dynamic>;
