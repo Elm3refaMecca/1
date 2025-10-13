@@ -1,10 +1,11 @@
 // student_view.dart
 
-import 'dart:async'; // <-- Required for the marquee timer
+import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:almarefamecca/student_profile_page.dart';
+import 'package:almarefamecca/teacher_profile_view_page.dart';
 import 'package:badges/badges.dart' as badges;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -19,7 +20,7 @@ import 'package:printing/printing.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-enum StudentView { dashboard, results, noble, behaviorNotes }
+enum StudentView { dashboard, results, noble, teacherComplaints }
 
 enum ReportType { graphical, table, studentData }
 
@@ -241,6 +242,104 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
+  // --- ( ✅ تعديل جوهري ) ---
+  // هذه الدالة الجديدة هي المسؤولة عن طلب كلمة مرور ولي الأمر
+  Future<void> _promptForParentPassword() async {
+    // لا يمكن المتابعة إذا لم يتم تحديد هوية الطالب
+    if (_studentDocId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('حدث خطأ. الرجاء إعادة تسجيل الدخول.')),
+      );
+      return;
+    }
+
+    final passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    // إظهار شاشة الحوار وانتظار نتيجتها (صحيح أم خطأ)
+    final bool? passwordCorrect = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false, // يجب على المستخدم إدخال كلمة المرور أو الإلغاء
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('مطلوب إذن ولي الأمر'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('الرجاء إدخال كلمة المرور لعرض هذه الصفحة.'),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: passwordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'كلمة المرور',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'الرجاء إدخال كلمة المرور';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('إلغاء'),
+              onPressed: () {
+                Navigator.of(context).pop(false); // إغلاق وإرجاع "خطأ"
+              },
+            ),
+            ElevatedButton(
+              child: const Text('دخول'),
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  // جلب بيانات الطالب للحصول على كلمة المرور الصحيحة
+                  final docSnapshot = await FirebaseFirestore.instance
+                      .collection('students')
+                      .doc(_studentDocId!)
+                      .get();
+
+                  final studentData = docSnapshot.data();
+                  // جلب كلمة المرور من حقل pp وتحويلها لنص
+                  final String? correctPassword = studentData?['pp']?.toString();
+
+                  final enteredPassword = passwordController.text;
+
+                  // التحقق من وجود كلمة المرور ومطابقتها
+                  if (correctPassword != null && correctPassword == enteredPassword) {
+                    Navigator.of(context).pop(true); // إغلاق وإرجاع "صحيح" عند النجاح
+                  } else {
+                    Navigator.of(context).pop(false); // إغلاق وإرجاع "خطأ" عند الفشل
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    // بعد إغلاق شاشة الحوار، يتم التحقق من النتيجة
+    if (passwordCorrect == true) {
+      // الانتقال للصفحة المطلوبة إذا كانت كلمة المرور صحيحة
+      setState(() => _currentView = StudentView.teacherComplaints);
+    } else {
+      // عرض رسالة خطأ إذا كانت كلمة المرور خاطئة (ولم يتم الضغط على إلغاء)
+      if(passwordController.text.isNotEmpty){
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('كلمة المرور غير صحيحة.'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -279,8 +378,8 @@ class _StudentViewPageState extends State<StudentViewPage>
       case StudentView.noble:
         title = 'قاعة الشرف للطلاب المنضبطين';
         break;
-      case StudentView.behaviorNotes:
-        title = 'ملاحظات سلوكية: ${_studentData?['name'] ?? ''}';
+      case StudentView.teacherComplaints:
+        title = 'سجل الملاحظات السلوكية';
         break;
       default:
         title = isTeacherView ? 'تقرير الطالب: ${_studentData?['name'] ?? ''}' : 'أهلاً بك، ${_studentData?['name'] ?? ''}';
@@ -355,8 +454,8 @@ class _StudentViewPageState extends State<StudentViewPage>
         return _buildResultsView();
       case StudentView.noble:
         return _buildNobleStudentView();
-      case StudentView.behaviorNotes:
-        return _buildBehaviorNotesView();
+      case StudentView.teacherComplaints:
+        return _buildTeacherComplaintsView();
       default:
         return _buildDashboard();
     }
@@ -374,9 +473,8 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      // --- MODIFIED: Replaced GridView.count with GridView.extent for responsiveness ---
       child: GridView.extent(
-        maxCrossAxisExtent: 150, // Each item will have a maximum width of 150
+        maxCrossAxisExtent: 150,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
         childAspectRatio: 0.9,
@@ -394,13 +492,14 @@ class _StudentViewPageState extends State<StudentViewPage>
             count: totalLikes,
             onTap: () => setState(() => _currentView = StudentView.noble),
           ),
+          // --- ( ✅ تعديل جوهري ) ---
+          // تم تغيير OnTap لينادي دالة طلب كلمة المرور بدلاً من الانتقال المباشر
           _buildDashboardButton(
-            title: 'الملاحظات',
-            icon: Icons.priority_high,
-            color: Colors.red.shade600,
+            title: 'الملاحظات السلوكية',
+            icon: Icons.report_problem_outlined,
+            color: Colors.red.shade700,
             count: totalDislikes,
-            onTap: () =>
-                setState(() => _currentView = StudentView.behaviorNotes),
+            onTap: _promptForParentPassword,
           ),
           _buildDashboardButton(
             title: 'فيزا الطلاب',
@@ -473,7 +572,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // --- MODIFIED: Redesigned dashboard button with marquee title ---
   Widget _buildDashboardButton({
     required String title,
     required IconData icon,
@@ -509,7 +607,6 @@ class _StudentViewPageState extends State<StudentViewPage>
                 const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                  // --- MODIFIED: Logic to use marquee for overflowing text ---
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       const style = TextStyle(
@@ -1405,201 +1502,60 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  Widget _buildJustificationPoint(String title, String content) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor),
-          ),
-          const SizedBox(height: 4),
-          Text(content),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBehaviorJustifications() {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "مبررات الملاحظات السلوكية",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: Theme.of(context).primaryColor,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              "هذا الموضوع من الأساليب التربوية الرقمية الحديثة لضبط الصف.",
-              style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
-            ),
-            const Divider(height: 20),
-            _buildJustificationPoint(
-              "1. التوضيح والحيادية (لماذا ظهرت العلامة؟)",
-              "هذه العلامات هي إشعارات موضوعية يتم تسجيلها من قبل المعلمين عند ملاحظة سلوك محدد غير مناسب في الحصة (كمقاطعة، أو عدم التزام بالتعليمات). المعلم لا يضيف رأياً شخصياً أو تعليقاً، بل يوفر توثيقاً دقيقاً لحدوث السلوك.",
-            ),
-            _buildJustificationPoint(
-              "2. دلالة العدد الكبير (رسالة الاستياء)",
-              "في حالة تراكم عدد كبير من هذه العلامات، فإن ذلك يشير إلى أن هناك نمطاً سلوكياً ثابتاً يسبب استياءً متكرراً من عدة معلمين وفي حصص مختلفة. هذا الوضع يتجاوز الملاحظة العابرة ويتطلب تدخلكم الحاسم لتقويم مسار الطالب.",
-            ),
-            _buildJustificationPoint(
-              "3. الدعوة للحل (ما هو دور ولي الأمر؟)",
-              "دوركم محوري وضروري الآن. يرجى تخصيص وقت هادئ ومناسب لمناقشة أهمية احترام المعلم وقواعد الفصل. المرجو هو توجيه الطالب نحو تبني السلوك البديل الإيجابي والمناسب للمرحلة التعليمية.",
-            ),
-            _buildJustificationPoint(
-              "4. خطة العمل المباشرة (الإجراء المتبع)",
-              "نظامنا يعتمد على الشراكة. إذا وصل عدد العلامات إلى رقم مرتفع، يُرجى التواصل معنا لترتيب اجتماع تنسيقي عاجل لتوحيد جهود المدرسة والمنزل، وتحديد عواقب منطقية متفق عليها لهذا النمط السلوكي.",
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBehaviorNotesView() {
+  Widget _buildTeacherComplaintsView() {
     if (_studentDocId == null) {
-      return const Center(child: Text("بيانات الطالب غير متوفرة."));
+      return const Center(child: Text("لا يمكن عرض الملاحظات. الطالب غير معرّف."));
     }
-    final int totalDislikes = _studentData?['totalDislikes'] ?? 0;
 
-    return ListView(
-      children: [
-        Card(
-          margin: const EdgeInsets.all(16),
-          color: Colors.red.shade50,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-            child: Row(
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('behavior_reports')
+          .where('studentId', isEqualTo: _studentDocId)
+          .where('type', isEqualTo: 'dislike')
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(
+            child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.priority_high, color: Colors.red, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    "إجمالي الملاحظات: $totalDislikes",
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red.shade800),
-                  ),
+                Icon(Icons.check_circle_outline, color: Colors.green, size: 80),
+                SizedBox(height: 20),
+                Text(
+                  'سجلك السلوكي نظيف!',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  'لم يتم تسجيل أي ملاحظات سلبية عليك.',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
                 ),
               ],
             ),
-          ),
-        ),
+          );
+        }
 
-        _buildBehaviorJustifications(),
-
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('behavior_reports')
-              .where('studentId', isEqualTo: _studentDocId)
-              .where('type', isEqualTo: 'dislike')
-              .orderBy('timestamp', descending: true)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text('حدث خطأ أثناء تحميل الملاحظات: ${snapshot.error}'),
-              ));
-            }
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.data!.docs.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(32.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.check_circle_outline,
-                          size: 100, color: Colors.grey.shade400),
-                      const SizedBox(height: 20),
-                      const Text('لا توجد أي ملاحظات سلوكية مسجلة.',
-                          style: TextStyle(fontSize: 18, color: Colors.grey)),
-                    ],
-                  ),
-                ),
-              );
-            }
-            return Column(
-              children: snapshot.data!.docs.map((doc) {
-                var data = doc.data() as Map<String, dynamic>;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                  child: Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                        side: const BorderSide(color: Colors.red, width: 2),
-                        borderRadius: BorderRadius.circular(15)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.priority_high,
-                                  color: Colors.red, size: 30),
-                              const SizedBox(width: 12),
-                              Flexible(
-                                  child: Text(
-                                      'ملاحظة سلوكية من المعلم: ${data['teacherName'] ?? 'غير معروف'}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleLarge
-                                          ?.copyWith(
-                                          fontWeight: FontWeight.bold))),
-                            ],
-                          ),
-                          const Divider(height: 24),
-                          Text.rich(TextSpan(
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey.shade800),
-                              children: [
-                                const TextSpan(
-                                    text: 'في مادة: ',
-                                    style:
-                                    TextStyle(fontWeight: FontWeight.bold)),
-                                TextSpan(
-                                    text: '${data['subject'] ?? 'غير محدد'}'),
-                              ])),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Text(_formatTimestamp(data['timestamp']),
-                                  style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey.shade600))
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
+        return ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            final doc = snapshot.data!.docs[index];
+            return _DislikeCard(
+              reportDoc: doc,
+              studentName: _studentData?['name'] ?? 'الطالب',
             );
           },
-        ),
-      ],
+        );
+      },
     );
   }
+
 
   List<Widget> _buildDashboardActions() {
     return [
@@ -1752,6 +1708,260 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 }
 
+class _DislikeCard extends StatefulWidget {
+  final DocumentSnapshot reportDoc;
+  final String studentName;
+
+  const _DislikeCard({required this.reportDoc, required this.studentName});
+
+  @override
+  _DislikeCardState createState() => _DislikeCardState();
+}
+
+class _DislikeCardState extends State<_DislikeCard> {
+  late final TextEditingController _replyController;
+  final _formKey = GlobalKey<FormState>();
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _replyController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _replyController.dispose();
+    super.dispose();
+  }
+// student_view.dart
+
+  Future<void> _submitReply() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSubmitting = true);
+
+    try {
+      // ✅ أصبح الإجراء الوحيد هو تحديث الملاحظة نفسها
+      // سيتم التعامل مع الإشعارات عبر Cloud Functions
+      final reportRef = FirebaseFirestore.instance
+          .collection('behavior_reports')
+          .doc(widget.reportDoc.id);
+
+      await reportRef.update({
+        'studentReply': _replyController.text.trim(),
+        'replyTimestamp': FieldValue.serverTimestamp(),
+        'status': 'replied_by_student',
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم إرسال ردك بنجاح.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            // ستختفي رسالة الخطأ "permission-denied" الآن
+            content: Text('حدث خطأ أثناء إرسال الرد: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Widget _buildConversationBubble(BuildContext context, {
+    required bool isMe,
+    required String author,
+    required String text,
+    required Timestamp? timestamp,
+    bool isFinal = false,
+  }) {
+    final formattedDate = timestamp != null
+        ? intl.DateFormat('yyyy/MM/dd - hh:mm a', 'ar').format(timestamp.toDate())
+        : '...';
+    final Color bubbleColor = isMe
+        ? (isFinal ? Colors.grey.shade200 : Theme.of(context).primaryColor.withOpacity(0.1))
+        : Colors.green.withOpacity(0.1);
+    final Color textColor = isMe && isFinal ? Colors.black54 : Colors.black87;
+
+    return Column(
+      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(author, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+        const SizedBox(height: 4),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(text, style: TextStyle(color: textColor, fontSize: 15)),
+        ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: isMe ? Alignment.bottomRight : Alignment.bottomLeft,
+          child: Text(formattedDate, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.reportDoc.data() as Map<String, dynamic>;
+    final teacherName = data['teacherName'] ?? 'معلم';
+    final teacherId = data['teacherId'];
+    final subject = data['subject'] ?? 'مادة';
+    final teacherNote = data['teacherNote'] ?? '...';
+    final studentReply = data['studentReply'] as String?;
+    final teacherFinalReply = data['teacherFinalReply'] as String?;
+    final status = data['status'];
+
+    final timestamp = data['timestamp'] as Timestamp?;
+    final replyTimestamp = data['replyTimestamp'] as Timestamp?;
+    final finalReplyTimestamp = data['teacherFinalReplyTimestamp'] as Timestamp?;
+
+    String statusText;
+    Color statusColor;
+
+    switch (status) {
+      case 'replied_by_student':
+        statusText = 'بانتظار رد المعلم';
+        statusColor = Colors.orange.shade300;
+        break;
+      case 'closed':
+        statusText = 'مغلقة';
+        statusColor = Colors.grey;
+        break;
+      default:
+        statusText = 'مطلوب الرد';
+        statusColor = Colors.red.shade300;
+    }
+
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+        side: BorderSide(color: Colors.red.shade100, width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const CircleAvatar(
+                backgroundColor: Colors.red,
+                child: Icon(Icons.person, color: Colors.white),
+              ),
+              title: InkWell(
+                onTap: () {
+                  if (teacherId != null) {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                        TeacherProfileViewPage(teacherId: teacherId)));
+                  }
+                },
+                child: Text(
+                  "أ. $teacherName",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              subtitle: Text("مادة: $subject"),
+              trailing: Chip(
+                label: Text(statusText, style: const TextStyle(color: Colors.black87)),
+                backgroundColor: statusColor,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const Divider(),
+
+            _buildConversationBubble(
+              context,
+              isMe: true,
+              author: 'ملاحظة المعلم',
+              text: teacherNote,
+              timestamp: timestamp,
+            ),
+
+            if (studentReply != null && studentReply.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _buildConversationBubble(
+                context,
+                isMe: false,
+                author: 'رد ولي الأمر',
+                text: studentReply,
+                timestamp: replyTimestamp,
+              ),
+            ],
+
+            if (teacherFinalReply != null && teacherFinalReply.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _buildConversationBubble(
+                context,
+                isMe: true,
+                author: 'الرد النهائي للمعلم',
+                text: teacherFinalReply,
+                timestamp: finalReplyTimestamp,
+                isFinal: true,
+              ),
+            ],
+
+            if (status != 'replied_by_student' && status != 'closed') ...[
+              const Divider(height: 24),
+              Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFormField(
+                      controller: _replyController,
+                      decoration: const InputDecoration(
+                        labelText: 'اكتب ردك هنا لتوضيح الموقف',
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                      ),
+                      maxLines: 3,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'الرجاء كتابة ردك';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: _isSubmitting
+                          ? const Center(child: CircularProgressIndicator())
+                          : ElevatedButton.icon(
+                        icon: const Icon(Icons.send),
+                        label: const Text('إرسال الرد'),
+                        onPressed: _submitReply,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AnimatedTrophy extends StatefulWidget {
   final int rank;
   const _AnimatedTrophy({required this.rank});
@@ -1835,6 +2045,7 @@ class _SubjectResultCard extends StatelessWidget {
       default:
         icon = Icons.check_circle;
         color = Colors.green.shade700;
+        break;
     }
     return Row(
       children: [
@@ -2135,7 +2346,6 @@ class _PerformanceTrendChart extends StatelessWidget {
   }
 }
 
-// --- NEW: Widget for scrolling (marquee) text ---
 class _MarqueeText extends StatefulWidget {
   final String text;
   final TextStyle style;

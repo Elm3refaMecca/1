@@ -9,15 +9,20 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'dart:math' as math; // استيراد مكتبة الرياضيات لتحديد الحجم الأقصى
 
-import 'package:simple_speed_dial/simple_speed_dial.dart';
+// --- ✅ MODIFIED: Using the new package ---
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:almarefamecca/add.dart';
 import 'package:almarefamecca/student_view.dart';
 import 'package:almarefamecca/firebase_options.dart';
 
+
 Future<void> _launchUrlHelper(String url) async {
   final Uri uri = Uri.parse(url);
-
+  if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    debugPrint("Could not launch $url");
+  }
 }
 
 void main() async {
@@ -253,72 +258,43 @@ class _WelcomePageState extends State<WelcomePage> {
           },
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SpeedDial(
-              child: const Icon(Icons.public),
-              speedDialChildren: <SpeedDialChild>[
-                SpeedDialChild(
-                  child: const Text('X', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  label: 'X (Twitter)',
-                  backgroundColor: Colors.black,
-                  onPressed: () => _launchUrlHelper('https://x.com/your_school_handle'),
-                ),
-                SpeedDialChild(
-                  child: const Icon(Icons.camera_alt),
-                  label: 'Instagram',
-                  backgroundColor: Colors.pink,
-                  onPressed: () => _launchUrlHelper('https://instagram.com/your_school_handle'),
-                ),
-                SpeedDialChild(
-                  child: const Icon(Icons.camera, color: Colors.white),
-                  label: 'Snapchat',
-                  backgroundColor: Colors.yellow,
-                  onPressed: () => _launchUrlHelper('https://snapchat.com/add/your_school_handle'),
-                ),
-              ],
-            ),
-            SpeedDial(
-              child: const Icon(Icons.support_agent),
-              speedDialChildren: <SpeedDialChild>[
-                SpeedDialChild(
-                  child: const Icon(Icons.code),
-                  label: 'أ/مصطفي سعيد',
-                  onPressed: () => _launchUrlHelper('tel:+966569064173'),
-                ),
-                SpeedDialChild(
-                  child: const Icon(Icons.school),
-                  label: 'مدير المدرسة',
-                  onPressed: () => _launchUrlHelper('tel:+966539547972'),
-                ),
-                SpeedDialChild(
-                  child: const Icon(Icons.supervisor_account),
-                  label: 'وكيل الشئون التعليمية',
-                  onPressed: () => _launchUrlHelper('tel:+966502361091'),
-                ),
-                SpeedDialChild(
-                  child: const Icon(Icons.person_pin),
-                  label: 'وكيل المدرسة',
-                  onPressed: () => _launchUrlHelper('tel:+966501468550'),
-                ),
-                SpeedDialChild(
-                  child: const Icon(Icons.support_agent),
-                  label: 'موجه الطلاب: أ/ عبدالرحمن عثمان',
-                  onPressed: () => _launchUrlHelper('tel:+966500971015'),
-                ),
-                SpeedDialChild(
-                  child: const Icon(Icons.support_agent),
-                  label: 'موجه الطلاب: أ/ يحيي',
-                  onPressed: () => _launchUrlHelper('tel:+966502649649'),
-                ),
-              ],
-            ),
-          ],
-        ),
+      // --- ✅ MODIFIED: Switched to a single FloatingActionButton with SpeedDial ---
+      floatingActionButton: SpeedDial(
+        heroTag: 'main-fab', // A single hero tag is enough now
+        icon: Icons.support_agent,
+        activeIcon: Icons.close,
+        children: [
+          SpeedDialChild(
+            child: const Icon(Icons.code),
+            label: 'أ/مصطفي سعيد',
+            onTap: () => _launchUrlHelper('tel:+966569064173'),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.school),
+            label: 'مدير المدرسة',
+            onTap: () => _launchUrlHelper('tel:+966539547972'),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.supervisor_account),
+            label: 'وكيل الشئون التعليمية',
+            onTap: () => _launchUrlHelper('tel:+966502361091'),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.person_pin),
+            label: 'وكيل المدرسة',
+            onTap: () => _launchUrlHelper('tel:+966501468550'),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.support_agent),
+            label: 'موجه الطلاب: أ/ عبدالرحمن عثمان',
+            onTap: () => _launchUrlHelper('tel:+966500971015'),
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.support_agent),
+            label: 'موجه الطلاب: أ/ يحيي',
+            onTap: () => _launchUrlHelper('tel:+966502649649'),
+          ),
+        ],
       ),
     );
   }
@@ -564,17 +540,16 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       body: SafeArea(
-        // --- MODIFIED: The new layout structure to prevent keyboard UI jump ---
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight, // Ensures scrollable area is at least the screen height
+                  minHeight: constraints.maxHeight,
                 ),
                 child: IntrinsicHeight(
-                  child: Center( // Centers the card within the full-height scrollable area
+                  child: Center(
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 450),
                       child: Card(

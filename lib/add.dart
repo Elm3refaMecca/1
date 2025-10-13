@@ -1,3 +1,5 @@
+// add.dart (MODIFIED)
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -372,6 +374,23 @@ class _AddPageState extends State<AddPage> {
             Navigator.push(context, MaterialPageRoute(builder: (_) => GradeEntrySelectionPage(isBehaviorMode: true, isAdmin: _isAdmin)));
           },
         ),
+        _buildDashboardButton(
+          title: 'صندوق الشكاوى',
+          icon: Icons.inbox,
+          color: Colors.orange.shade800,
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ComplaintsBoxPage()));
+          },
+        ),
+        // --- ( ✅ الأيقونة الجديدة لتحليل المخالفات ) ---
+        _buildDashboardButton(
+          title: 'تحليل المخالفات',
+          icon: Icons.flag, // أيقونة مناسبة للتقارير والمخالفات
+          color: Colors.red.shade700,
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ViolationsLogPage()));
+          },
+        ),
         if (_isAdmin)
           _buildDashboardButton(
             title: 'البحث عن نتائج طالب',
@@ -541,7 +560,7 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
   void _parseTeacherPermissions(Map<String, dynamic> data) {
     final stages = <String>{};
     final grades = <String, Set<String>>{};
-    final classSubjects = <String, Map<String, List<String>>> {}; // New: Map<Grade, Map<Class, List<Subjects>>>
+    final classSubjects = <String, Map<String, List<String>>>{}; // New: Map<Grade, Map<Class, List<Subjects>>>
 
     final structure = {
       'المرحلة الابتدائية': {
@@ -2380,6 +2399,500 @@ class _TeacherAnalyticsViewState extends State<TeacherAnalyticsView> {
 
   llValue(String s) {}
 }
+
+
+// --- (✅ تعديل: تحويل الصفحة إلى StatefulWidget للتعامل مع صلاحيات المشرف) ---
+class ComplaintsBoxPage extends StatefulWidget {
+  const ComplaintsBoxPage({super.key});
+
+  @override
+  State<ComplaintsBoxPage> createState() => _ComplaintsBoxPageState();
+}
+
+class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
+  bool _isAdmin = false;
+  bool _isLoading = true;
+  final _currentUser = FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    if (_currentUser == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser!.uid).get();
+      if (mounted) {
+        setState(() {
+          _isAdmin = (userDoc.data()?['profession'] == 'admin');
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // --- 🔴 START OF RADICAL FIX 🔴 ---
+  // هذه الدالة هي جوهر الإصلاح.
+  Stream<QuerySnapshot> _buildStream() {
+    // الاستعلام الأساسي يقوم بالترتيب حسب الوقت أولاً.
+    Query query = FirebaseFirestore.instance
+        .collection('behavior_reports')
+        .orderBy('replyTimestamp', descending: true);
+
+    // بالنسبة للمدير، الاستعلام بسيط وصحيح: فلترة حسب الحالة فقط.
+    // يمكن لـ Firestore إنشاء فهرس لـ `status` و `replyTimestamp`.
+    if (_isAdmin) {
+      return query
+          .where('status', whereIn: ['replied_by_student', 'closed'])
+          .snapshots();
+    }
+
+    // بالنسبة للمعلم (غير المدير)، نقوم بجلب **جميع** التقارير الخاصة به.
+    // تم **حذف** شرط `where('status', ...)` الإشكالي من الاستعلام.
+    // ستتم الفلترة الآن داخل `StreamBuilder` في واجهة المستخدم.
+    // هذا الاستعلام صحيح ولا يتطلب فهرسة معقدة.
+    return query
+        .where('teacherId', isEqualTo: _currentUser?.uid)
+        .snapshots();
+  }
+  // --- 🔴 END OF RADICAL FIX 🔴 ---
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('صندوق الشكاوى والردود'),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : StreamBuilder<QuerySnapshot>(
+        stream: _buildStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox, size: 80, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text('صندوق الشكاوى فارغ', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text('لم تصل أي ردود من أولياء الأمور بعد.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                ],
+              ),
+            );
+          }
+
+          // --- 🔴 START: UI Filtering (جزء من الإصلاح) 🔴 ---
+          // هنا نقوم بفلترة النتائج في كود التطبيق إذا كان المستخدم ليس مديراً.
+          List<DocumentSnapshot> docs = snapshot.data!.docs;
+          if (!_isAdmin) {
+            docs = docs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>?;
+              final status = data?['status'] as String?;
+              // هذا هو الفلتر الحاسم الذي يتم من طرف التطبيق
+              return status == 'replied_by_student' || status == 'closed';
+            }).toList();
+          }
+
+          // إذا كانت القائمة فارغة بعد الفلترة، نعرض رسالة "فارغ".
+          if (docs.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox, size: 80, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text('صندوق الشكاوى فارغ', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text('لم تصل أي ردود من أولياء الأمور بعد.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                ],
+              ),
+            );
+          }
+          // --- 🔴 END: UI Filtering 🔴 ---
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12.0),
+            // نستخدم القائمة المفلترة من المستندات
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              return _ComplaintConversationCard(reportDoc: doc);
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// --- (ويدجت عرض المحادثة بين المعلم وولي الأمر) ---
+class _ComplaintConversationCard extends StatefulWidget {
+  final DocumentSnapshot reportDoc;
+  const _ComplaintConversationCard({required this.reportDoc});
+
+  @override
+  __ComplaintConversationCardState createState() => __ComplaintConversationCardState();
+}
+
+class __ComplaintConversationCardState extends State<_ComplaintConversationCard> {
+  final TextEditingController _finalReplyController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _isSubmitting = false;
+
+  // --- ✅✅✅ الكود المعدل والنهائي ✅✅✅ ---
+  // تم تبسيط هذه الدالة بشكل كبير. لم تعد بحاجة لجلب المدراء أو إرسال إشعارات لهم.
+  // هذه المهمة ستتم الآن بشكل آمن وتلقائي في الخلفية بواسطة Cloud Functions.
+  Future<void> _submitTeacherFinalReply() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSubmitting = true);
+
+    try {
+      final reportRef = FirebaseFirestore.instance.collection('behavior_reports').doc(widget.reportDoc.id);
+      final reportData = widget.reportDoc.data() as Map<String, dynamic>? ?? {};
+      final studentId = reportData['studentId'];
+      final teacherName = reportData['teacherName'];
+      final subject = reportData['subject'];
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 1. تحديث الشكوى بالرد النهائي وتغيير حالتها إلى "مغلقة"
+      batch.update(reportRef, {
+        'teacherFinalReply': _finalReplyController.text.trim(),
+        'teacherFinalReplyTimestamp': FieldValue.serverTimestamp(),
+        'status': 'closed',
+      });
+
+      // 2. إرسال إشعار إلى الطالب لإعلامه بالرد النهائي
+      // (هذه العملية مسموح بها وآمنة إذا كانت صلاحيات Firestore تسمح بذلك)
+      if (studentId != null) {
+        final studentNotificationRef = FirebaseFirestore.instance.collection('students').doc(studentId).collection('notifications').doc();
+        batch.set(studentNotificationRef, {
+          'message': 'وصل رد من أ. $teacherName بخصوص ملاحظة مادة $subject',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+          'reportId': widget.reportDoc.id,
+        });
+      }
+
+      // 🛑 تم حذف منطق إرسال الإشعار للمدراء من هنا
+      // سيتم التعامل معه في الخلفية الآن عبر Cloud Functions
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إرسال الرد وإغلاق الشكوى بنجاح.'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('فشل إرسال الرد: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+
+  @override
+  void dispose() {
+    _finalReplyController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.reportDoc.data() as Map<String, dynamic>;
+    final studentName = data['studentName'] ?? 'طالب';
+    final subject = data['subject'] ?? 'مادة';
+    final teacherNote = data['teacherNote'] ?? '...';
+    final studentReply = data['studentReply'] ?? '...';
+    final teacherFinalReply = data['teacherFinalReply'] as String?;
+    final timestamp = data['timestamp'] as Timestamp?;
+    final replyTimestamp = data['replyTimestamp'] as Timestamp?;
+    final finalReplyTimestamp = data['teacherFinalReplyTimestamp'] as Timestamp?;
+
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const CircleAvatar(child: Icon(Icons.person)),
+              title: Text(studentName, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text("مادة: $subject"),
+              trailing: Chip(
+                label: Text(
+                  teacherFinalReply != null ? 'مغلقة' : 'بانتظار الرد',
+                  style: TextStyle(color: teacherFinalReply != null ? Colors.white : Colors.black87),
+                ),
+                backgroundColor: teacherFinalReply != null ? Colors.grey : Colors.amber.shade300,
+              ),
+            ),
+            const Divider(height: 20),
+            _buildConversationBubble(
+              context,
+              isMe: true,
+              author: 'ملاحظتي',
+              text: teacherNote,
+              timestamp: timestamp,
+            ),
+            const SizedBox(height: 12),
+            _buildConversationBubble(
+              context,
+              isMe: false,
+              author: 'رد ولي الأمر',
+              text: studentReply,
+              timestamp: replyTimestamp,
+            ),
+            if (teacherFinalReply != null) ...[
+              const SizedBox(height: 12),
+              _buildConversationBubble(
+                context,
+                isMe: true,
+                author: 'ردي النهائي',
+                text: teacherFinalReply,
+                timestamp: finalReplyTimestamp,
+                isFinal: true,
+              ),
+            ] else ...[
+              const Divider(height: 24),
+              Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _finalReplyController,
+                      decoration: const InputDecoration(
+                        labelText: 'اكتب ردك النهائي هنا',
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                      ),
+                      maxLines: 3,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'الرجاء كتابة ردك' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: _isSubmitting
+                          ? const Center(child: CircularProgressIndicator())
+                          : ElevatedButton.icon(
+                        icon: const Icon(Icons.send),
+                        label: const Text('إرسال الرد وإغلاق الشكوى'),
+                        onPressed: _submitTeacherFinalReply,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildConversationBubble(BuildContext context, {
+    required bool isMe,
+    required String author,
+    required String text,
+    required Timestamp? timestamp,
+    bool isFinal = false,
+  }) {
+    final formattedDate = timestamp != null
+        ? intl.DateFormat('yyyy/MM/dd - hh:mm a', 'ar').format(timestamp.toDate())
+        : '...';
+    final Color bubbleColor = isMe
+        ? (isFinal ? Colors.grey.shade200 : Theme.of(context).primaryColor.withOpacity(0.1))
+        : Colors.green.withOpacity(0.1);
+    final Color textColor = isMe && isFinal ? Colors.black54 : Colors.black87;
+
+    return Column(
+      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(author, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: bubbleColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(text, style: TextStyle(color: textColor, fontSize: 15)),
+        ),
+        const SizedBox(height: 4),
+        Text(formattedDate, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+      ],
+    );
+  }
+}
+
+// --- ( ✅ تعديل: تحويل الصفحة إلى StatefulWidget للتعامل مع صلاحيات المشرف ) ---
+class ViolationsLogPage extends StatefulWidget {
+  const ViolationsLogPage({super.key});
+
+  @override
+  _ViolationsLogPageState createState() => _ViolationsLogPageState();
+}
+
+class _ViolationsLogPageState extends State<ViolationsLogPage> {
+  bool _isAdmin = false;
+  bool _isLoading = true;
+  final _currentUser = FirebaseAuth.instance.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    if (_currentUser == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser!.uid).get();
+      if (mounted) {
+        setState(() {
+          _isAdmin = (userDoc.data()?['profession'] == 'admin');
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Stream<QuerySnapshot> _buildStream() {
+    Query query = FirebaseFirestore.instance
+        .collection('behavior_reports')
+        .where('type', isEqualTo: 'dislike')
+        .orderBy('timestamp', descending: true);
+
+    // إذا لم يكن المستخدم مشرفاً، قم بتصفية المخالفات لعرض مخالفاته فقط
+    if (!_isAdmin) {
+      query = query.where('teacherId', isEqualTo: _currentUser?.uid);
+    }
+    return query.snapshots();
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('تحليل مخالفات الطلاب'),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : StreamBuilder<QuerySnapshot>(
+        stream: _buildStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle_outline, color: Colors.green, size: 80),
+                  SizedBox(height: 16),
+                  Text('لا توجد مخالفات مسجلة', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20.0),
+                    child: Text('لم يتم تسجيل أي ملاحظات سلوكية على الطلاب بعد.', style: TextStyle(fontSize: 16, color: Colors.grey), textAlign: TextAlign.center),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final reports = snapshot.data!.docs;
+          final Map<String, List<DocumentSnapshot>> violationsByStudent = {};
+
+          for (var report in reports) {
+            final studentName = report['studentName'] as String? ?? 'طالب غير معروف';
+            violationsByStudent.putIfAbsent(studentName, () => []).add(report);
+          }
+
+          final sortedStudents = violationsByStudent.entries.toList()
+            ..sort((a, b) => b.value.length.compareTo(a.value.length));
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12.0),
+            itemCount: sortedStudents.length,
+            itemBuilder: (context, index) {
+              final entry = sortedStudents[index];
+              final studentName = entry.key;
+              final studentViolations = entry.value;
+
+              return Card(
+                elevation: 3,
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                child: ExpansionTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.red.shade700,
+                    foregroundColor: Colors.white,
+                    child: Text(
+                      studentViolations.length.toString(),
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  title: Text(studentName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+                  subtitle: Text(_isAdmin ? "عرض مخالفات الطالب" : 'اضغط لعرض تفاصيل المخالفات'),
+                  children: studentViolations.map((violationDoc) {
+                    final data = violationDoc.data() as Map<String, dynamic>;
+                    final note = data['teacherNote'] ?? 'لا يوجد تفصيل.';
+                    final teacherName = data['teacherName'] ?? 'معلم';
+                    final timestamp = data['timestamp'] as Timestamp?;
+                    final formattedDate = timestamp != null
+                        ? intl.DateFormat('yyyy/MM/dd - hh:mm a', 'ar').format(timestamp.toDate())
+                        : '...';
+
+                    return ListTile(
+                      title: Text(note),
+                      subtitle: Text("بواسطة: أ. $teacherName - في: $formattedDate"),
+                      dense: true,
+                    );
+                  }).toList(),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
 
 extension on Sheet {
   void setColAutoFit(int i) {}

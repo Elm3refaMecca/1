@@ -70,6 +70,7 @@ dev_dependencies:
   pdf: ^3.10.8
   screenshot: ^3.0.0
   simple_speed_dial: ^0.1.7
+  flutter_speed_dial: ^7.0.0
 
 
 

@@ -59,7 +59,6 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
         final data = studentDoc.data() as Map<String, dynamic>?;
         final studentId = studentDoc.id;
 
-        // تعبئة خرائط الإعجابات والملاحظات
         _likes[studentId] = data?['totalLikes'] ?? 0;
         _dislikes[studentId] = data?['totalDislikes'] ?? 0;
       }
@@ -80,9 +79,64 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
     }
   }
 
+  Future<String?> _showDislikeDialog(String studentName) async {
+    final noteController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('ملاحظة سلوكية على: $studentName'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: noteController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'سبب الملاحظة',
+                hintText: 'مثال: يتحدث مع زميله أثناء الشرح',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'الرجاء كتابة سبب الملاحظة';
+                }
+                return null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.of(context).pop(noteController.text.trim());
+                }
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- ✅✅✅  الكود المعدل والمطلوب  ✅✅✅ ---
+  // تم تعديل هذه الدالة لتكون آمنة وتعتمد على Cloud Functions لإرسال الإشعارات
   Future<void> _addBehaviorReport(String studentId, String studentName, String type) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+
+    String? teacherNote;
+    if (type == 'dislike') {
+      teacherNote = await _showDislikeDialog(studentName);
+      if (teacherNote == null) return; // User cancelled
+    }
 
     try {
       final teacherDoc = await _firestore.collection('users').doc(user.uid).get();
@@ -93,22 +147,31 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
       final studentRef = _firestore.collection('students').doc(studentId);
       final reportRef = _firestore.collection('behavior_reports').doc();
 
+      final reportData = {
+        'studentId': studentId,
+        'studentName': studentName,
+        'teacherId': user.uid,
+        'teacherName': teacherName,
+        'subject': widget.subject,
+        'type': type,
+        'timestamp': FieldValue.serverTimestamp(),
+        'dateString': intl.DateFormat('yyyy/MM/dd').format(now),
+        'dayName': dayName,
+        if (type == 'dislike') 'teacherNote': teacherNote,
+        if (type == 'dislike') 'studentReply': null,
+        if (type == 'dislike') 'replyTimestamp': null,
+        if (type == 'dislike') 'status': 'pending_reply',
+      };
+
+      // الترانزكشن الآن آمن لأنه لا يحاول الكتابة في حساب الطالب
       await _firestore.runTransaction((transaction) async {
+        // تحديث إجمالي الإعجابات/الملاحظات
         transaction.update(studentRef, {
           type == 'like' ? 'totalLikes' : 'totalDislikes': FieldValue.increment(1),
         });
-
-        transaction.set(reportRef, {
-          'studentId': studentId,
-          'studentName': studentName,
-          'teacherId': user.uid,
-          'teacherName': teacherName,
-          'subject': widget.subject, // إضافة مادة المعلم
-          'type': type,
-          'timestamp': FieldValue.serverTimestamp(),
-          'dateString': intl.DateFormat('yyyy/MM/dd').format(now),
-          'dayName': dayName,
-        });
+        // إنشاء سجل الملاحظة الجديد
+        transaction.set(reportRef, reportData);
+        // --- 🛑 تم حذف منطق إرسال الإشعار من هنا (سيتم عبر Cloud Function) ---
       });
 
       if (mounted) {

@@ -99,9 +99,63 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
+  Future<String?> _showDislikeDialog(String studentName) async {
+    final noteController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('ملاحظة سلوكية على: $studentName'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: noteController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'سبب الملاحظة',
+                hintText: 'مثال: يتحدث مع زميله أثناء الشرح',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'الرجاء كتابة سبب الملاحظة';
+                }
+                return null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.of(context).pop(noteController.text.trim());
+                }
+              },
+              child: const Text('حفظ'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- ✅ MODIFIED FUNCTION ---
   Future<void> _addBehaviorReport(String studentId, String studentName, String type) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+
+    String? teacherNote;
+    if (type == 'dislike') {
+      teacherNote = await _showDislikeDialog(studentName);
+      if (teacherNote == null) return; // User cancelled the dialog
+    }
 
     try {
       final teacherDoc = await _firestore.collection('users').doc(user.uid).get();
@@ -111,24 +165,48 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
       final studentRef = _firestore.collection('students').doc(studentId);
       final reportRef = _firestore.collection('behavior_reports').doc();
+      // The student notification is still sent from the app
+      final notificationRef = _firestore.collection('students').doc(studentId).collection('notifications').doc();
 
+
+      final reportData = {
+        'studentId': studentId,
+        'studentName': studentName,
+        'teacherId': user.uid,
+        'teacherName': teacherName,
+        'subject': widget.subject,
+        'type': type,
+        'timestamp': FieldValue.serverTimestamp(),
+        'dateString': intl.DateFormat('yyyy/MM/dd').format(now),
+        'dayName': dayName,
+        if (type == 'dislike') 'teacherNote': teacherNote,
+        if (type == 'dislike') 'studentReply': null,
+        if (type == 'dislike') 'replyTimestamp': null,
+        'status': 'pending_reply', // Set initial status
+      };
+
+      String notificationMessage;
+      if (type == 'like') {
+        notificationMessage = 'أحسنت! أضاف لك أ. $teacherName نقطة سلوك نبيل في مادة ${widget.subject}.';
+      } else {
+        notificationMessage = 'تنبيه: تم تسجيل ملاحظة سلوكية عليك من قبل أ. $teacherName في مادة ${widget.subject}.';
+      }
+
+      // This transaction will now succeed because it only performs allowed actions
       await _firestore.runTransaction((transaction) async {
         transaction.update(studentRef, {
           type == 'like' ? 'totalLikes' : 'totalDislikes': FieldValue.increment(1),
         });
-
-        transaction.set(reportRef, {
-          'studentId': studentId,
-          'studentName': studentName,
-          'teacherId': user.uid,
-          'teacherName': teacherName,
-          'subject': widget.subject,
-          'type': type,
+        transaction.set(reportRef, reportData);
+        transaction.set(notificationRef, {
+          'message': notificationMessage,
           'timestamp': FieldValue.serverTimestamp(),
-          'dateString': intl.DateFormat('yyyy/MM/dd').format(now),
-          'dayName': dayName,
+          'isRead': false,
         });
       });
+
+      // --- 🛑 LOGIC TO NOTIFY ADMINS HAS BEEN REMOVED ---
+      // This will be handled by a Cloud Function now.
 
       if (mounted) {
         setState(() {
@@ -139,19 +217,21 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(type == 'like' ? 'تم تسجيل الإعجاب بنجاح' : 'تم تسجيل الملاحظة بنجاح'),
+          content: Text(type == 'like' ? 'تم تسجيل الإعجاب بنجاح' : 'تم تسجيل الملاحظة وإرسال الإشعارات بنجاح'),
           backgroundColor: Colors.green,
         ));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          // The error message from the screenshot will now be gone
           content: Text('فشل تسجيل السلوك: $e'),
           backgroundColor: Colors.red,
         ));
       }
     }
   }
+
 
   Future<void> _showGradeDialog(String studentId, String studentName, dynamic currentGrade) async {
     final gradeController = TextEditingController(text: currentGrade?.toString() ?? '');
@@ -256,24 +336,17 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     return true;
   }
 
-  // --- FINAL FIXED VERSION: Compatible with excel v3.x.x / v4.x.x ---
   Future<void> _exportToExcel() async {
-    // 1. Setup Excel data
     final excel = Excel.createExcel();
     final Sheet sheetObject = excel['Sheet1'];
 
-    // Set sheet to Right-to-Left (RTL) for Arabic
     sheetObject.isRTL = true;
 
-    // Add column headers
     final List<String> headers = ['اسم الطالب', 'الدرجة', 'النسبة المئوية', 'التقييم'];
-    // FIXED: Use TextCellValue for excel v3/v4
     sheetObject.appendRow(headers.map((header) => TextCellValue(header)).toList());
 
-    // Style header cells
     for (var i = 0; i < headers.length; i++) {
       var cell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
-      // FIXED: Use ExcelColor enum for colors, not hex strings
       cell.cellStyle = CellStyle(
         bold: true,
         backgroundColorHex: ExcelColor.blue,
@@ -300,7 +373,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       }
     }
 
-    // 2. Fill student data
     for (var studentDoc in _students) {
       final studentId = studentDoc.id;
       final studentName = (studentDoc.data() as Map<String, dynamic>)['name'] ?? 'اسم غير معروف';
@@ -309,7 +381,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       if (grade != null) {
         final double percentage = (grade / maxGrade) * 100;
         final String evaluation = getEvaluation(grade);
-        // FIXED: Create a List of CellValue types for excel v3/v4
         final List<CellValue> row = [
           TextCellValue(studentName),
           DoubleCellValue(grade.toDouble()),
@@ -320,12 +391,10 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       }
     }
 
-    // FIXED: Use the correct method 'autoFitColumn' for auto-fitting columns
     for (var i = 0; i < headers.length; i++) {
       sheetObject.autoFitColumn(i);
     }
 
-    // 3. Save and download the file based on the platform (web or mobile)
     final String fileName = "درجات-${widget.testName}-${widget.className}.xlsx";
 
     final fileBytes = excel.save();
@@ -334,7 +403,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
     try {
       if (kIsWeb) {
-        // --- Download logic for web ---
         final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         final url = html.Url.createObjectUrlFromBlob(blob);
         final anchor = html.AnchorElement(href: url)
@@ -342,13 +410,11 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           ..click();
         html.Url.revokeObjectUrl(url);
       } else {
-        // --- Save and open logic for mobile ---
         final directory = await getApplicationDocumentsDirectory();
         final path = '${directory.path}/$fileName';
         final file = File(path);
         await file.writeAsBytes(fileBytes);
 
-        // Open the file using open_filex
         final result = await OpenFilex.open(path);
         if (result.type != ResultType.done) {
           if (mounted) {
@@ -480,7 +546,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
                 decoration: BoxDecoration(
                   color: currentGrade != null ? Colors.green.shade50 : Colors.orange.shade50,
                   borderRadius: BorderRadius.circular(10),
-                  // The 'Border' class here now correctly refers to Flutter's Border.
                   border: Border.all(color: currentGrade != null ? Colors.green.shade200 : Colors.orange.shade200),
                 ),
                 child: Text(
