@@ -49,9 +49,6 @@
       100% { transform: rotate(360deg); }
     }
   </style>
-
-  <script src="https://unpkg.com/pulltorefreshjs@0.1.22/dist/index.umd.js"></script>
-
 </head>
 <body>
   <div id="loader" class="loader-container">
@@ -104,21 +101,6 @@
       }
     }
   </script>
-
-  <script>
-    PullToRefresh.init({
-      mainElement: 'body', // العنصر الرئيسي الذي يتم السحب فيه
-      onRefresh: function() {
-        window.location.reload(); // الأمر الذي يتم تنفيذه عند السحب (إعادة تحميل الصفحة)
-      },
-      iconArrow: '&#8675;', // شكل أيقونة السهم
-      iconRefreshing: '&#8635;', // شكل أيقونة التحديث
-      instructionsPullToRefresh: 'اسحب للأسفل للتحديث',
-      instructionsReleaseToRefresh: 'اترك للتحديث',
-      instructionsRefreshing: 'جاري التحديث...'
-    });
-  </script>
-
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
