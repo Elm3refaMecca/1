@@ -45,9 +45,8 @@ class TeacherLoginApp extends StatelessWidget {
     return MaterialApp(
       title: 'بوابة مدرسة المعرفة الاهلية',
       debugShowCheckedModeBanner: false,
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
+      localizationsDelegates: [
+
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
@@ -324,83 +323,161 @@ class _WelcomePageState extends State<WelcomePage> {
     }
   }
 
+  // --- ✅ NEW: Floating Action Button for Social Media ---
+  Widget _buildSocialMediaFab() {
+    return SpeedDial(
+      heroTag: 'social-media-fab',
+      icon: Icons.public,
+      activeIcon: Icons.close,
+      backgroundColor: Colors.teal,
+      foregroundColor: Colors.white,
+      direction: SpeedDialDirection.up,
+      childrenButtonSize: const Size(60.0, 60.0),
+      children: [
+        SpeedDialChild(
+          child: const Icon(Icons.camera_alt),
+          label: 'انستجرام',
+          backgroundColor: Colors.pink,
+          foregroundColor: Colors.white,
+          onTap: () => _launchUrlHelper('https://www.instagram.com/almarefa.mecca'),
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.camera),
+          label: 'سناب شات',
+          backgroundColor: Colors.yellow,
+          foregroundColor: Colors.black,
+          onTap: () => _launchUrlHelper('https://www.snapchat.com/add/almarefa.mecca'),
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.close),
+          label: 'منصة إكس (X)',
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          onTap: () => _launchUrlHelper('https://x.com/almarefa_mecca'),
+        ),
+      ],
+    );
+  }
+
+  // --- ✅ MODIFIED: Floating Action Button for Contacts ---
+  Widget _buildContactsFab() {
+    return SpeedDial(
+      heroTag: 'contacts-fab',
+      icon: Icons.support_agent,
+      activeIcon: Icons.close,
+      direction: SpeedDialDirection.up,
+      childrenButtonSize: const Size(60.0, 60.0),
+      children: [
+        SpeedDialChild(
+            child: const Icon(Icons.code, color: Colors.white),
+            backgroundColor: Colors.deepPurple,
+            onTap: () => _launchUrlHelper('https://wa.me/966569064173'),
+            // Using labelWidget for a richer label design
+            labelWidget: Container(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              margin: const EdgeInsets.only(right: 10),
+              decoration: BoxDecoration(
+                color: Colors.deepPurple,
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+              ),
+              child: const Text(
+                ' مصطفي سعيد (</>)',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            )
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.school),
+          label: 'مدير المدرسة',
+          onTap: () => _launchUrlHelper('https://wa.me/966539547972'),
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.supervisor_account),
+          label: 'وكيل الشؤون التعليمية',
+          onTap: () => _launchUrlHelper('https://wa.me/966502361091'),
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.person_pin),
+          label: 'وكيل المدرسة',
+          onTap: () => _launchUrlHelper('https://wa.me/966501468550'),
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.support_agent),
+          label: 'موجه الطلاب: أ/ عبدالرحمن ',
+          onTap: () => _launchUrlHelper('https://wa.me/966500971015'),
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.support_agent),
+          label: 'موجه الطلاب: أ/ يحيى',
+          onTap: () => _launchUrlHelper('https://wa.me/966502649649'),
+        ),
+      ],
+    );
+  }
+
+  // --- ✅✅✅ THE MAIN FIX IS HERE ✅✅✅ ---
+  // The build method is now wrapped in a Stack to correctly position the buttons.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
-                  child: Column(
-                    children: [
-                      // Login Section
-                      (constraints.maxWidth > 900)
-                          ? _buildWideLayout()
-                          : _buildMobileLayout(),
-
-                      // Leaderboards Section
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 550),
-                          child: Column(
-                            children: [
-                              _buildTopStudentsCard(),
-                              const SizedBox(height: 16),
-                              _buildTopClassesCard(),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Footer Section
-                      const Spacer(),
-                      _buildFooter(),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-      floatingActionButton: SpeedDial(
-        heroTag: 'main-fab',
-        icon: Icons.support_agent,
-        activeIcon: Icons.close,
+      // The floatingActionButton property is removed.
+      body: Stack( // Using a Stack to layer widgets.
         children: [
-          SpeedDialChild(
-            child: const Icon(Icons.code),
-            label: 'أ/مصطفي سعيد',
-            onTap: () => _launchUrlHelper('tel:+966569064173'),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // This is the main scrollable content of the page.
+                return SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        children: [
+                          // Login Section
+                          (constraints.maxWidth > 900)
+                              ? _buildWideLayout()
+                              : _buildMobileLayout(),
+
+                          // Leaderboards Section
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 550),
+                              child: Column(
+                                children: [
+                                  _buildTopStudentsCard(),
+                                  const SizedBox(height: 16),
+                                  _buildTopClassesCard(),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // Footer Section
+                          const Spacer(),
+                          _buildFooter(),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
-          SpeedDialChild(
-            child: const Icon(Icons.school),
-            label: 'مدير المدرسة',
-            onTap: () => _launchUrlHelper('tel:+966539547972'),
+
+          // This Positioned widget places the social media button on the left.
+          Positioned(
+            bottom: 16.0,
+            left: 16.0,
+            child: _buildSocialMediaFab(),
           ),
-          SpeedDialChild(
-            child: const Icon(Icons.supervisor_account),
-            label: 'وكيل الشئون التعليمية',
-            onTap: () => _launchUrlHelper('tel:+966502361091'),
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.person_pin),
-            label: 'وكيل المدرسة',
-            onTap: () => _launchUrlHelper('tel:+966501468550'),
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.support_agent),
-            label: 'موجه الطلاب: أ/ عبدالرحمن عثمان',
-            onTap: () => _launchUrlHelper('tel:+966500971015'),
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.support_agent),
-            label: 'موجه الطلاب: أ/ يحيي',
-            onTap: () => _launchUrlHelper('tel:+966502649649'),
+
+          // This Positioned widget places the contacts button on the right.
+          Positioned(
+            bottom: 16.0,
+            right: 16.0,
+            child: _buildContactsFab(),
           ),
         ],
       ),
@@ -628,9 +705,9 @@ class _WelcomePageState extends State<WelcomePage> {
               'للشكاوي والملاحظات',
               [
                 'مدير المدرسة  أ: عبدالله المطرفي (966539547972+)',
-                'وكيل الشئون التعليمية: أ/عماد الجندي (966502361091+)',
+                'وكيل الشؤون التعليمية: أ/عماد الجندي (966502361091+)',
                 'وكيل المدرسة: ا عصام المطرفي (966501468550+)',
-                'موجه الطلاب: أ عبدالرحمن عثمان (966500971015+)',
+                'موجه الطلاب: أ عبدالرحمن  (966500971015+)',
                 'موجه الطلاب: أ يحيي (966502649649+)',
               ],
             ),

@@ -69,8 +69,10 @@ class _AddPageState extends State<AddPage> {
     }
   }
 
-  Future<void> _launchWhatsApp() async {
-    const phoneNumber = '966569064173'; // رقم الهاتف بدون + أو 00
+  // --- ✅ MODIFIED: Function now opens WhatsApp specifically ---
+  Future<void> _launchWhatsAppForSupport() async {
+    // الرقم مخصص للمبرمج مصطفى سعيد
+    const phoneNumber = '966569064173';
     final Uri whatsappUri = Uri.parse('https://wa.me/$phoneNumber');
 
     if (!await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)) {
@@ -272,6 +274,7 @@ class _AddPageState extends State<AddPage> {
     }
   }
 
+  // --- ✅ MODIFIED: The build method is cleaner now ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -328,24 +331,14 @@ class _AddPageState extends State<AddPage> {
           ? const Center(child: CircularProgressIndicator())
           : _isExporting
           ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), SizedBox(height: 16), Text("جاري تصدير الملف، قد يستغرق الأمر بعض الوقت...")],))
-          : Stack(
-        children: [
-          _buildTeacherDashboard(),
-          Positioned(
-            bottom: 16,
-            left: 16,
-            child: GestureDetector(
-              onTap: _launchWhatsApp,
-              child: Tooltip(
-                message: 'تواصل معنا عبر واتساب',
-                child: SizedBox(
-                  width: 120,
-                  height: 120,
-                ),
-              ),
-            ),
-          ),
-        ],
+          : _buildTeacherDashboard(), // The body is now just the dashboard
+      // --- ✅ NEW: Added a clear FloatingActionButton for technical support ---
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _launchWhatsAppForSupport,
+        backgroundColor: Colors.deepPurple,
+        icon: const Icon(Icons.support_agent),
+        label: const Text('الدعم الفني للمنصة'),
+        tooltip: '</>  أ/مصطفي سعيد لحل المشكلات التقنية',
       ),
     );
   }
