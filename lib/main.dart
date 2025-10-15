@@ -1,4 +1,4 @@
-// main.dart
+// main.dart (MODIFIED)
 
 import 'dart:async';
 import 'dart:js' as js; // لاستدعاء دوال JavaScript
@@ -201,6 +201,21 @@ class AuthWrapper extends StatelessWidget {
   }
 }
 
+// --- 🛑 MODIFICATION START 🛑 ---
+// Data models for the leaderboards
+class TopStudent {
+  final String name;
+  final int likes;
+  TopStudent({required this.name, required this.likes});
+}
+
+class TopClass {
+  final String name;
+  final int likes;
+  TopClass({required this.name, required this.likes});
+}
+
+// Converted to StatefulWidget to fetch data
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
 
@@ -211,9 +226,15 @@ class WelcomePage extends StatefulWidget {
 class _WelcomePageState extends State<WelcomePage> {
   bool _isInstallable = false;
 
+  // New state variables for leaderboards
+  bool _isLoadingLeaderboards = true;
+  List<TopStudent> _topStudents = [];
+  List<TopClass> _topClasses = [];
+
   @override
   void initState() {
     super.initState();
+    // PWA install listener
     js.context['pwa-installable-listener'] = (event) {
       final isReady = js.context['isInstallable'];
       if (mounted && _isInstallable != isReady) {
@@ -226,10 +247,81 @@ class _WelcomePageState extends State<WelcomePage> {
     if (js.context.hasProperty('isInstallable')) {
       _isInstallable = js.context['isInstallable'];
     }
+
+    // Fetch data from Firestore
+    _fetchLeaderboards();
+  }
+
+  Future<void> _fetchLeaderboards() async {
+    try {
+      // Fetch top 3 students
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('students')
+          .orderBy('totalLikes', descending: true)
+          .limit(3)
+          .get();
+
+      final List<TopStudent> students = studentsSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return TopStudent(
+          name: data['name'] ?? 'طالب',
+          likes: data['totalLikes'] ?? 0,
+        );
+      }).toList();
+
+      // Fetch all students to calculate class scores
+      final allStudentsSnapshot = await FirebaseFirestore.instance
+          .collection('students')
+          .where('totalLikes', isGreaterThan: 0)
+          .get();
+
+      final Map<String, int> classLikes = {};
+      for (var doc in allStudentsSnapshot.docs) {
+        final data = doc.data();
+        final String className = '${data['grades']} / ${data['classes']}';
+        final int likes = data['totalLikes'] ?? 0;
+        classLikes.update(className, (value) => value + likes, ifAbsent: () => likes);
+      }
+
+      final List<TopClass> classes = classLikes.entries.map((entry) {
+        return TopClass(name: entry.key, likes: entry.value);
+      }).toList();
+
+      classes.sort((a, b) => b.likes.compareTo(a.likes));
+
+      if (mounted) {
+        setState(() {
+          _topStudents = students;
+          _topClasses = classes.take(5).toList(); // Take top 5 classes
+          _isLoadingLeaderboards = false;
+        });
+      }
+
+    } catch (e) {
+      debugPrint("Error fetching leaderboards: $e");
+      if(mounted) {
+        setState(() {
+          _isLoadingLeaderboards = false;
+        });
+      }
+    }
   }
 
   void _showInstallPrompt() {
     js.context.callMethod('showInstallPrompt');
+  }
+
+  Color _getRankColor(int rank) {
+    switch (rank) {
+      case 1:
+        return Colors.amber.shade700;
+      case 2:
+        return Colors.grey.shade600;
+      case 3:
+        return Colors.brown.shade600;
+      default:
+        return Colors.blueGrey;
+    }
   }
 
   @override
@@ -244,11 +336,28 @@ class _WelcomePageState extends State<WelcomePage> {
                 child: IntrinsicHeight(
                   child: Column(
                     children: [
-                      Expanded(
-                        child: (constraints.maxWidth > 900)
-                            ? _buildWideLayout()
-                            : _buildMobileLayout(),
+                      // Login Section
+                      (constraints.maxWidth > 900)
+                          ? _buildWideLayout()
+                          : _buildMobileLayout(),
+
+                      // Leaderboards Section
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 550),
+                          child: Column(
+                            children: [
+                              _buildTopStudentsCard(),
+                              const SizedBox(height: 16),
+                              _buildTopClassesCard(),
+                            ],
+                          ),
+                        ),
                       ),
+
+                      // Footer Section
+                      const Spacer(),
                       _buildFooter(),
                     ],
                   ),
@@ -258,9 +367,8 @@ class _WelcomePageState extends State<WelcomePage> {
           },
         ),
       ),
-      // --- ✅ MODIFIED: Switched to a single FloatingActionButton with SpeedDial ---
       floatingActionButton: SpeedDial(
-        heroTag: 'main-fab', // A single hero tag is enough now
+        heroTag: 'main-fab',
         icon: Icons.support_agent,
         activeIcon: Icons.close,
         children: [
@@ -299,6 +407,111 @@ class _WelcomePageState extends State<WelcomePage> {
     );
   }
 
+  Widget _buildTopStudentsCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.emoji_events, color: Colors.amber.shade700, size: 28),
+                const SizedBox(width: 8),
+                Text("الطلاب المتميزون", style: Theme.of(context).textTheme.headlineSmall),
+              ],
+            ),
+            const Divider(height: 24),
+            if (_isLoadingLeaderboards)
+              const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_topStudents.isEmpty)
+              const Text("لا يوجد طلاب متميزون حالياً")
+            else
+              Column(
+                children: _topStudents.asMap().entries.map((entry) {
+                  int idx = entry.key;
+                  TopStudent student = entry.value;
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: _getRankColor(idx + 1).withOpacity(0.2),
+                      child: Text(
+                        '${idx + 1}',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: _getRankColor(idx + 1)),
+                      ),
+                    ),
+                    title: Text(student.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(student.likes.toString(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.thumb_up, color: Colors.blue, size: 18),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTopClassesCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.groups, color: Colors.teal.shade600, size: 28),
+                const SizedBox(width: 8),
+                Text("الفصول الأكثر انضباطاً", style: Theme.of(context).textTheme.headlineSmall),
+              ],
+            ),
+            const Divider(height: 24),
+            if (_isLoadingLeaderboards)
+              const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_topClasses.isEmpty)
+              const Text("لا توجد بيانات لعرضها حالياً")
+            else
+              Column(
+                children: _topClasses.asMap().entries.map((entry) {
+                  int idx = entry.key;
+                  TopClass topClass = entry.value;
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.teal.withOpacity(0.1),
+                      child: Text(
+                        '${idx + 1}',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                      ),
+                    ),
+                    title: Text(topClass.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(topClass.likes.toString(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.thumb_up, color: Colors.blue, size: 18),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildWideLayout() {
     return Center(
@@ -456,6 +669,8 @@ class _WelcomePageState extends State<WelcomePage> {
     );
   }
 }
+// --- 🛑 MODIFICATION END 🛑 ---
+
 
 class LoginPage extends StatefulWidget {
   final String accountType;
