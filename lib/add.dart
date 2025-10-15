@@ -2400,8 +2400,8 @@ class _TeacherAnalyticsViewState extends State<TeacherAnalyticsView> {
   llValue(String s) {}
 }
 
-
-// --- (✅ تعديل: تحويل الصفحة إلى StatefulWidget للتعامل مع صلاحيات المشرف) ---
+// --- ✅ START OF MODIFICATION ---
+// The entire implementation of ComplaintsBoxPage is replaced here.
 class ComplaintsBoxPage extends StatefulWidget {
   const ComplaintsBoxPage({super.key});
 
@@ -2410,59 +2410,22 @@ class ComplaintsBoxPage extends StatefulWidget {
 }
 
 class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
-  bool _isAdmin = false;
-  bool _isLoading = true;
-  final _currentUser = FirebaseAuth.instance.currentUser;
+  // The state is now simpler. We don't need to track the admin status anymore
+  // as the view is the same for everyone.
 
-  @override
-  void initState() {
-    super.initState();
-    _checkAdminStatus();
-  }
-
-  Future<void> _checkAdminStatus() async {
-    if (_currentUser == null) {
-      if (mounted) setState(() => _isLoading = false);
-      return;
-    }
-    try {
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_currentUser!.uid).get();
-      if (mounted) {
-        setState(() {
-          _isAdmin = (userDoc.data()?['profession'] == 'admin');
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  // --- 🔴 START OF RADICAL FIX 🔴 ---
-  // هذه الدالة هي جوهر الإصلاح.
+  /// Builds the Firestore stream to fetch complaints.
+  ///
+  /// This query is now the same for all users (admins and teachers).
+  /// It fetches all behavior reports that have been replied to by a parent
+  /// or have been closed, ordered by the most recent reply.
+  /// This query works correctly with the existing index on `status` and `replyTimestamp`.
   Stream<QuerySnapshot> _buildStream() {
-    // الاستعلام الأساسي يقوم بالترتيب حسب الوقت أولاً.
-    Query query = FirebaseFirestore.instance
+    return FirebaseFirestore.instance
         .collection('behavior_reports')
-        .orderBy('replyTimestamp', descending: true);
-
-    // بالنسبة للمدير، الاستعلام بسيط وصحيح: فلترة حسب الحالة فقط.
-    // يمكن لـ Firestore إنشاء فهرس لـ `status` و `replyTimestamp`.
-    if (_isAdmin) {
-      return query
-          .where('status', whereIn: ['replied_by_student', 'closed'])
-          .snapshots();
-    }
-
-    // بالنسبة للمعلم (غير المدير)، نقوم بجلب **جميع** التقارير الخاصة به.
-    // تم **حذف** شرط `where('status', ...)` الإشكالي من الاستعلام.
-    // ستتم الفلترة الآن داخل `StreamBuilder` في واجهة المستخدم.
-    // هذا الاستعلام صحيح ولا يتطلب فهرسة معقدة.
-    return query
-        .where('teacherId', isEqualTo: _currentUser?.uid)
+        .where('status', whereIn: ['replied_by_student', 'closed'])
+        .orderBy('replyTimestamp', descending: true)
         .snapshots();
   }
-  // --- 🔴 END OF RADICAL FIX 🔴 ---
 
   @override
   Widget build(BuildContext context) {
@@ -2470,9 +2433,8 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
       appBar: AppBar(
         title: const Text('صندوق الشكاوى والردود'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<QuerySnapshot>(
+      // We directly use a StreamBuilder, which handles loading states internally.
+      body: StreamBuilder<QuerySnapshot>(
         stream: _buildStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -2481,6 +2443,7 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
           if (snapshot.hasError) {
             return Center(child: Text('حدث خطأ: ${snapshot.error}'));
           }
+          // The check `!snapshot.hasData` is important for the initial frame.
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(
               child: Column(
@@ -2495,37 +2458,12 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
             );
           }
 
-          // --- 🔴 START: UI Filtering (جزء من الإصلاح) 🔴 ---
-          // هنا نقوم بفلترة النتائج في كود التطبيق إذا كان المستخدم ليس مديراً.
-          List<DocumentSnapshot> docs = snapshot.data!.docs;
-          if (!_isAdmin) {
-            docs = docs.where((doc) {
-              final data = doc.data() as Map<String, dynamic>?;
-              final status = data?['status'] as String?;
-              // هذا هو الفلتر الحاسم الذي يتم من طرف التطبيق
-              return status == 'replied_by_student' || status == 'closed';
-            }).toList();
-          }
-
-          // إذا كانت القائمة فارغة بعد الفلترة، نعرض رسالة "فارغ".
-          if (docs.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.inbox, size: 80, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text('صندوق الشكاوى فارغ', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                  Text('لم تصل أي ردود من أولياء الأمور بعد.', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                ],
-              ),
-            );
-          }
-          // --- 🔴 END: UI Filtering 🔴 ---
+          // No client-side filtering is needed.
+          // All fetched documents are displayed directly.
+          final docs = snapshot.data!.docs;
 
           return ListView.builder(
             padding: const EdgeInsets.all(12.0),
-            // نستخدم القائمة المفلترة من المستندات
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final doc = docs[index];
@@ -2537,6 +2475,7 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
     );
   }
 }
+// --- ✅ END OF MODIFICATION ---
 
 // --- (ويدجت عرض المحادثة بين المعلم وولي الأمر) ---
 class _ComplaintConversationCard extends StatefulWidget {
@@ -2552,43 +2491,55 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
 
-  // --- ✅✅✅ الكود المعدل والنهائي ✅✅✅ ---
-  // تم تبسيط هذه الدالة بشكل كبير. لم تعد بحاجة لجلب المدراء أو إرسال إشعارات لهم.
-  // هذه المهمة ستتم الآن بشكل آمن وتلقائي في الخلفية بواسطة Cloud Functions.
+  // --- 🛑 MODIFICATION START 🛑 ---
   Future<void> _submitTeacherFinalReply() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSubmitting = true);
 
+    // Get the current user to save their ID and Name.
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('خطأ: المستخدم غير مسجل.'), backgroundColor: Colors.red),
+        );
+        setState(() => _isSubmitting = false);
+      }
+      return;
+    }
+
     try {
+      // Fetch the current teacher's name
+      final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+      final replierName = currentUserDoc.data()?['name'] ?? 'معلم';
+
       final reportRef = FirebaseFirestore.instance.collection('behavior_reports').doc(widget.reportDoc.id);
       final reportData = widget.reportDoc.data() as Map<String, dynamic>? ?? {};
       final studentId = reportData['studentId'];
-      final teacherName = reportData['teacherName'];
       final subject = reportData['subject'];
 
       final batch = FirebaseFirestore.instance.batch();
 
-      // 1. تحديث الشكوى بالرد النهائي وتغيير حالتها إلى "مغلقة"
+      // 1. Update the complaint with the final reply, new status, and the replier's info.
       batch.update(reportRef, {
         'teacherFinalReply': _finalReplyController.text.trim(),
         'teacherFinalReplyTimestamp': FieldValue.serverTimestamp(),
         'status': 'closed',
+        'finalReplierId': currentUser.uid,   // Save the ID of the teacher who replied
+        'finalReplierName': replierName,       // Save the Name of the teacher who replied
       });
 
-      // 2. إرسال إشعار إلى الطالب لإعلامه بالرد النهائي
-      // (هذه العملية مسموح بها وآمنة إذا كانت صلاحيات Firestore تسمح بذلك)
+      // 2. Send a notification to the student.
       if (studentId != null) {
         final studentNotificationRef = FirebaseFirestore.instance.collection('students').doc(studentId).collection('notifications').doc();
         batch.set(studentNotificationRef, {
-          'message': 'وصل رد من أ. $teacherName بخصوص ملاحظة مادة $subject',
+          // Use the name of the teacher who actually replied.
+          'message': 'وصل رد من أ. $replierName بخصوص ملاحظة مادة $subject',
           'timestamp': FieldValue.serverTimestamp(),
           'isRead': false,
           'reportId': widget.reportDoc.id,
         });
       }
-
-      // 🛑 تم حذف منطق إرسال الإشعار للمدراء من هنا
-      // سيتم التعامل معه في الخلفية الآن عبر Cloud Functions
 
       await batch.commit();
 
@@ -2609,6 +2560,7 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
       }
     }
   }
+  // --- 🛑 MODIFICATION END 🛑 ---
 
 
   @override
@@ -2625,6 +2577,13 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
     final teacherNote = data['teacherNote'] ?? '...';
     final studentReply = data['studentReply'] ?? '...';
     final teacherFinalReply = data['teacherFinalReply'] as String?;
+
+    // --- 🛑 MODIFICATION START 🛑 ---
+    // Read the new fields for the final replier's name and the original teacher's name.
+    final finalReplierName = data['finalReplierName'] as String?;
+    final originalTeacherName = data['teacherName'] ?? 'المعلم';
+    // --- 🛑 MODIFICATION END 🛑 ---
+
     final timestamp = data['timestamp'] as Timestamp?;
     final replyTimestamp = data['replyTimestamp'] as Timestamp?;
     final finalReplyTimestamp = data['teacherFinalReplyTimestamp'] as Timestamp?;
@@ -2655,7 +2614,9 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
             _buildConversationBubble(
               context,
               isMe: true,
-              author: 'ملاحظتي',
+              // --- 🛑 MODIFICATION 🛑 ---
+              // Show the name of the original teacher.
+              author: 'ملاحظة من: أ. $originalTeacherName',
               text: teacherNote,
               timestamp: timestamp,
             ),
@@ -2672,41 +2633,57 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
               _buildConversationBubble(
                 context,
                 isMe: true,
-                author: 'ردي النهائي',
+                // --- 🛑 MODIFICATION 🛑 ---
+                // Show the name of the teacher who wrote the final reply.
+                author: 'رد نهائي من: أ. ${finalReplierName ?? originalTeacherName}',
                 text: teacherFinalReply,
                 timestamp: finalReplyTimestamp,
                 isFinal: true,
               ),
             ] else ...[
               const Divider(height: 24),
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _finalReplyController,
-                      decoration: const InputDecoration(
-                        labelText: 'اكتب ردك النهائي هنا',
-                        border: OutlineInputBorder(),
-                        alignLabelWithHint: true,
-                      ),
-                      maxLines: 3,
-                      validator: (v) => (v == null || v.trim().isEmpty) ? 'الرجاء كتابة ردك' : null,
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: _isSubmitting
-                          ? const Center(child: CircularProgressIndicator())
-                          : ElevatedButton.icon(
-                        icon: const Icon(Icons.send),
-                        label: const Text('إرسال الرد وإغلاق الشكوى'),
-                        onPressed: _submitTeacherFinalReply,
-                      ),
-                    ),
-                  ],
+              // --- 🛑 MODIFICATION 🛑 ---
+              // Check if the current user is a teacher before showing the reply box.
+              // This uses the same logic as the security rules.
+              if (FirebaseAuth.instance.currentUser != null)
+                FutureBuilder<DocumentSnapshot>(
+                    future: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).get(),
+                    builder: (context, snapshot) {
+                      // Only show the reply box if the user is a confirmed teacher.
+                      if (snapshot.hasData && snapshot.data!.exists && (snapshot.data!.data() as Map).containsKey('profession')) {
+                        return Form(
+                          key: _formKey,
+                          child: Column(
+                            children: [
+                              TextFormField(
+                                controller: _finalReplyController,
+                                decoration: const InputDecoration(
+                                  labelText: 'اكتب ردك النهائي هنا',
+                                  border: OutlineInputBorder(),
+                                  alignLabelWithHint: true,
+                                ),
+                                maxLines: 3,
+                                validator: (v) => (v == null || v.trim().isEmpty) ? 'الرجاء كتابة ردك' : null,
+                              ),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                width: double.infinity,
+                                child: _isSubmitting
+                                    ? const Center(child: CircularProgressIndicator())
+                                    : ElevatedButton.icon(
+                                  icon: const Icon(Icons.send),
+                                  label: const Text('إرسال الرد وإغلاق الشكوى'),
+                                  onPressed: _submitTeacherFinalReply,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      // If user is not a teacher, show nothing.
+                      return const SizedBox.shrink();
+                    }
                 ),
-              ),
             ]
           ],
         ),
