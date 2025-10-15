@@ -338,7 +338,7 @@ class _AddPageState extends State<AddPage> {
         backgroundColor: Colors.deepPurple,
         icon: const Icon(Icons.support_agent),
         label: const Text('الدعم الفني للمنصة'),
-        tooltip: '</>  أ/مصطفي سعيد لحل المشكلات التقنية',
+        tooltip: '</>  أ/ لحل المشكلات التقنية',
       ),
     );
   }
