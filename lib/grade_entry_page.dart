@@ -236,9 +236,13 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   Future<void> _showGradeDialog(String studentId, String studentName, dynamic currentGrade) async {
     final gradeController = TextEditingController(text: currentGrade?.toString() ?? '');
 
-    final bool isNafes = widget.subject == 'نافس';
+    // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+    // The maximum grade and passing grade are now determined based on the test's unique key.
+    // If the key contains "profession13", it's a Nafes test.
+    final bool isNafes = widget.testFieldKey.contains('profession13');
     final double maxGrade = isNafes ? 10.0 : 20.0;
     final double passingGrade = isNafes ? 5.0 : 10.0;
+    // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
     final result = await showDialog<String>(
       context: context,
@@ -356,7 +360,9 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       );
     }
 
-    final bool isNafes = widget.subject == 'نافس';
+    // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+    // The maximum grade and evaluation logic now correctly identify Nafes tests via their key.
+    final bool isNafes = widget.testFieldKey.contains('profession13');
     final double maxGrade = isNafes ? 10.0 : 20.0;
 
     String getEvaluation(num grade) {
@@ -372,6 +378,8 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         return "أولى بالرعاية";
       }
     }
+    // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+
 
     for (var studentDoc in _students) {
       final studentId = studentDoc.id;

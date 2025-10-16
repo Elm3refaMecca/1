@@ -844,8 +844,11 @@ class _StudentViewPageState extends State<StudentViewPage>
       );
     }
 
+    // --- ✅ MODIFICATION START ✅ ---
+    // This is the key change. The maximum grade for "نافس" is now correctly set to 10.
     final bool isNafes = subjectName == 'نافس';
     final double maxGrade = isNafes ? 10.0 : 20.0;
+    // --- ✅ MODIFICATION END ✅ ---
     final double passingGrade = maxGrade / 2.0;
 
     final double average = grades.reduce((a, b) => a + b) / grades.length;

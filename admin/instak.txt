@@ -1,0 +1,13 @@
+npm install firebase-admin
+
+تشغيل
+
+node delete_students.js
+
+تشغيل اعادة كلمة المرور للجميع 
+
+node reset_password.js
+
+اعادة لمخصص 
+
+node reset_password_interactive.js
