@@ -1962,13 +1962,51 @@ class _TeacherAnalyticsViewState extends State<TeacherAnalyticsView> {
         };
       }).toList();
 
-      final Map<String, String> teacherSubjects = {};
-      _subjectToProfessionKeyMap.forEach((subjectName, profKey) {
-        if (teacherData[profKey] == subjectName) {
-          teacherSubjects[subjectName] = profKey;
+      // --- 🛑 START OF MODIFICATION 🛑 ---
+      // This is the corrected logic for identifying a teacher's subjects.
+      // It now correctly parses the class assignment fields.
+      final Map<String, String> teacherSubjects = {}; // Map<SubjectName, ProfessionKey>
+      final Set<String> foundSubjects = {};
+
+      // List all possible fields that store class/subject assignments
+      final classFields = [
+        'class1', 'class2', 'class3', 'class4', 'class5', 'class6', // Primary
+        'class11', 'class22', 'class33', // Middle
+        'class111', 'class222', 'class333' // High School
+      ];
+
+      for (var field in classFields) {
+        // Check if the teacher document has this field and it's a string
+        if (teacherData.containsKey(field) && teacherData[field] is String) {
+          final String assignments = teacherData[field];
+          // Split "Class A=Math,Class B=Science" into individual assignments
+          final pairs = assignments.split(',');
+          for (var pair in pairs) {
+            // Split "Class A=Math" into "Class A" and "Math"
+            final parts = pair.split('=');
+            if (parts.length == 2) {
+              final subjectName = parts[1].trim();
+              if (subjectName.isNotEmpty) {
+                // Add the subject to a set to avoid duplicates
+                foundSubjects.add(subjectName);
+              }
+            }
+          }
         }
-      });
-      if (teacherSubjects.isEmpty) throw Exception('هذا المعلم ليس لديه مواد دراسية.');
+      }
+
+      // Now, populate the final 'teacherSubjects' map using the unique subject names found
+      for (var subject in foundSubjects) {
+        if (_subjectToProfessionKeyMap.containsKey(subject)) {
+          teacherSubjects[subject] = _subjectToProfessionKeyMap[subject]!;
+        }
+      }
+
+      // Check if any subjects were found. If not, the teacher has no assignments.
+      if (teacherSubjects.isEmpty) {
+        throw Exception('هذا المعلم ليس لديه مواد دراسية مسندة في أي فصل.');
+      }
+      // --- 🛑 END OF MODIFICATION 🛑 ---
 
       final Map<String, List<num>> valueAddedScores = {};
       final Map<String, List<num>> consistencyScores = {};
