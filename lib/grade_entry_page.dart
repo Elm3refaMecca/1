@@ -742,7 +742,8 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text('رصد درجة: ${widget.studentName}'),
+      // --- ✅ MODIFICATION: Title removed as requested ---
+      title: null,
       content: SingleChildScrollView(
         child: _isSaving
             ? const SizedBox(
@@ -753,6 +754,8 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text('الطالب: ${widget.studentName}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _gradeController,
               autofocus: true,
@@ -782,35 +785,35 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
           ],
         ),
       ),
-      actions: [
-        // "Close" Button
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
-        ),
-        // "Delete" Button
-        if (widget.currentGrade != null)
-          TextButton(
-            onPressed: _handleDelete,
-            child: const Text('حذف الدرجة',
-                style: TextStyle(color: Colors.red)),
-          ),
-        // "Absent" Button
-        OutlinedButton.icon(
-          onPressed: _handleSaveAbsent,
-          icon: const Icon(Icons.person_off_outlined),
-          label: const Text('غائب'),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blueGrey),
-        ),
-        // "Confirm" Button
-        ElevatedButton.icon(
-          onPressed: _handleConfirm,
-          icon: const Icon(Icons.check_circle_outline),
-          label: const Text('تأكيد'),
-        ),
+      // --- ✅ MODIFICATION: Actions are now wrapped and aligned to the end ---
+      actions: <Widget>[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
+            ),
+            if (widget.currentGrade != null)
+              TextButton(
+                onPressed: _handleDelete,
+                child: const Text('حذف',
+                    style: TextStyle(color: Colors.red)),
+              ),
+            OutlinedButton(
+              onPressed: _handleSaveAbsent,
+              child: const Text('غائب'),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.blueGrey),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: _handleConfirm,
+              child: const Text('تأكيد'),
+            ),
+          ],
+        )
       ],
-      // Ensure buttons wrap correctly on small screens
-      actionsAlignment: MainAxisAlignment.spaceBetween,
+      actionsAlignment: MainAxisAlignment.end,
     );
   }
 }
