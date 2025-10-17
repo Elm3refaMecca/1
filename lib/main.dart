@@ -225,6 +225,9 @@ class WelcomePage extends StatefulWidget {
 
 class _WelcomePageState extends State<WelcomePage> {
   bool _isInstallable = false;
+  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+  bool _updateAvailable = false;
+  // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
   // New state variables for leaderboards
   bool _isLoadingLeaderboards = true;
@@ -247,6 +250,22 @@ class _WelcomePageState extends State<WelcomePage> {
     if (js.context.hasProperty('isInstallable')) {
       _isInstallable = js.context['isInstallable'];
     }
+
+    // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+    // PWA Update Listener
+    js.context['pwa-update-listener'] = (event) {
+      final isReady = js.context['isUpdateAvailable'] ?? false;
+      if (mounted && _updateAvailable != isReady) {
+        setState(() {
+          _updateAvailable = isReady;
+        });
+      }
+    };
+    js.context.callMethod('addEventListener', ['pwa-update-available', js.context['pwa-update-listener']]);
+    if (js.context.hasProperty('isUpdateAvailable')) {
+      _updateAvailable = js.context['isUpdateAvailable'];
+    }
+    // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
     // Fetch data from Firestore
     _fetchLeaderboards();
@@ -311,6 +330,12 @@ class _WelcomePageState extends State<WelcomePage> {
     js.context.callMethod('showInstallPrompt');
   }
 
+  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+  void _triggerUpdate() {
+    js.context.callMethod('triggerPwaUpdate');
+  }
+  // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+
   Color _getRankColor(int rank) {
     switch (rank) {
       case 1:
@@ -367,9 +392,6 @@ class _WelcomePageState extends State<WelcomePage> {
           },
         ),
       ),
-      // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-      // This line moves the Floating Action Button to the right side of the screen
-      // in an RTL (Arabic) layout.
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: SpeedDial(
         heroTag: 'main-fab',
@@ -416,7 +438,6 @@ class _WelcomePageState extends State<WelcomePage> {
           ),
         ],
       ),
-      // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
     );
   }
 
@@ -562,6 +583,24 @@ class _WelcomePageState extends State<WelcomePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
+            // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+            if (_updateAvailable)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 24.0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.system_update),
+                    label: const Text('تحديث جديد متوفر! اضغط للتحديث'),
+                    onPressed: _triggerUpdate,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ),
+              ),
+            // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
             Image.asset('assets/m1.png', height: logoSize, width: logoSize),
             const SizedBox(height: 24),
             Text(
