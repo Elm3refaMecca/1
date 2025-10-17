@@ -271,15 +271,21 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
+  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+  // This function now correctly checks for 'null' values only.
+  // A grade of -1 (absent) is NOT null, so it will be counted as a completed entry.
   bool _areAllGradesEntered() {
     if (_students.isEmpty) return false;
     for (final student in _students) {
+      // The condition is met as long as the grade is not null.
+      // -1 is a valid value, so this works as intended.
       if (_grades[student.id] == null) {
         return false;
       }
     }
     return true;
   }
+  // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
   Future<void> _exportToExcel() async {
     final excel = Excel.createExcel();
@@ -324,15 +330,19 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       final grade = _grades[studentId];
 
       if (grade != null) {
+        // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+        // This block correctly handles the 'absent' (-1) case for Excel export.
         if (grade == -1) {
           final List<CellValue> row = [
             TextCellValue(studentName),
-            TextCellValue('غائب'),
+            TextCellValue('غائب'), // Explicitly write "غائب"
             TextCellValue('N/A'),
             TextCellValue('N/A')
           ];
           sheetObject.appendRow(row);
-        } else {
+        }
+        // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+        else {
           final double percentage = (grade / maxGrade) * 100;
           final String evaluation = getEvaluation(grade);
           final List<CellValue> row = [
@@ -399,8 +409,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  // --- WIDGET RETAINED ---
-  // This widget builds the chip that displays the grade status
   Widget _buildGradeChip({
     required dynamic currentGrade,
     required VoidCallback onTap,
@@ -454,13 +462,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       ),
     );
   }
-  // --- WIDGET RETAINED ---
 
-
-  // --- ❌ OLD METHOD REMOVED: _showGradeEntrySheet ---
-
-  // --- ✅✅✅ NEW DIALOG WIDGET START ✅✅✅ ---
-  // New Dialog widget to replace the StatefulBuilder inside the BottomSheet
   Future<void> _showGradeEntryDialog({
     required String studentId,
     required String studentName,
@@ -484,14 +486,12 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       },
     );
   }
-  // --- ✅✅✅ NEW DIALOG WIDGET END ✅✅✅ ---
 
 
   @override
   Widget build(BuildContext context) {
     final bool allGradesEntered = _areAllGradesEntered();
 
-    // --- ✅ NEW: Calculate max and passing grades here ---
     final bool isNafes = widget.testFieldKey.contains('profession13');
     final double maxGrade = isNafes ? 10.0 : 20.0;
     final double passingGrade = isNafes ? 5.0 : 10.0;
@@ -514,6 +514,8 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
             IconButton(
               icon: const Icon(Icons.download_for_offline_outlined),
               tooltip: 'تحميل ملف الدرجات (Excel)',
+              // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+              // The onPressed callback now correctly enables when all grades, including "absent", are entered.
               onPressed: allGradesEntered ? _exportToExcel : () {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -522,6 +524,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
                   ),
                 );
               },
+              // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
             ),
         ],
       ),
@@ -585,7 +588,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
               ],
             )
                 : null,
-            // --- ✅✅✅ START OF MODIFICATION (using new dialog method) ✅✅✅ ---
             trailing: !widget.isBehaviorMode
                 ? _buildGradeChip(
               currentGrade: currentGrade,
@@ -600,15 +602,12 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
               },
             )
                 : null,
-            // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
           );
         },
       ),
     );
   }
 }
-
-// --- ✅✅✅ NEW STATEFUL WIDGET START: GradeEntryDialog (replaces the inner logic of the old bottom sheet) ✅✅✅ ---
 
 class _GradeEntryDialog extends StatefulWidget {
   final String studentId;
@@ -660,11 +659,9 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
     final text = _gradeController.text.trim();
 
     try {
-      // Case 1: Text field is empty, which means delete
       if (text.isEmpty) {
         await widget.onDeleteGrade(widget.studentId);
       }
-      // Case 2: Text field has a value
       else {
         final grade = num.tryParse(text);
         if (grade == null) {
@@ -678,7 +675,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
           return;
         }
 
-        // Check for passing grade
         if (grade < widget.passingGrade) {
           final confirmed = await showDialog<bool>(
             context: context,
@@ -702,7 +698,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
           );
           if (confirmed != true) return; // User cancelled
         }
-        // Save the grade
         await widget.onSaveGrade(widget.studentId, grade);
       }
       if (mounted) Navigator.pop(context); // Close dialog on success
@@ -742,7 +737,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      // --- ✅ MODIFICATION: Title removed as requested ---
       title: null,
       content: SingleChildScrollView(
         child: _isSaving
@@ -785,7 +779,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
           ],
         ),
       ),
-      // --- ✅ MODIFICATION: Actions are now wrapped and aligned to the end ---
       actions: <Widget>[
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -817,8 +810,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
     );
   }
 }
-
-// --- ✅✅✅ NEW STATEFUL WIDGET END ✅✅✅ ---
 
 
 extension on Sheet {

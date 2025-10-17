@@ -9,6 +9,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'dart:math' as math; // استيراد مكتبة الرياضيات لتحديد الحجم الأقصى
 
+// --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+// تم إضافة المكتبات المطلوبة لتشغيل ميزة إعادة التحميل على الويب
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:universal_html/html.dart' as html;
+// --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+
 // --- ✅ MODIFIED: Using the new package ---
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -583,7 +589,6 @@ class _WelcomePageState extends State<WelcomePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
             if (_updateAvailable)
               Padding(
                 padding: const EdgeInsets.only(bottom: 24.0),
@@ -600,8 +605,19 @@ class _WelcomePageState extends State<WelcomePage> {
                   ),
                 ),
               ),
-            // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
-            Image.asset('assets/m1.png', height: logoSize, width: logoSize),
+            // --- ✅✅✅ START OF MODIFICATION #1 (Welcome Page) ✅✅✅ ---
+            Tooltip(
+              message: 'تحديث الصفحة',
+              child: GestureDetector(
+                onTap: () {
+                  if (kIsWeb) {
+                    html.window.location.reload();
+                  }
+                },
+                child: Image.asset('assets/m1.png', height: logoSize, width: logoSize),
+              ),
+            ),
+            // --- ✅✅✅ END OF MODIFICATION #1 (Welcome Page) ✅✅✅ ---
             const SizedBox(height: 24),
             Text(
               'بوابة مدرسة المعرفة الاهلية',
@@ -834,7 +850,19 @@ class _LoginPageState extends State<LoginPage> {
                                     onPressed: () => Navigator.of(context).pop(),
                                   ),
                                 ),
-                                Image.asset('assets/m1.png', height: logoSize, width: logoSize),
+                                // --- ✅✅✅ START OF MODIFICATION #2 (Login Page) ✅✅✅ ---
+                                Tooltip(
+                                  message: 'تحديث الصفحة',
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      if (kIsWeb) {
+                                        html.window.location.reload();
+                                      }
+                                    },
+                                    child: Image.asset('assets/m1.png', height: logoSize, width: logoSize),
+                                  ),
+                                ),
+                                // --- ✅✅✅ END OF MODIFICATION #2 (Login Page) ✅✅✅ ---
                                 const SizedBox(height: 24),
                                 Text(portalName,
                                     style: TextStyle(
