@@ -1,4 +1,4 @@
-// student_view.dart
+// student_view.dart (MODIFIED)
 
 import 'dart:async';
 import 'dart:math';
@@ -19,6 +19,12 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+// --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+// تم إضافة المكتبات المطلوبة لتشغيل ميزة إعادة التحميل على الويب
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:universal_html/html.dart' as html;
+// --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
 enum StudentView { dashboard, results, noble, teacherComplaints }
 
@@ -388,12 +394,26 @@ class _StudentViewPageState extends State<StudentViewPage>
       );
     }
 
+    // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+    // تم تغليف الشعار بويدجت GestureDetector و Tooltip لتفعيل ميزة إعادة التحميل
     appBarActions.add(
-      Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Image.asset('assets/2.png'),
+      Tooltip(
+        message: 'تحديث الصفحة للحصول على آخر التعديلات',
+        child: GestureDetector(
+          onTap: () {
+            // هذا السطر يقوم بإعادة تحميل الصفحة (يعمل فقط على الويب)
+            if (kIsWeb) {
+              html.window.location.reload();
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Image.asset('assets/2.png'),
+          ),
+        ),
       ),
     );
+    // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
     return AppBar(
       title: Text(title,

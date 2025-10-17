@@ -279,10 +279,24 @@ class _AddPageState extends State<AddPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Image.asset('assets/2.png'),
+        // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+        // تم تغليف الشعار بويدجت GestureDetector و Tooltip لتفعيل ميزة إعادة التحميل
+        leading: Tooltip(
+          message: 'تحديث الصفحة للحصول على آخر التعديلات',
+          child: GestureDetector(
+            onTap: () {
+              // هذا السطر يقوم بإعادة تحميل الصفحة (يعمل فقط على الويب)
+              if (kIsWeb) {
+                html.window.location.reload();
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Image.asset('assets/2.png'),
+            ),
+          ),
         ),
+        // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -462,6 +476,7 @@ class _AddPageState extends State<AddPage> {
   }
 }
 
+// ... (Rest of the file remains unchanged)
 class GradeEntrySelectionPage extends StatefulWidget {
   final bool isBehaviorMode;
   final bool isAdmin;
