@@ -146,7 +146,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     );
   }
 
-  // --- ✅ MODIFIED FUNCTION ---
   Future<void> _addBehaviorReport(String studentId, String studentName, String type) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -165,7 +164,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
       final studentRef = _firestore.collection('students').doc(studentId);
       final reportRef = _firestore.collection('behavior_reports').doc();
-      // The student notification is still sent from the app
       final notificationRef = _firestore.collection('students').doc(studentId).collection('notifications').doc();
 
 
@@ -182,7 +180,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         if (type == 'dislike') 'teacherNote': teacherNote,
         if (type == 'dislike') 'studentReply': null,
         if (type == 'dislike') 'replyTimestamp': null,
-        'status': 'pending_reply', // Set initial status
+        'status': 'pending_reply',
       };
 
       String notificationMessage;
@@ -192,7 +190,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         notificationMessage = 'تنبيه: تم تسجيل ملاحظة سلوكية عليك من قبل أ. $teacherName في مادة ${widget.subject}.';
       }
 
-      // This transaction will now succeed because it only performs allowed actions
       await _firestore.runTransaction((transaction) async {
         transaction.update(studentRef, {
           type == 'like' ? 'totalLikes' : 'totalDislikes': FieldValue.increment(1),
@@ -204,9 +201,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           'isRead': false,
         });
       });
-
-      // --- 🛑 LOGIC TO NOTIFY ADMINS HAS BEEN REMOVED ---
-      // This will be handled by a Cloud Function now.
 
       if (mounted) {
         setState(() {
@@ -224,7 +218,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          // The error message from the screenshot will now be gone
           content: Text('فشل تسجيل السلوك: $e'),
           backgroundColor: Colors.red,
         ));
@@ -232,17 +225,12 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-
   Future<void> _showGradeDialog(String studentId, String studentName, dynamic currentGrade) async {
     final gradeController = TextEditingController(text: currentGrade?.toString() ?? '');
 
-    // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-    // The maximum grade and passing grade are now determined based on the test's unique key.
-    // If the key contains "profession13", it's a Nafes test.
     final bool isNafes = widget.testFieldKey.contains('profession13');
     final double maxGrade = isNafes ? 10.0 : 20.0;
     final double passingGrade = isNafes ? 5.0 : 10.0;
-    // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
     final result = await showDialog<String>(
       context: context,
@@ -330,6 +318,31 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
+  // --- ✅ NEW: Function to delete a grade or an absence mark ---
+  Future<void> _deleteGrade(String studentId) async {
+    try {
+      final studentRef = _firestore.collection('students').doc(studentId);
+      // Using FieldValue.delete() removes the field from the document
+      await studentRef.update({widget.testFieldKey: FieldValue.delete()});
+      if (mounted) {
+        setState(() => _grades[studentId] = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('تم الحذف بنجاح'),
+              backgroundColor: Colors.blueAccent),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('فشل حذف الدرجة: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   bool _areAllGradesEntered() {
     if (_students.isEmpty) return false;
     for (final student in _students) {
@@ -360,8 +373,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       );
     }
 
-    // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-    // The maximum grade and evaluation logic now correctly identify Nafes tests via their key.
     final bool isNafes = widget.testFieldKey.contains('profession13');
     final double maxGrade = isNafes ? 10.0 : 20.0;
 
@@ -378,8 +389,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         return "أولى بالرعاية";
       }
     }
-    // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
-
 
     for (var studentDoc in _students) {
       final studentId = studentDoc.id;
@@ -387,15 +396,26 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       final grade = _grades[studentId];
 
       if (grade != null) {
-        final double percentage = (grade / maxGrade) * 100;
-        final String evaluation = getEvaluation(grade);
-        final List<CellValue> row = [
-          TextCellValue(studentName),
-          DoubleCellValue(grade.toDouble()),
-          TextCellValue('${percentage.toStringAsFixed(1)}%'),
-          TextCellValue(evaluation)
-        ];
-        sheetObject.appendRow(row);
+        // --- ✅ MODIFIED: Handle the absent case (-1) ---
+        if (grade == -1) {
+          final List<CellValue> row = [
+            TextCellValue(studentName),
+            TextCellValue('غائب'),
+            TextCellValue('N/A'),
+            TextCellValue('N/A')
+          ];
+          sheetObject.appendRow(row);
+        } else {
+          final double percentage = (grade / maxGrade) * 100;
+          final String evaluation = getEvaluation(grade);
+          final List<CellValue> row = [
+            TextCellValue(studentName),
+            DoubleCellValue(grade.toDouble()),
+            TextCellValue('${percentage.toStringAsFixed(1)}%'),
+            TextCellValue(evaluation)
+          ];
+          sheetObject.appendRow(row);
+        }
       }
     }
 
@@ -452,6 +472,103 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
+  // --- ✅ NEW: Helper widget to build the action buttons based on grade status ---
+  Widget _buildGradeActions(String studentId, String studentName, dynamic currentGrade) {
+    // Case 1: Grade has not been entered
+    if (currentGrade == null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: 38,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.shade50,
+                foregroundColor: Colors.orange.shade800,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.orange.shade200),
+                ),
+              ),
+              onPressed: () => _showGradeDialog(studentId, studentName, null),
+              child: const Text('رصد درجة'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 38,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.grey.shade700,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Colors.grey.shade300),
+                ),
+              ),
+              // Use -1 to represent an absent student in Firestore
+              onPressed: () => _saveGrade(studentId, -1),
+              child: const Text('غائب'),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Common action buttons for edit and delete
+    final editButton = IconButton(
+      icon: Icon(Icons.edit, color: Theme.of(context).primaryColor, size: 22),
+      tooltip: 'تعديل الدرجة',
+      visualDensity: VisualDensity.compact,
+      // If student was absent, open the dialog empty to enter a new grade
+      onPressed: () => _showGradeDialog(studentId, studentName, currentGrade == -1 ? null : currentGrade),
+    );
+    final deleteButton = IconButton(
+      icon: Icon(Icons.delete_outline, color: Colors.red.shade700, size: 22),
+      tooltip: 'حذف',
+      visualDensity: VisualDensity.compact,
+      onPressed: () => _deleteGrade(studentId),
+    );
+
+    // Case 2: Student was marked as absent
+    if (currentGrade == -1) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Chip(
+            label: Text('غائب', style: TextStyle(fontWeight: FontWeight.bold)),
+            backgroundColor: Color(0xFFE0E0E0), // A light grey color
+          ),
+          const SizedBox(width: 4),
+          editButton,
+          deleteButton,
+        ],
+      );
+    }
+    // Case 3: A grade has been entered
+    else {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Chip(
+            label: Text(
+              currentGrade.toString(),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Colors.green.shade800,
+              ),
+            ),
+            backgroundColor: Colors.green.shade50,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+          const SizedBox(width: 4),
+          editButton,
+          deleteButton,
+        ],
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -546,26 +663,9 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
               ],
             )
                 : null,
+            // --- ✅ MODIFIED: Use the new helper widget for the trailing actions ---
             trailing: !widget.isBehaviorMode
-                ? GestureDetector(
-              onTap: () => _showGradeDialog(studentId, studentName, currentGrade),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: currentGrade != null ? Colors.green.shade50 : Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: currentGrade != null ? Colors.green.shade200 : Colors.orange.shade200),
-                ),
-                child: Text(
-                  currentGrade?.toString() ?? 'لم ترصد',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: currentGrade != null ? Colors.green.shade800 : Colors.orange.shade800,
-                  ),
-                ),
-              ),
-            )
+                ? _buildGradeActions(studentId, studentName, currentGrade)
                 : null,
           );
         },

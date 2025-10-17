@@ -242,10 +242,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
-  // --- ( ✅ تعديل جوهري ) ---
-  // هذه الدالة الجديدة هي المسؤولة عن طلب كلمة مرور ولي الأمر
   Future<void> _promptForParentPassword() async {
-    // لا يمكن المتابعة إذا لم يتم تحديد هوية الطالب
     if (_studentDocId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('حدث خطأ. الرجاء إعادة تسجيل الدخول.')),
@@ -256,10 +253,9 @@ class _StudentViewPageState extends State<StudentViewPage>
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
-    // إظهار شاشة الحوار وانتظار نتيجتها (صحيح أم خطأ)
     final bool? passwordCorrect = await showDialog<bool>(
       context: context,
-      barrierDismissible: false, // يجب على المستخدم إدخال كلمة المرور أو الإلغاء
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('مطلوب إذن ولي الأمر'),
@@ -291,30 +287,27 @@ class _StudentViewPageState extends State<StudentViewPage>
             TextButton(
               child: const Text('إلغاء'),
               onPressed: () {
-                Navigator.of(context).pop(false); // إغلاق وإرجاع "خطأ"
+                Navigator.of(context).pop(false);
               },
             ),
             ElevatedButton(
               child: const Text('دخول'),
               onPressed: () async {
                 if (formKey.currentState!.validate()) {
-                  // جلب بيانات الطالب للحصول على كلمة المرور الصحيحة
                   final docSnapshot = await FirebaseFirestore.instance
                       .collection('students')
                       .doc(_studentDocId!)
                       .get();
 
                   final studentData = docSnapshot.data();
-                  // جلب كلمة المرور من حقل pp وتحويلها لنص
                   final String? correctPassword = studentData?['pp']?.toString();
 
                   final enteredPassword = passwordController.text;
 
-                  // التحقق من وجود كلمة المرور ومطابقتها
                   if (correctPassword != null && correctPassword == enteredPassword) {
-                    Navigator.of(context).pop(true); // إغلاق وإرجاع "صحيح" عند النجاح
+                    Navigator.of(context).pop(true);
                   } else {
-                    Navigator.of(context).pop(false); // إغلاق وإرجاع "خطأ" عند الفشل
+                    Navigator.of(context).pop(false);
                   }
                 }
               },
@@ -324,12 +317,9 @@ class _StudentViewPageState extends State<StudentViewPage>
       },
     );
 
-    // بعد إغلاق شاشة الحوار، يتم التحقق من النتيجة
     if (passwordCorrect == true) {
-      // الانتقال للصفحة المطلوبة إذا كانت كلمة المرور صحيحة
       setState(() => _currentView = StudentView.teacherComplaints);
     } else {
-      // عرض رسالة خطأ إذا كانت كلمة المرور خاطئة (ولم يتم الضغط على إلغاء)
       if(passwordController.text.isNotEmpty){
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -492,8 +482,6 @@ class _StudentViewPageState extends State<StudentViewPage>
             count: totalLikes,
             onTap: () => setState(() => _currentView = StudentView.noble),
           ),
-          // --- ( ✅ تعديل جوهري ) ---
-          // تم تغيير OnTap لينادي دالة طلب كلمة المرور بدلاً من الانتقال المباشر
           _buildDashboardButton(
             title: 'الملاحظات السلوكية',
             icon: Icons.report_problem_outlined,
@@ -823,43 +811,46 @@ class _StudentViewPageState extends State<StudentViewPage>
       String subjectName, Map<String, num> testResults) {
     final sortedTests = testResults.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
-    final grades = sortedTests.map((e) => e.value).toList();
 
-    if (grades.isEmpty) {
+    // --- ✅ MODIFICATION START ✅ ---
+    // Filter out absent marks (-1) before performing calculations.
+    final validGrades = sortedTests.map((e) => e.value).where((g) => g >= 0).toList();
+
+    if (validGrades.isEmpty) {
+      // Return a default state if there are no valid grades to analyze.
       return _AnalysisResult(
         subjectName: subjectName,
         average: 0,
         percentage: 0,
-        maxPossibleGrade: 0,
+        maxPossibleGrade: subjectName == 'نافس' ? 10.0 : 20.0,
         highestGrade: 0,
         lowestGrade: 0,
-        assessment: 'N/A',
+        assessment: 'لا توجد درجات',
         consistency: 'N/A',
         isBelowPassing: false,
-        testResults: [],
+        testResults: sortedTests, // Still pass original results for display
         trendSpots: [],
-        performanceTrend: 'لا يوجد بيانات',
+        performanceTrend: 'لا يوجد بيانات كافية',
         predictedNextGrade: null,
         riskAssessment: 'غير محدد',
       );
     }
 
-    // --- ✅ MODIFICATION START ✅ ---
-    // This is the key change. The maximum grade for "نافس" is now correctly set to 10.
     final bool isNafes = subjectName == 'نافس';
     final double maxGrade = isNafes ? 10.0 : 20.0;
-    // --- ✅ MODIFICATION END ✅ ---
     final double passingGrade = maxGrade / 2.0;
 
-    final double average = grades.reduce((a, b) => a + b) / grades.length;
+    // Perform all calculations on the filtered list of valid grades.
+    final double average = validGrades.reduce((a, b) => a + b) / validGrades.length;
     final double percentage = (average / maxGrade).clamp(0.0, 1.0);
-    final num highest = grades.reduce(max);
-    final num lowest = grades.reduce(min);
+    final num highest = validGrades.reduce(max);
+    final num lowest = validGrades.reduce(min);
+    // --- ✅ MODIFICATION END ✅ ---
     final bool isBelowPassing = average < passingGrade;
 
     final double variance =
-        grades.map((g) => pow(g - average, 2)).reduce((a, b) => a + b) /
-            grades.length;
+        validGrades.map((g) => pow(g - average, 2)).reduce((a, b) => a + b) /
+            validGrades.length;
     final double stdDev = sqrt(variance);
     String consistency;
     if (stdDev > (maxGrade * 0.15)) {
@@ -882,24 +873,29 @@ class _StudentViewPageState extends State<StudentViewPage>
     else
       assessment = 'يحتاج لمتابعة';
 
+    // --- ✅ MODIFICATION START ✅ ---
+    // Generate trend spots only from tests with valid grades.
     final trendSpots = <FlSpot>[];
     for (int i = 0; i < sortedTests.length; i++) {
-      trendSpots.add(FlSpot(i.toDouble(), sortedTests[i].value.toDouble()));
+      if (sortedTests[i].value >= 0) {
+        trendSpots.add(FlSpot(i.toDouble(), sortedTests[i].value.toDouble()));
+      }
     }
+    // --- ✅ MODIFICATION END ✅ ---
 
     String performanceTrend = 'مستقر';
     double? predictedNextGrade;
     String riskAssessment = 'مسار آمن';
 
-    if (grades.length >= 2) {
+    if (validGrades.length >= 2) {
       double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-      for (int i = 0; i < grades.length; i++) {
+      for (int i = 0; i < validGrades.length; i++) {
         sumX += i;
-        sumY += grades[i];
-        sumXY += i * grades[i];
+        sumY += validGrades[i];
+        sumXY += i * validGrades[i];
         sumX2 += i * i;
       }
-      final n = grades.length.toDouble();
+      final n = validGrades.length.toDouble();
 
       final double slope =
           (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
@@ -935,13 +931,14 @@ class _StudentViewPageState extends State<StudentViewPage>
       assessment: assessment,
       consistency: consistency,
       isBelowPassing: isBelowPassing,
-      testResults: sortedTests,
+      testResults: sortedTests, // Pass the original data for display
       trendSpots: trendSpots,
       performanceTrend: performanceTrend,
       predictedNextGrade: predictedNextGrade,
       riskAssessment: riskAssessment,
     );
   }
+
 
   void _showReportOptions() {
     showModalBottomSheet(
@@ -1311,7 +1308,13 @@ class _StudentViewPageState extends State<StudentViewPage>
                   cellStyle: const pw.TextStyle(),
                   data: <List<String>>[
                     <String>['الدرجة', 'الاختبار'], // Headers
-                    ...analysis.testResults.map((e) => ['${e.value} / ${analysis.maxPossibleGrade.toInt()}', e.key]).toList(),
+                    // --- ✅ MODIFICATION START ✅ ---
+                    // Display 'غائب' in the PDF for absent students.
+                    ...analysis.testResults.map((e) {
+                      final gradeDisplay = e.value == -1 ? 'غائب' : '${e.value} / ${analysis.maxPossibleGrade.toInt()}';
+                      return [gradeDisplay, e.key];
+                    }).toList(),
+                    // --- ✅ MODIFICATION END ✅ ---
                   ],
                 )
               ]
@@ -1744,8 +1747,6 @@ class _DislikeCardState extends State<_DislikeCard> {
     setState(() => _isSubmitting = true);
 
     try {
-      // ✅ أصبح الإجراء الوحيد هو تحديث الملاحظة نفسها
-      // سيتم التعامل مع الإشعارات عبر Cloud Functions
       final reportRef = FirebaseFirestore.instance
           .collection('behavior_reports')
           .doc(widget.reportDoc.id);
@@ -1768,7 +1769,6 @@ class _DislikeCardState extends State<_DislikeCard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            // ستختفي رسالة الخطأ "permission-denied" الآن
             content: Text('حدث خطأ أثناء إرسال الرد: $e'),
             backgroundColor: Colors.red,
           ),
@@ -2193,10 +2193,19 @@ class _SubjectResultCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(entry.key, style: const TextStyle(fontSize: 15)),
+                        // --- ✅ MODIFICATION START ✅ ---
+                        // Display 'غائب' in the UI for absent students.
                         Text(
-                            '${entry.value} / ${analysis.maxPossibleGrade.toInt()}',
-                            style: const TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.bold)),
+                          entry.value == -1
+                              ? 'غائب'
+                              : '${entry.value} / ${analysis.maxPossibleGrade.toInt()}',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: entry.value == -1 ? Colors.grey.shade600 : Colors.black87,
+                          ),
+                        ),
+                        // --- ✅ MODIFICATION END ✅ ---
                       ],
                     ),
                   );
