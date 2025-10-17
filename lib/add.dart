@@ -1,4 +1,6 @@
+// add.dart (MODIFIED)
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
@@ -15,8 +17,8 @@ import 'package:intl/intl.dart' as intl;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:percent_indicator/percent_indicator.dart';
-// --- (إضافة جديدة) المكتبات المطلوبة ---
 import 'package:universal_html/html.dart' as html;
+// --- (إضافة جديدة) المكتبات المطلوبة ---
 import 'package:url_launcher/url_launcher.dart';
 
 class AddPage extends StatefulWidget {
@@ -277,22 +279,10 @@ class _AddPageState extends State<AddPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // --- ✅ START OF MODIFICATION ✅ ---
-        // تمت إضافة GestureDetector لجعل الصورة قابلة للضغط
-        // وإعادة تحميل الصفحة عند الضغط عليها
-        leading: GestureDetector(
-          onTap: () {
-            // التأكد من أن التطبيق يعمل على الويب قبل تنفيذ أمر الريفرش
-            if (kIsWeb) {
-              html.window.location.reload();
-            }
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Image.asset('assets/2.png'),
-          ),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Image.asset('assets/2.png'),
         ),
-        // --- ✅ END OF MODIFICATION ✅ ---
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
