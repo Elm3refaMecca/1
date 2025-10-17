@@ -1,3 +1,5 @@
+// grade_entry_page.dart (MODIFIED)
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:universal_html/html.dart' as html;
@@ -225,92 +227,19 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  Future<void> _showGradeDialog(String studentId, String studentName, dynamic currentGrade) async {
-    final gradeController = TextEditingController(text: currentGrade?.toString() ?? '');
-
-    final bool isNafes = widget.testFieldKey.contains('profession13');
-    final double maxGrade = isNafes ? 10.0 : 20.0;
-    final double passingGrade = isNafes ? 5.0 : 10.0;
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('رصد درجة: $studentName'),
-          content: TextField(
-            controller: gradeController,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-              TextInputFormatter.withFunction((oldValue, newValue) {
-                final num? value = num.tryParse(newValue.text);
-                if (value != null && value > maxGrade) {
-                  return oldValue;
-                }
-                return newValue;
-              }),
-            ],
-            decoration: InputDecoration(
-              labelText: 'الدرجة',
-              hintText: 'أدخل الدرجة هنا',
-              helperText: 'الدرجة القصوى: $maxGrade',
-              border: const OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop(gradeController.text);
-              },
-              child: const Text('حفظ'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result != null && result.isNotEmpty) {
-      final grade = num.tryParse(result);
-      if (grade != null) {
-        if (grade < passingGrade) {
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('⚠️ تحذير'),
-              content: const Text('الدرجة المدخلة أقل من درجة النجاح. هل أنت متأكد من رصدها؟'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('إلغاء'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('تأكيد الرصد'),
-                ),
-              ],
-            ),
-          );
-          if (confirmed != true) return;
-        }
-        await _saveGrade(studentId, grade);
-      }
-    }
-  }
 
   Future<void> _saveGrade(String studentId, num grade) async {
     try {
       final studentRef = _firestore.collection('students').doc(studentId);
       await studentRef.update({ widget.testFieldKey: grade });
       setState(() => _grades[studentId] = grade);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حفظ الدرجة بنجاح'), backgroundColor: Colors.green),
-      );
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة بنجاح'),
+              backgroundColor: grade == -1 ? Colors.grey : Colors.green),
+        );
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('فشل حفظ الدرجة: $e'), backgroundColor: Colors.red),
@@ -318,7 +247,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  // --- ✅ NEW: Function to delete a grade or an absence mark ---
   Future<void> _deleteGrade(String studentId) async {
     try {
       final studentRef = _firestore.collection('students').doc(studentId);
@@ -396,7 +324,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       final grade = _grades[studentId];
 
       if (grade != null) {
-        // --- ✅ MODIFIED: Handle the absent case (-1) ---
         if (grade == -1) {
           final List<CellValue> row = [
             TextCellValue(studentName),
@@ -472,107 +399,276 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  // --- ✅ NEW: Helper widget to build the action buttons based on grade status ---
-  Widget _buildGradeActions(String studentId, String studentName, dynamic currentGrade) {
-    // Case 1: Grade has not been entered
-    if (currentGrade == null) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            height: 38,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange.shade50,
-                foregroundColor: Colors.orange.shade800,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.orange.shade200),
-                ),
-              ),
-              onPressed: () => _showGradeDialog(studentId, studentName, null),
-              child: const Text('رصد درجة'),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            height: 38,
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.grey.shade700,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.grey.shade300),
-                ),
-              ),
-              // Use -1 to represent an absent student in Firestore
-              onPressed: () => _saveGrade(studentId, -1),
-              child: const Text('غائب'),
-            ),
-          ),
-        ],
-      );
-    }
+  // --- ✅✅✅ NEW WIDGET START ✅✅✅ ---
+  // This widget builds the chip that displays the grade status
+  Widget _buildGradeChip({
+    required dynamic currentGrade,
+    required VoidCallback onTap,
+  }) {
+    String text;
+    Color backgroundColor;
+    Color textColor;
+    FontWeight fontWeight = FontWeight.normal;
+    Color borderColor;
 
-    // Common action buttons for edit and delete
-    final editButton = IconButton(
-      icon: Icon(Icons.edit, color: Theme.of(context).primaryColor, size: 22),
-      tooltip: 'تعديل الدرجة',
-      visualDensity: VisualDensity.compact,
-      // If student was absent, open the dialog empty to enter a new grade
-      onPressed: () => _showGradeDialog(studentId, studentName, currentGrade == -1 ? null : currentGrade),
-    );
-    final deleteButton = IconButton(
-      icon: Icon(Icons.delete_outline, color: Colors.red.shade700, size: 22),
-      tooltip: 'حذف',
-      visualDensity: VisualDensity.compact,
-      onPressed: () => _deleteGrade(studentId),
-    );
-
-    // Case 2: Student was marked as absent
     if (currentGrade == -1) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Chip(
-            label: Text('غائب', style: TextStyle(fontWeight: FontWeight.bold)),
-            backgroundColor: Color(0xFFE0E0E0), // A light grey color
-          ),
-          const SizedBox(width: 4),
-          editButton,
-          deleteButton,
-        ],
-      );
+      text = 'غائب';
+      backgroundColor = Colors.grey.shade200;
+      textColor = Colors.grey.shade700;
+      borderColor = Colors.grey.shade400;
+      fontWeight = FontWeight.bold;
+    } else if (currentGrade != null) {
+      text = currentGrade.toString();
+      backgroundColor = Colors.green.shade50;
+      textColor = Colors.green.shade800;
+      borderColor = Colors.green.shade300;
+      fontWeight = FontWeight.bold;
+    } else {
+      text = 'رصد'; // Changed from '...' to 'رصد' (Entry)
+      backgroundColor = Colors.orange.shade50;
+      textColor = Colors.orange.shade800;
+      borderColor = Colors.orange.shade300;
     }
-    // Case 3: A grade has been entered
-    else {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Chip(
-            label: Text(
-              currentGrade.toString(),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Colors.green.shade800,
-              ),
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 80, // Fixed width for alignment
+        height: 40,
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: borderColor),
+        ),
+        child: Center(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: textColor,
+              fontWeight: fontWeight,
+              fontSize: 16,
             ),
-            backgroundColor: Colors.green.shade50,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
-          const SizedBox(width: 4),
-          editButton,
-          deleteButton,
-        ],
-      );
-    }
+        ),
+      ),
+    );
   }
+  // --- ✅✅✅ NEW WIDGET END ✅✅✅ ---
+
+
+  // --- ✅✅✅ NEW METHOD START ✅✅✅ ---
+  // This method opens the bottom sheet for grade entry
+  Future<void> _showGradeEntrySheet(
+      String studentId,
+      String studentName,
+      dynamic currentGrade,
+      double maxGrade,
+      double passingGrade,
+      ) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Important for keyboard
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        // Use StatefulBuilder to manage the state inside the sheet
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            final gradeController = TextEditingController(
+              text: (currentGrade != null && currentGrade != -1)
+                  ? currentGrade.toString()
+                  : '',
+            );
+            bool isSaving = false;
+
+            // Define actions here to avoid repetition
+            Future<void> handleConfirm() async {
+              if (isSaving) return;
+              setModalState(() => isSaving = true);
+
+              final text = gradeController.text.trim();
+
+              try {
+                // Case 1: Text field is empty, which means delete
+                if (text.isEmpty) {
+                  await _deleteGrade(studentId);
+                }
+                // Case 2: Text field has a value
+                else {
+                  final grade = num.tryParse(text);
+                  if (grade == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('الرجاء إدخال رقم صحيح'),
+                          backgroundColor: Colors.red),
+                    );
+                    return;
+                  }
+
+                  // Check for passing grade
+                  if (grade < passingGrade) {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('⚠️ تحذير'),
+                        content: const Text(
+                            'الدرجة المدخلة أقل من درجة النجاح. هل أنت متأكد من رصدها؟'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text('إلغاء'),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red),
+                            onPressed: () => Navigator.of(context).pop(true),
+                            child: const Text('تأكيد الرصد'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (confirmed != true) return; // User cancelled
+                  }
+                  // Save the grade
+                  await _saveGrade(studentId, grade);
+                }
+                Navigator.pop(context); // Close bottom sheet on success
+              } finally {
+                if (mounted) {
+                  setModalState(() => isSaving = false);
+                }
+              }
+            }
+
+            Future<void> handleSaveAbsent() async {
+              if (isSaving) return;
+              setModalState(() => isSaving = true);
+              try {
+                await _saveGrade(studentId, -1);
+                Navigator.pop(context); // Close bottom sheet
+              } finally {
+                if (mounted) {
+                  setModalState(() => isSaving = false);
+                }
+              }
+            }
+
+            Future<void> handleDelete() async {
+              if (isSaving) return;
+              setModalState(() => isSaving = true);
+              try {
+                await _deleteGrade(studentId);
+                Navigator.pop(context); // Close bottom sheet
+              } finally {
+                if (mounted) {
+                  setModalState(() => isSaving = false);
+                }
+              }
+            }
+
+            return Padding(
+              // This padding pushes the content up when keyboard appears
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 16,
+                right: 16,
+                top: 16,
+              ),
+              child: isSaving
+                  ? const SizedBox(
+                height: 200,
+                child: Center(child: CircularProgressIndicator()),
+              )
+                  : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'رصد درجة: $studentName',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: gradeController,
+                    autofocus: true,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold),
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}')),
+                      TextInputFormatter.withFunction((oldValue, newValue) {
+                        final num? value = num.tryParse(newValue.text);
+                        if (value != null && value > maxGrade) {
+                          return oldValue;
+                        }
+                        return newValue;
+                      }),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: 'الدرجة (من $maxGrade)',
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Buttons as requested
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // "Close" Button
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('إغلاق',
+                            style: TextStyle(color: Colors.grey)),
+                      ),
+                      // "Delete" Button
+                      TextButton(
+                        onPressed: handleDelete,
+                        child: const Text('حذف الدرجة',
+                            style: TextStyle(color: Colors.red)),
+                      ),
+                      // "Absent" Button
+                      OutlinedButton.icon(
+                        onPressed: handleSaveAbsent,
+                        icon: const Icon(Icons.person_off_outlined),
+                        label: const Text('غائب'),
+                        style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blueGrey),
+                      ),
+                      // "Confirm" Button
+                      ElevatedButton.icon(
+                        onPressed: handleConfirm,
+                        icon: const Icon(Icons.check_circle_outline),
+                        label: const Text('تأكيد'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+  // --- ✅✅✅ NEW METHOD END ✅✅✅ ---
+
 
   @override
   Widget build(BuildContext context) {
     final bool allGradesEntered = _areAllGradesEntered();
+
+    // --- ✅ NEW: Calculate max and passing grades here ---
+    final bool isNafes = widget.testFieldKey.contains('profession13');
+    final double maxGrade = isNafes ? 10.0 : 20.0;
+    final double passingGrade = isNafes ? 5.0 : 10.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -663,16 +759,30 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
               ],
             )
                 : null,
-            // --- ✅ MODIFIED: Use the new helper widget for the trailing actions ---
+            // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+            // The trailing widget is now the new _buildGradeChip
             trailing: !widget.isBehaviorMode
-                ? _buildGradeActions(studentId, studentName, currentGrade)
+                ? _buildGradeChip(
+              currentGrade: currentGrade,
+              onTap: () {
+                _showGradeEntrySheet(
+                  studentId,
+                  studentName,
+                  currentGrade,
+                  maxGrade,
+                  passingGrade,
+                );
+              },
+            )
                 : null,
+            // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
           );
         },
       ),
     );
   }
 }
+
 
 extension on Sheet {
   void autoFitColumn(int i) {}
