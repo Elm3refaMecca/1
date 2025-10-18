@@ -3060,7 +3060,7 @@ x.bq.a(u)
 u.href=s
 t=u.style
 t.display="none"
-u.download="FlutterExcel.xlsx"
+u.download="securExcel.xlsx"
 t=v.body
 if(t!=null){t.children.toString
 t.appendChild(u).toString}u.click()

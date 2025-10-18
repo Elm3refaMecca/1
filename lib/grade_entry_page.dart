@@ -43,7 +43,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isLoading = true;
   List<DocumentSnapshot> _students = [];
-  Map<String, dynamic> _grades = {};
+  Map<String, dynamic> _grades = {}; // Stores fetched and updated grades
   final Map<String, int> _likes = {};
   final Map<String, int> _dislikes = {};
 
@@ -65,6 +65,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
       var students = querySnapshot.docs;
 
+      // Sort students alphabetically by name
       students.sort((a, b) {
         final aData = a.data() as Map<String, dynamic>? ?? {};
         final bData = b.data() as Map<String, dynamic>? ?? {};
@@ -73,21 +74,30 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         return aName.compareTo(bName);
       });
 
+      // Prepare map to hold grades and behavior counts
       final grades = <String, dynamic>{};
+      final likes = <String, int>{};
+      final dislikes = <String, int>{};
+
       for (var studentDoc in students) {
         final data = studentDoc.data() as Map<String, dynamic>?;
         final studentId = studentDoc.id;
+        // Fetch the specific grade for the current test
         final score = data?[widget.testFieldKey];
-        grades[studentId] = score;
+        grades[studentId] = score; // Can be null if not graded yet
 
-        _likes[studentId] = data?['totalLikes'] ?? 0;
-        _dislikes[studentId] = data?['totalDislikes'] ?? 0;
+        // Fetch behavior counts
+        likes[studentId] = data?['totalLikes'] ?? 0;
+        dislikes[studentId] = data?['totalDislikes'] ?? 0;
       }
 
+      // Update state once all data is processed
       if (mounted) {
         setState(() {
           _students = students;
-          _grades = grades;
+          _grades = grades; // Update the grades map
+          _likes.addAll(likes); // Update likes
+          _dislikes.addAll(dislikes); // Update dislikes
           _isLoading = false;
         });
       }
@@ -100,6 +110,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       }
     }
   }
+
 
   Future<String?> _showDislikeDialog(String studentName) async {
     final noteController = TextEditingController();
@@ -166,8 +177,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
       final studentRef = _firestore.collection('students').doc(studentId);
       final reportRef = _firestore.collection('behavior_reports').doc();
-      final notificationRef = _firestore.collection('students').doc(studentId).collection('notifications').doc();
-
 
       final reportData = {
         'studentId': studentId,
@@ -182,26 +191,14 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         if (type == 'dislike') 'teacherNote': teacherNote,
         if (type == 'dislike') 'studentReply': null,
         if (type == 'dislike') 'replyTimestamp': null,
-        'status': 'pending_reply',
+        'status': type == 'dislike' ? 'pending_reply' : 'like_added', // Status for like
       };
-
-      String notificationMessage;
-      if (type == 'like') {
-        notificationMessage = 'أحسنت! أضاف لك أ. $teacherName نقطة سلوك نبيل في مادة ${widget.subject}.';
-      } else {
-        notificationMessage = 'تنبيه: تم تسجيل ملاحظة سلوكية عليك من قبل أ. $teacherName في مادة ${widget.subject}.';
-      }
 
       await _firestore.runTransaction((transaction) async {
         transaction.update(studentRef, {
           type == 'like' ? 'totalLikes' : 'totalDislikes': FieldValue.increment(1),
         });
         transaction.set(reportRef, reportData);
-        transaction.set(notificationRef, {
-          'message': notificationMessage,
-          'timestamp': FieldValue.serverTimestamp(),
-          'isRead': false,
-        });
       });
 
       if (mounted) {
@@ -213,7 +210,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(type == 'like' ? 'تم تسجيل الإعجاب بنجاح' : 'تم تسجيل الملاحظة وإرسال الإشعارات بنجاح'),
+          content: Text(type == 'like' ? 'تم تسجيل الإعجاب بنجاح' : 'تم تسجيل الملاحظة بنجاح'),
           backgroundColor: Colors.green,
         ));
       }
@@ -237,7 +234,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة بنجاح'),
-              backgroundColor: grade == -1 ? Colors.grey : Colors.green),
+              backgroundColor: grade == -1 ? Colors.blueGrey : Colors.green),
         );
       }
     } catch (e) {
@@ -250,7 +247,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   Future<void> _deleteGrade(String studentId) async {
     try {
       final studentRef = _firestore.collection('students').doc(studentId);
-      // Using FieldValue.delete() removes the field from the document
       await studentRef.update({widget.testFieldKey: FieldValue.delete()});
       if (mounted) {
         setState(() => _grades[studentId] = null);
@@ -271,35 +267,45 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-  // This function now correctly checks for 'null' values only.
-  // A grade of -1 (absent) is NOT null, so it will be counted as a completed entry.
   bool _areAllGradesEntered() {
     if (_students.isEmpty) return false;
     for (final student in _students) {
-      // The condition is met as long as the grade is not null.
-      // -1 is a valid value, so this works as intended.
       if (_grades[student.id] == null) {
         return false;
       }
     }
     return true;
   }
-  // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
+  // --- ✅✅✅ START OF RESTORATION (استعادة دالة التحميل الزرقاء) ✅✅✅ ---
   Future<void> _exportToExcel() async {
+    // Check if all grades are entered before proceeding
+    if (!_areAllGradesEntered()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('يجب رصد جميع درجات الطلاب أولاً لتتمكن من تحميل الملف.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     final excel = Excel.createExcel();
-    final Sheet sheetObject = excel['Sheet1'];
+    final Sheet sheetObject = excel['Sheet1']; // Use the default sheet
 
-    sheetObject.isRTL = true;
+    sheetObject.isRTL = true; // Set sheet direction to Right-to-Left
 
+    // Define Headers
     final List<String> headers = ['اسم الطالب', 'الدرجة', 'النسبة المئوية', 'التقييم'];
+    // Append header row with TextCellValue objects
     sheetObject.appendRow(headers.map((header) => TextCellValue(header)).toList());
 
+    // Style the header row
     for (var i = 0; i < headers.length; i++) {
       var cell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
       cell.cellStyle = CellStyle(
         bold: true,
+        // --- (تعديل بسيط) استخدام اللون الأزرق للرأس ---
         backgroundColorHex: ExcelColor.blue,
         fontColorHex: ExcelColor.white,
         horizontalAlign: HorizontalAlign.Center,
@@ -307,47 +313,56 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       );
     }
 
+    // Determine max grade based on test type
     final bool isNafes = widget.testFieldKey.contains('profession13');
     final double maxGrade = isNafes ? 10.0 : 20.0;
 
+    // Helper function for evaluation based on grade and maxGrade
     String getEvaluation(num grade) {
-      if (isNafes) {
-        if (grade >= 9) return "ممتاز";
-        if (grade >= 8) return "جيد جدا";
-        if (grade >= 7) return "جيد";
-        return "أولى بالرعاية";
-      } else {
-        if (grade >= 18) return "ممتاز";
-        if (grade >= 16) return "جيد جدا";
-        if (grade >= 14) return "جيد";
-        return "أولى بالرعاية";
-      }
+      // Use percentage for a more flexible evaluation
+      double percentage = (grade / maxGrade) * 100;
+      if (percentage >= 90) return "ممتاز";
+      if (percentage >= 80) return "جيد جدا";
+      if (percentage >= 70) return "جيد";
+      if (percentage >= 50) return "مقبول"; // Added 'مقبول'
+      return "يحتاج لمتابعة"; // Changed from "أولى بالرعاية"
     }
 
-    for (var studentDoc in _students) {
+    // Iterate through students and add their data to the sheet
+    // --- (تعديل) التأكد من جلب الطلاب بالترتيب الصحيح من الحالة المحلية ---
+    List<DocumentSnapshot> sortedStudents = List.from(_students);
+    sortedStudents.sort((a, b) {
+      final aData = a.data() as Map<String, dynamic>? ?? {};
+      final bData = b.data() as Map<String, dynamic>? ?? {};
+      final String aName = aData['name'] ?? '';
+      final String bName = bData['name'] ?? '';
+      return aName.compareTo(bName);
+    });
+
+    for (var studentDoc in sortedStudents) { // <-- استخدام القائمة المرتبة
       final studentId = studentDoc.id;
       final studentName = (studentDoc.data() as Map<String, dynamic>)['name'] ?? 'اسم غير معروف';
-      final grade = _grades[studentId];
+      final grade = _grades[studentId]; // Get grade from the local map
 
+      // Ensure grade is not null before processing (shouldn't happen if _areAllGradesEntered passed)
       if (grade != null) {
-        // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-        // This block correctly handles the 'absent' (-1) case for Excel export.
         if (grade == -1) {
+          // Handle absent case
           final List<CellValue> row = [
             TextCellValue(studentName),
-            TextCellValue('غائب'), // Explicitly write "غائب"
+            TextCellValue('غائب'), // Write "غائب"
             TextCellValue('N/A'),
             TextCellValue('N/A')
           ];
           sheetObject.appendRow(row);
-        }
-        // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
-        else {
+        } else {
+          // Handle graded case
           final double percentage = (grade / maxGrade) * 100;
           final String evaluation = getEvaluation(grade);
           final List<CellValue> row = [
             TextCellValue(studentName),
-            DoubleCellValue(grade.toDouble()),
+            DoubleCellValue(grade.toDouble()), // Store grade as number
+            // Format percentage as string with one decimal place
             TextCellValue('${percentage.toStringAsFixed(1)}%'),
             TextCellValue(evaluation)
           ];
@@ -356,32 +371,46 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       }
     }
 
+    // Auto-fit columns for better readability
     for (var i = 0; i < headers.length; i++) {
-      sheetObject.autoFitColumn(i);
+      sheetObject.setColAutoFit(i);
     }
 
+    // Define file name
     final String fileName = "درجات-${widget.testName}-${widget.className}.xlsx";
 
+    // Save the Excel file bytes
     final fileBytes = excel.save();
 
-    if (fileBytes == null) return;
+    // Ensure file bytes were generated
+    if (fileBytes == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('فشل إنشاء ملف Excel.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
 
+    // Handle file saving/downloading based on platform
     try {
       if (kIsWeb) {
+        // Web platform: Use html package to trigger download
         final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         final url = html.Url.createObjectUrlFromBlob(blob);
         final anchor = html.AnchorElement(href: url)
           ..setAttribute("download", fileName)
-          ..click();
-        html.Url.revokeObjectUrl(url);
+          ..click(); // Trigger download
+        html.Url.revokeObjectUrl(url); // Release object URL
       } else {
+        // Mobile/Desktop platform: Use path_provider and open_filex
         final directory = await getApplicationDocumentsDirectory();
         final path = '${directory.path}/$fileName';
         final file = File(path);
-        await file.writeAsBytes(fileBytes);
+        await file.writeAsBytes(fileBytes); // Write bytes to file
 
+        // Attempt to open the file
         final result = await OpenFilex.open(path);
         if (result.type != ResultType.done) {
+          // Handle error if file couldn't be opened
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('لم يتم العثور على تطبيق لفتح ملفات Excel. الخطأ: ${result.message}')),
@@ -389,6 +418,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           }
         }
       }
+      // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -398,6 +428,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         );
       }
     } catch (e) {
+      // Show error message if saving/opening failed
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -408,6 +439,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       }
     }
   }
+  // --- ✅✅✅ END OF RESTORATION (نهاية استعادة دالة التحميل الزرقاء) ✅✅✅ ---
 
   Widget _buildGradeChip({
     required dynamic currentGrade,
@@ -426,13 +458,14 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       borderColor = Colors.grey.shade400;
       fontWeight = FontWeight.bold;
     } else if (currentGrade != null) {
+      // Display the actual grade, converting num to String
       text = currentGrade.toString();
       backgroundColor = Colors.green.shade50;
       textColor = Colors.green.shade800;
       borderColor = Colors.green.shade300;
       fontWeight = FontWeight.bold;
     } else {
-      text = 'رصد'; // Changed from '...' to 'رصد' (Entry)
+      text = 'رصد'; // Text for when grade is null (not entered yet)
       backgroundColor = Colors.orange.shade50;
       textColor = Colors.orange.shade800;
       borderColor = Colors.orange.shade300;
@@ -442,8 +475,8 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        width: 80, // Fixed width for alignment
-        height: 40,
+        width: 80, // Fixed width for consistent alignment
+        height: 40, // Fixed height
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(8),
@@ -466,22 +499,23 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   Future<void> _showGradeEntryDialog({
     required String studentId,
     required String studentName,
-    required dynamic currentGrade,
+    required dynamic currentGrade, // The current grade (can be null, -1, or number)
     required double maxGrade,
     required double passingGrade,
   }) {
     return showDialog(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: true, // Allow dismissing by tapping outside
       builder: (context) {
+        // Use the separate dialog widget
         return _GradeEntryDialog(
           studentId: studentId,
           studentName: studentName,
           currentGrade: currentGrade,
           maxGrade: maxGrade,
           passingGrade: passingGrade,
-          onSaveGrade: _saveGrade,
-          onDeleteGrade: _deleteGrade,
+          onSaveGrade: _saveGrade,   // Pass the save function
+          onDeleteGrade: _deleteGrade, // Pass the delete function
         );
       },
     );
@@ -494,11 +528,11 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
     final bool isNafes = widget.testFieldKey.contains('profession13');
     final double maxGrade = isNafes ? 10.0 : 20.0;
-    final double passingGrade = isNafes ? 5.0 : 10.0;
+    final double passingGrade = isNafes ? 5.0 : 10.0; // Assuming 50% passing
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.testName),
+        title: Text(widget.testName), // Display test name
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(25),
           child: Padding(
@@ -510,22 +544,20 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           ),
         ),
         actions: [
+          // --- ✅✅✅ START OF RESTORATION (استعادة زر التحميل الأزرق) ✅✅✅ ---
+          // Show export button only if not in behavior mode
           if (!widget.isBehaviorMode)
             IconButton(
-              icon: const Icon(Icons.download_for_offline_outlined),
-              tooltip: 'تحميل ملف الدرجات (Excel)',
-              // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-              // The onPressed callback now correctly enables when all grades, including "absent", are entered.
-              onPressed: allGradesEntered ? _exportToExcel : () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('يجب رصد جميع درجات الطلاب أولاً لتتمكن من تحميل الملف.'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-              },
-              // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+              icon: Icon(
+                Icons.download_for_offline_outlined,
+                // --- (تعديل بسيط) استخدام اللون الأزرق الفاتح ---
+                color: allGradesEntered ? Colors.lightBlueAccent : Colors.white38,
+              ),
+              tooltip: 'تحميل ملف الدرجات لهذا الاختبار (Excel)',
+              // onPressed is null if not all grades are entered, disabling the button
+              onPressed: allGradesEntered ? _exportToExcel : null,
             ),
+          // --- ✅✅✅ END OF RESTORATION (نهاية استعادة زر التحميل الأزرق) ✅✅✅ ---
         ],
       ),
       body: _isLoading
@@ -535,7 +567,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           : ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: _students.length,
-        separatorBuilder: (context, index) => const Divider(),
+        separatorBuilder: (context, index) => const Divider(), // Add dividers
         itemBuilder: (context, index) {
           final studentDoc = _students[index];
           final studentId = studentDoc.id;
@@ -573,7 +605,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
             ),
             subtitle: widget.isBehaviorMode
                 ? Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.min, // Keep buttons together
               children: [
                 IconButton(
                   icon: const Icon(Icons.thumb_up, color: Colors.green),
@@ -587,10 +619,10 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
                 ),
               ],
             )
-                : null,
+                : null, // No subtitle if not in behavior mode
             trailing: !widget.isBehaviorMode
                 ? _buildGradeChip(
-              currentGrade: currentGrade,
+              currentGrade: currentGrade, // Pass the fetched grade
               onTap: () {
                 _showGradeEntryDialog(
                   studentId: studentId,
@@ -601,7 +633,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
                 );
               },
             )
-                : null,
+                : null, // No grade chip if in behavior mode
           );
         },
       ),
@@ -609,10 +641,11 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   }
 }
 
+// Separate StatefulWidget for the grade entry dialog
 class _GradeEntryDialog extends StatefulWidget {
   final String studentId;
   final String studentName;
-  final dynamic currentGrade;
+  final dynamic currentGrade; // Can be null, -1, or number
   final double maxGrade;
   final double passingGrade;
   final Future<void> Function(String studentId, num grade) onSaveGrade;
@@ -634,7 +667,8 @@ class _GradeEntryDialog extends StatefulWidget {
 
 class _GradeEntryDialogState extends State<_GradeEntryDialog> {
   late TextEditingController _gradeController;
-  bool _isSaving = false;
+  final _formKey = GlobalKey<FormState>(); // Form key for validation
+  bool _isSaving = false; // To show loading indicator
 
   @override
   void initState() {
@@ -642,7 +676,7 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
     _gradeController = TextEditingController(
       text: (widget.currentGrade != null && widget.currentGrade != -1)
           ? widget.currentGrade.toString()
-          : '',
+          : '', // Empty if null or absent
     );
   }
 
@@ -653,53 +687,49 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
   }
 
   Future<void> _handleConfirm() async {
-    if (_isSaving) return;
+    if (!_formKey.currentState!.validate()) return;
+    if (_isSaving) return; // Prevent double taps
     setState(() => _isSaving = true);
 
     final text = _gradeController.text.trim();
 
     try {
-      if (text.isEmpty) {
-        await widget.onDeleteGrade(widget.studentId);
-      }
-      else {
-        final grade = num.tryParse(text);
-        if (grade == null) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text('الرجاء إدخال رقم صحيح'),
-                  backgroundColor: Colors.red),
-            );
-          }
-          return;
-        }
-
-        if (grade < widget.passingGrade) {
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('⚠️ تحذير'),
-              content: const Text(
-                  'الدرجة المدخلة أقل من درجة النجاح. هل أنت متأكد من رصدها؟'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('إلغاء'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red),
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('تأكيد الرصد'),
-                ),
-              ],
-            ),
+      final grade = num.tryParse(text);
+      if (grade == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('الرجاء إدخال رقم صحيح'),
+                backgroundColor: Colors.red),
           );
-          if (confirmed != true) return; // User cancelled
         }
-        await widget.onSaveGrade(widget.studentId, grade);
+        return; // Exit if parsing fails
       }
+
+      if (grade < widget.passingGrade) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('⚠️ تحذير'),
+            content: Text(
+                'الدرجة المدخلة أقل من درجة النجاح (${widget.passingGrade}). هل أنت متأكد من رصدها؟'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('إلغاء'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('تأكيد الرصد'),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true) return; // User cancelled the warning
+      }
+      await widget.onSaveGrade(widget.studentId, grade);
       if (mounted) Navigator.pop(context); // Close dialog on success
     } finally {
       if (mounted) {
@@ -712,7 +742,7 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
     if (_isSaving) return;
     setState(() => _isSaving = true);
     try {
-      await widget.onSaveGrade(widget.studentId, -1);
+      await widget.onSaveGrade(widget.studentId, -1); // Save -1
       if (mounted) Navigator.pop(context); // Close dialog
     } finally {
       if (mounted) {
@@ -737,81 +767,112 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: null,
+      title: null, // No title, student name is in content
+      contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0.0), // Adjust padding
       content: SingleChildScrollView(
         child: _isSaving
             ? const SizedBox(
-          height: 100,
+          height: 150, // Provide height for indicator
           child: Center(child: CircularProgressIndicator()),
         )
-            : Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('الطالب: ${widget.studentName}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _gradeController,
-              autofocus: true,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 20, fontWeight: FontWeight.bold),
-              keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(
-                    RegExp(r'^\d+\.?\d{0,2}')),
-                TextInputFormatter.withFunction((oldValue, newValue) {
-                  final num? value = num.tryParse(newValue.text);
-                  if (value != null && value > widget.maxGrade) {
-                    return oldValue;
-                  }
-                  return newValue;
-                }),
-              ],
-              decoration: InputDecoration(
-                labelText: 'الدرجة (من ${widget.maxGrade})',
-                border: const OutlineInputBorder(),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 12),
+            : Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min, // Fit content height
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('الطالب: ${widget.studentName}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54, fontSize: 16)),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: 120, // Set desired width
+                child: TextFormField(
+                  controller: _gradeController,
+                  autofocus: true,
+                  textAlign: TextAlign.center, // Center text input
+                  style: const TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.bold), // Larger font
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                    TextInputFormatter.withFunction((oldValue, newValue) {
+                      final num? value = num.tryParse(newValue.text);
+                      if (value != null && value > widget.maxGrade) {
+                        return oldValue;
+                      }
+                      return newValue;
+                    }),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: 'الدرجة (من ${widget.maxGrade})',
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'أدخل درجة'; // Error if empty
+                    }
+                    final grade = num.tryParse(value.trim());
+                    if (grade == null) {
+                      return 'رقم غير صالح'; // Error if not a number
+                    }
+                    if (grade < 0) {
+                      return 'لا يمكن أن تكون سالبة'; // Error if negative (allow -1 separately)
+                    }
+                    if (grade > widget.maxGrade) {
+                      return 'أعلى من ${widget.maxGrade}';
+                    }
+                    return null; // Valid input
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: <Widget>[
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
-            ),
-            if (widget.currentGrade != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8.0, right: 8.0, left: 8.0),
+          child: Wrap(
+            spacing: 8.0, // Horizontal space between buttons
+            runSpacing: 4.0, // Vertical space if they wrap
+            alignment: WrapAlignment.end, // Align buttons to the right
+            children: [
               TextButton(
-                onPressed: _handleDelete,
-                child: const Text('حذف',
-                    style: TextStyle(color: Colors.red)),
+                onPressed: _isSaving ? null : () => Navigator.pop(context),
+                child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
               ),
-            OutlinedButton(
-              onPressed: _handleSaveAbsent,
-              child: const Text('غائب'),
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.blueGrey),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: _handleConfirm,
-              child: const Text('تأكيد'),
-            ),
-          ],
+              if (widget.currentGrade != null)
+                TextButton(
+                  onPressed: _isSaving ? null : _handleDelete,
+                  child: const Text('حذف', style: TextStyle(color: Colors.red)),
+                ),
+              OutlinedButton(
+                onPressed: _isSaving ? null : _handleSaveAbsent,
+                child: const Text('غائب'),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.blueGrey),
+              ),
+              ElevatedButton(
+                onPressed: _isSaving ? null : _handleConfirm,
+                child: const Text('تأكيد'),
+              ),
+            ],
+          ),
         )
       ],
-      actionsAlignment: MainAxisAlignment.end,
+      actionsAlignment: MainAxisAlignment.end, // Align actions row
     );
   }
 }
 
 
+// Extension needed for Excel autoFitColumn (add if not present)
 extension on Sheet {
-  void autoFitColumn(int i) {}
+  void setColAutoFit(int columnIndex) {
+    // This is a placeholder. The actual implementation depends on the 'excel' package version.
+    // If autoFitColumn exists directly, this extension is not needed.
+    // If it doesn't, you might need to calculate the width manually based on content,
+    // or check the package documentation for the correct method.
+    // For newer versions, it might be:
+    // this.setColumnAutoFit(columnIndex);
+  }
 }

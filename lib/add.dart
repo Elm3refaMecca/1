@@ -31,7 +31,8 @@ class AddPage extends StatefulWidget {
 class _AddPageState extends State<AddPage> {
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
-  bool _isExporting = false;
+  bool _isExporting = false; // خاص بالأيقونة الزرقاء (الادمن)
+  bool _isMassExporting = false; // خاص بالأيقونة الخضراء (المعلم)
   bool _isAdmin = false;
   User? _user;
 
@@ -69,9 +70,7 @@ class _AddPageState extends State<AddPage> {
     }
   }
 
-  // --- ✅ MODIFIED: Function now opens WhatsApp specifically ---
   Future<void> _launchWhatsAppForSupport() async {
-    // الرقم مخصص للمبرمج مصطفى سعيد
     const phoneNumber = '966569064173';
     final Uri whatsappUri = Uri.parse('https://wa.me/$phoneNumber');
 
@@ -84,6 +83,16 @@ class _AddPageState extends State<AddPage> {
     }
   }
 
+  Future<void> _launchEduFormsUrl() async {
+    final Uri url = Uri.parse('https://edu-forms.com/');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('لا يمكن فتح الرابط: $url')),
+        );
+      }
+    }
+  }
 
   void _showNotifications() {
     showModalBottomSheet(
@@ -184,9 +193,23 @@ class _AddPageState extends State<AddPage> {
       final excel = Excel.createExcel();
       final sheet = excel['بيانات المدرسة كاملة'];
       sheet.isRTL = true;
+      excel.delete('Sheet1');
 
       final headers = ['المرحلة', 'الصف', 'الفصل', 'اسم الطالب', ...allSubjects];
-      sheet.appendRow(headers.map((h) => TextCellValue(h)).toList());
+
+      final headerStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.fromHexString("#FF1976D2"), // Blue color
+          fontColorHex: ExcelColor.white,
+          horizontalAlign: HorizontalAlign.Center,
+          verticalAlign: VerticalAlign.Center
+      );
+      final separatorStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.fromHexString("#FFFFEB3B"), // Yellow color
+          horizontalAlign: HorizontalAlign.Center
+      );
+
 
       final Map<String, Map<String, Map<String, List<DocumentSnapshot>>>> schoolStructure = {};
       for (var studentDoc in students) {
@@ -213,6 +236,26 @@ class _AddPageState extends State<AddPage> {
               if (classes == null) continue;
 
               classes.forEach((className, studentList) {
+                // --- 1. Add Separator Row ---
+                sheet.appendRow([]); // Empty row for spacing
+                final separatorRowIndex = sheet.maxRows;
+                final classKey = '$stage - $gradeName - $className';
+                sheet.merge(
+                    CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: separatorRowIndex),
+                    CellIndex.indexByColumnRow(columnIndex: headers.length - 1, rowIndex: separatorRowIndex)
+                );
+                var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: separatorRowIndex));
+                cell.value = TextCellValue("كشف درجات: $classKey");
+                cell.cellStyle = separatorStyle;
+
+                // --- 2. Add Header Row (Repeated) ---
+                sheet.appendRow(headers.map((h) => TextCellValue(h)).toList());
+                final headerRowIndex = sheet.maxRows - 1; // The row we just added
+                for(int i=0; i<headers.length; i++) {
+                  sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: headerRowIndex)).cellStyle = headerStyle;
+                }
+
+                // --- 3. Sort and Add Student Data ---
                 studentList.sort((a, b) {
                   final aData = a.data() as Map<String, dynamic>?;
                   final bData = b.data() as Map<String, dynamic>?;
@@ -274,18 +317,14 @@ class _AddPageState extends State<AddPage> {
     }
   }
 
-  // --- ✅ MODIFIED: The build method is cleaner now ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-        // تم تغليف الشعار بويدجت GestureDetector و Tooltip لتفعيل ميزة إعادة التحميل
         leading: Tooltip(
           message: 'تحديث الصفحة للحصول على آخر التعديلات',
           child: GestureDetector(
             onTap: () {
-              // هذا السطر يقوم بإعادة تحميل الصفحة (يعمل فقط على الويب)
               if (kIsWeb) {
                 html.window.location.reload();
               }
@@ -296,7 +335,6 @@ class _AddPageState extends State<AddPage> {
             ),
           ),
         ),
-        // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -343,10 +381,18 @@ class _AddPageState extends State<AddPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _isExporting
-          ? const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [CircularProgressIndicator(), SizedBox(height: 16), Text("جاري تصدير الملف، قد يستغرق الأمر بعض الوقت...")],))
-          : _buildTeacherDashboard(), // The body is now just the dashboard
-      // --- ✅ NEW: Added a clear FloatingActionButton for technical support ---
+          : _isExporting || _isMassExporting
+          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const CircularProgressIndicator(),
+        const SizedBox(height: 16),
+        Text(
+          _isExporting
+              ? "جاري تصدير ملف الإدارة، قد يستغرق الأمر بعض الوقت..."
+              : "جاري تجميع وتصدير الملف المجمع...",
+          textAlign: TextAlign.center,
+        )
+      ],))
+          : _buildTeacherDashboard(),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _launchWhatsAppForSupport,
         backgroundColor: Colors.deepPurple,
@@ -382,6 +428,12 @@ class _AddPageState extends State<AddPage> {
           },
         ),
         _buildDashboardButton(
+          title: 'تعميم النماذج التعليمية',
+          icon: Icons.assignment,
+          color: Colors.indigo.shade600,
+          onTap: _launchEduFormsUrl,
+        ),
+        _buildDashboardButton(
           title: 'صندوق الشكاوى',
           icon: Icons.inbox,
           color: Colors.orange.shade800,
@@ -389,10 +441,9 @@ class _AddPageState extends State<AddPage> {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ComplaintsBoxPage()));
           },
         ),
-        // --- ( ✅ الأيقونة الجديدة لتحليل المخالفات ) ---
         _buildDashboardButton(
           title: 'تحليل المخالفات',
-          icon: Icons.flag, // أيقونة مناسبة للتقارير والمخالفات
+          icon: Icons.flag,
           color: Colors.red.shade700,
           onTap: () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ViolationsLogPage()));
@@ -476,7 +527,6 @@ class _AddPageState extends State<AddPage> {
   }
 }
 
-// ... (Rest of the file remains unchanged)
 class GradeEntrySelectionPage extends StatefulWidget {
   final bool isBehaviorMode;
   final bool isAdmin;
@@ -490,12 +540,10 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
   Map<String, dynamic>? _userData;
   String? _selectedStage, _selectedGrade, _selectedClass;
   bool _isLoading = true;
+  bool _isMassExporting = false; // --- حالة تحميل الأيقونة الخضراء ---
 
-  // --- [MODIFIED] This data structure now holds a list of subjects for each class.
-  // Map<GradeName, Map<ClassName, List<SubjectName>>>
   Map<String, Map<String, List<String>>> _classSubjectMapByGrade = {};
 
-  // --- [NEW] This list will hold the specific subjects available for the chosen class.
   List<String> _subjectsForSelectedClass = [];
 
   List<String> _availableStages = [];
@@ -524,6 +572,7 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     'بدنية': 'profession10',
     'رقمية': 'profession11',
     'تفكير': 'profession12',
+    // نافس ليس له professionKey هنا لأنه يعامل بشكل مختلف
   };
 
 
@@ -564,11 +613,10 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     }
   }
 
-  // --- [MODIFIED] This function now handles multiple subjects for the same class.
   void _parseTeacherPermissions(Map<String, dynamic> data) {
     final stages = <String>{};
     final grades = <String, Set<String>>{};
-    final classSubjects = <String, Map<String, List<String>>>{}; // New: Map<Grade, Map<Class, List<Subjects>>>
+    final classSubjects = <String, Map<String, List<String>>>{};
 
     final structure = {
       'المرحلة الابتدائية': {
@@ -624,7 +672,6 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
                     final className = parts[0].trim();
                     final subjectName = parts[1].trim();
                     if (className.isNotEmpty && subjectName.isNotEmpty) {
-                      // This is the key change: it adds the subject to a list for the class.
                       classSubjects[gradeName]!.putIfAbsent(className, () => []).add(subjectName);
                     }
                   }
@@ -641,21 +688,291 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     _classSubjectMapByGrade = classSubjects;
   }
 
-  // --- [MODIFIED] The build method is updated for the new user flow.
+  // --- ✅✅✅ START OF MODIFICATION (إصلاح خطأ النوع وتعديل منطق التصدير) ✅✅✅ ---
+  Future<void> _exportAllAssignedStudentsToExcel() async {
+    if ((_userData == null || _userData!.isEmpty) && !widget.isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد بيانات للمعلم لتصديرها.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    setState(() => _isMassExporting = true);
+
+    try {
+      final excel = Excel.createExcel();
+      // --- (تعديل) اسم الشيت ---
+      final sheet = excel['كشف درجات المعلم المجمع'];
+      sheet.isRTL = true;
+      excel.delete('Sheet1');
+
+      // 1. تعريف الأعمدة الثابتة لنموذج "الأيقونة الزرقاء"
+      final List<CellValue> mainHeaders = [
+        TextCellValue('اسم الطالب'),
+        TextCellValue('الدرجة'),
+        TextCellValue('النسبة المئوية'),
+        TextCellValue('التقييم'),
+      ];
+
+      // 2. تعريف أنماط التنسيق
+      final headerStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.fromHexString("#FF1976D2"),
+          fontColorHex: ExcelColor.white,
+          horizontalAlign: HorizontalAlign.Center,
+          verticalAlign: VerticalAlign.Center
+      );
+      final separatorStyle = CellStyle(
+          bold: true,
+          backgroundColorHex: ExcelColor.fromHexString("#FFFFEB3B"),
+          horizontalAlign: HorizontalAlign.Center
+      );
+
+      // 3. تعريف الاختبارات القياسية (بدون نافس)
+      final List<String> testNames = ['الاختبار الأول', 'الاختبار الثاني', 'الاختبار الثالث', 'قبلي', 'بعدي', 'احتياطي'];
+      final List<String> testKeys = ['e1', 'e2', 'e3', 'e14', 'e15', 'e16'];
+      const double maxGrade = 20.0;
+
+      // 4. جلب جميع الطلاب وتجميعهم حسب الفصول
+      final Map<String, List<DocumentSnapshot>> studentsByClass = {};
+      final querySnapshot = await FirebaseFirestore.instance.collection('students').get();
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final classId = "${data['stages'] ?? 'N/A'} - ${data['grades'] ?? 'N/A'} - ${data['classes'] ?? 'N/A'}";
+        studentsByClass.putIfAbsent(classId, () => []).add(doc);
+      }
+
+      // 5. دالة مساعدة لإنشاء التقييم
+      String getEvaluation(num grade, double maxGrade) {
+        if (grade < 0) return "N/A"; // غائب
+        double percentage = (grade / maxGrade) * 100;
+        if (percentage >= 90) return "ممتاز";
+        if (percentage >= 80) return "جيد جدا";
+        if (percentage >= 70) return "جيد";
+        if (percentage >= 50) return "مقبول";
+        return "يحتاج لمتابعة";
+      }
+
+      // 6. تجميع قائمة الفصول والمواد المسندة للمعلم
+      List<Map<String, String>> assignments = [];
+      if(widget.isAdmin) {
+        for (var classKey in studentsByClass.keys) {
+          final parts = classKey.split(' - ');
+          if (parts.length != 3) continue;
+          for (var subject in _allSubjects) {
+            assignments.add({
+              "stage": parts[0],
+              "grade": parts[1],
+              "class": parts[2],
+              "subject": subject,
+            });
+          }
+        }
+      } else {
+        _gradesByStage.forEach((stage, grades) {
+          for (final grade in grades) {
+            final classMap = _classSubjectMapByGrade[grade];
+            if (classMap != null) {
+              classMap.forEach((className, subjects) {
+                for (final subject in subjects) {
+                  assignments.add({
+                    "stage": stage,
+                    "grade": grade,
+                    "class": className,
+                    "subject": subject,
+                  });
+                }
+              });
+            }
+          }
+        });
+      }
+
+      // ترتيب القائمة
+      assignments.sort((a, b) {
+        int classCmp = "${a['stage']}-${a['grade']}-${a['class']}".compareTo("${b['stage']}-${b['grade']}-${b['class']}");
+        if (classCmp != 0) return classCmp;
+        return a['subject']!.compareTo(b['subject']!);
+      });
+
+
+      // 7. --- الحلقة الرئيسية لبناء الملف ---
+      bool didAddAnyData = false;
+
+      for (final assignment in assignments) {
+        final stage = assignment['stage']!;
+        final gradeName = assignment['grade']!;
+        final className = assignment['class']!;
+        final subject = assignment['subject']!;
+
+        final professionKey = _subjectToProfessionKeyMap[subject];
+        if (professionKey == null) continue;
+
+        final classKey = "$stage - $gradeName - $className";
+        final students = studentsByClass[classKey];
+        if (students == null || students.isEmpty) continue;
+
+        // 8. المرور على الاختبارات الـ 6 لهذه المادة
+        for (int i = 0; i < testKeys.length; i++) {
+          final testKey = testKeys[i];
+          final testName = testNames[i];
+          final testFieldKey = '$testKey$professionKey';
+
+          // 9. التحقق أن "جميع" الطلاب مرصود لهم درجة لهذا الاختبار
+          bool allStudentsGraded = true;
+          for (final studentDoc in students) {
+            final data = studentDoc.data() as Map<String, dynamic>;
+            // --- (تعديل) التحقق من وجود المفتاح فقط ---
+            if (!data.containsKey(testFieldKey)) {
+              allStudentsGraded = false;
+              break;
+            }
+          }
+
+          if (!allStudentsGraded) {
+            continue;
+          }
+
+          didAddAnyData = true;
+
+          // 11. إضافة صف الفاصل
+          sheet.appendRow([]);
+          final separatorRowIndex = sheet.maxRows;
+          final separatorText = "كشف درجات: $classKey - مادة: $subject - ($testName)";
+          sheet.merge(
+              CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: separatorRowIndex),
+              CellIndex.indexByColumnRow(columnIndex: mainHeaders.length - 1, rowIndex: separatorRowIndex)
+          );
+          var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: separatorRowIndex));
+          cell.value = TextCellValue(separatorText);
+          cell.cellStyle = separatorStyle;
+
+          // 12. إضافة رأس الجدول (مكرر)
+          sheet.appendRow(mainHeaders);
+          final headerRowIndex = sheet.maxRows - 1;
+          for(int h=0; h<mainHeaders.length; h++) {
+            sheet.cell(CellIndex.indexByColumnRow(columnIndex: h, rowIndex: headerRowIndex)).cellStyle = headerStyle;
+          }
+
+          // 13. ترتيب الطلاب أبجدياً وإضافة بياناتهم
+          students.sort((a, b) {
+            final dataA = a.data() as Map<String, dynamic>;
+            final dataB = b.data() as Map<String, dynamic>;
+            return (dataA['name'] ?? '').compareTo(dataB['name'] ?? '');
+          });
+
+          for (var studentDoc in students) {
+            final data = studentDoc.data() as Map<String, dynamic>;
+            final studentName = data['name'] ?? 'N/A';
+            // --- ✅✅✅ إصلاح خطأ النوع هنا ✅✅✅ ---
+            final dynamic gradeValue = data[testFieldKey]; // جلب القيمة بدون تحويل مبدئي
+            num? gradeNum; // استخدام النوع القابل للإلغاء
+
+            if (gradeValue is num) {
+              gradeNum = gradeValue;
+            }
+            // يمكنك إضافة شرط للتحقق إذا كانت القيمة نصية ومحاولة تحويلها
+            // else if (gradeValue is String) {
+            //   gradeNum = num.tryParse(gradeValue);
+            // }
+            // ------------------------------------
+
+            if (gradeNum == null) {
+              // حالة الدرجة مفقودة أو غير صالحة (لا يفترض أن تحدث بسبب التحقق أعلاه)
+              sheet.appendRow([
+                TextCellValue(studentName),
+                TextCellValue('لم ترصد'),
+                TextCellValue('N/A'),
+                TextCellValue('N/A')
+              ]);
+            } else if (gradeNum == -1) {
+              // حالة "غائب"
+              sheet.appendRow([
+                TextCellValue(studentName),
+                TextCellValue('غائب'),
+                TextCellValue('N/A'),
+                TextCellValue('N/A')
+              ]);
+            } else {
+              // حالة "مرصود"
+              final double percentage = (gradeNum / maxGrade) * 100;
+              final String evaluation = getEvaluation(gradeNum, maxGrade);
+              sheet.appendRow([
+                TextCellValue(studentName),
+                DoubleCellValue(gradeNum.toDouble()),
+                TextCellValue('${percentage.toStringAsFixed(1)}%'),
+                TextCellValue(evaluation)
+              ]);
+            }
+          }
+        }
+      }
+
+      // 14. التحقق إذا لم يتم إضافة أي بيانات
+      if (!didAddAnyData) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لم يتم العثور على أي اختبارات مرصودة بالكامل لجميع الطلاب.'), backgroundColor: Colors.orange),
+        );
+        setState(() => _isMassExporting = false);
+        return;
+      }
+
+      // 15. ضبط عرض الأعمدة
+      for (int i=0; i<mainHeaders.length; i++) {
+        sheet.setColAutoFit(i);
+      }
+
+      // 16. حفظ وتنزيل الملف
+      _saveAndDownloadExcel(context, excel, 'كشف_درجات_المعلم_المجمع.xlsx');
+
+    } catch (e) {
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('فشل تصدير الملف: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if(mounted) {
+        setState(() => _isMassExporting = false);
+      }
+    }
+  }
+  // --- ✅✅✅ END OF MODIFICATION (نهاية التعديل) ✅✅✅ ---
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.isBehaviorMode ? 'اختيار فصل لتقييم السلوك' : 'اختيار فصل ومادة للرصد'),
         actions: [
+          if (!widget.isBehaviorMode)
+            IconButton(
+              icon: const Icon(Icons.download_for_offline, color: Colors.greenAccent, size: 28),
+              tooltip: 'تنزيل كشف Excel مجمع (للاختبارات المرصودة بالكامل)',
+              onPressed: _isMassExporting ? null : _exportAllAssignedStudentsToExcel,
+            ),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Image.asset('assets/2.png'),
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+      body: _isLoading || _isMassExporting
+          ? Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              _isMassExporting
+                  ? 'جاري تجميع وتصدير الملف المجمع...\nسيتم فقط تضمين الاختبارات المرصودة بالكامل.'
+                  : 'جاري تحميل البيانات...',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      )
           : ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
@@ -693,10 +1010,9 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
             _buildDropdown(_classesForSelectedGrade, _selectedClass, 'اختر الفصل', (val) => setState(() {
               _selectedClass = val;
               if (val != null && _selectedGrade != null && !widget.isAdmin) {
-                // Get the list of subjects for the chosen class
                 _subjectsForSelectedClass = _classSubjectMapByGrade[_selectedGrade!]?[val] ?? [];
               } else {
-                _subjectsForSelectedClass = [];
+                _subjectsForSelectedClass = widget.isAdmin ? _allSubjects : []; // الأدمن يرى كل المواد دائماً
               }
             })),
             const SizedBox(height: 24),
@@ -704,10 +1020,10 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
 
           if (_selectedClass != null) ...[
             const Divider(thickness: 1, height: 30),
-            _buildSectionTitle('4. اختر المادة', Icons.book),
+            _buildSectionTitle(widget.isBehaviorMode ? '4. تقييم سلوك الفصل' : '4. اختر المادة', widget.isBehaviorMode ? Icons.sentiment_very_satisfied : Icons.book),
             const SizedBox(height: 16),
             _buildSubjectGrid(
-              // For admins, show all subjects. For teachers, show only the subjects for the selected class.
+              // الأدمن يرى كل المواد، المعلم يرى مواده فقط
               widget.isAdmin ? _allSubjects : _subjectsForSelectedClass,
             ),
           ],
@@ -740,7 +1056,6 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     );
   }
 
-  // --- [MODIFIED] This function now accepts a list of subjects to display.
   Widget _buildSubjectGrid(List<String> subjects) {
     if (subjects.isEmpty && !widget.isAdmin) {
       return const Center(child: Padding(
@@ -748,6 +1063,37 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
         child: Text('لا توجد مواد مسندة لك في هذا الفصل.'),
       ));
     }
+
+    if (widget.isBehaviorMode) {
+      return Center(
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.people_alt_outlined),
+          label: const Text('الانتقال لصفحة تقييم السلوك'),
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+          ),
+          onPressed: () {
+            if (_selectedStage != null && _selectedGrade != null && _selectedClass != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TestSelectionPage(
+                    stage: _selectedStage!,
+                    grade: _selectedGrade!,
+                    className: _selectedClass!,
+                    subject: 'سلوك', // Subject can be a placeholder here
+                    professionKey: 'behavior', // professionKey can be a placeholder
+                    isBehaviorMode: widget.isBehaviorMode,
+                    isAdmin: widget.isAdmin,
+                  ),
+                ),
+              );
+            }
+          },
+        ),
+      );
+    }
+
 
     return GridView.builder(
       shrinkWrap: true,
@@ -777,7 +1123,7 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
               final professionKey = _subjectToProfessionKeyMap[subject];
               if (professionKey == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('خطأ: المادة "$subject" غير قابلة للاختيار.')),
+                  SnackBar(content: Text('خطأ: المادة "$subject" غير قابلة للاختيار هنا (قد تكون نافس).')),
                 );
                 return;
               }
@@ -807,10 +1153,6 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     );
   }
 }
-
-// ===================================================================
-// START OF NEW PAGES
-// ===================================================================
 
 class StudentSearchPage extends StatefulWidget {
   const StudentSearchPage({super.key});
@@ -960,10 +1302,6 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
   }
 }
 
-// ===================================================================
-// START OF NEW SCHOOL ANALYTICS CODE
-// ===================================================================
-
 class StudentDataPoint {
   final String studentId;
   final String name;
@@ -1035,7 +1373,6 @@ class TeacherInfo {
     final assignedClasses = permissions[gradeInfo['classField']] as String?;
     if (assignedClasses == null || assignedClasses == '0') return false;
 
-    // Modified to check for class name within the new "ClassName=SubjectName" format
     return assignedClasses.split(',').any((pair) => pair.split('=').first.trim() == className);
   }
 }
@@ -1162,14 +1499,12 @@ class _SchoolAnalyticsPageState extends State<SchoolAnalyticsPage> with SingleTi
     _generateFullSchoolReport();
   }
 
-  // --- [MODIFIED] This is a heavy function. We will provide detailed loading messages.
   Future<void> _generateFullSchoolReport() async {
     try {
       setState(() {
         _isLoading = true;
         _loadingMessage = 'الخطوة 1/4: جاري جلب بيانات جميع الطلاب...';
       });
-      // For very large schools, consider paginating this query or using a Cloud Function.
       final studentsSnapshot = await FirebaseFirestore.instance.collection('students').get();
 
       setState(() => _loadingMessage = 'الخطوة 2/4: جاري جلب بيانات المعلمين...');
@@ -1182,8 +1517,6 @@ class _SchoolAnalyticsPageState extends State<SchoolAnalyticsPage> with SingleTi
 
 
       setState(() => _loadingMessage = 'الخطوة 3/4: جاري معالجة درجات الطلاب...');
-      // This part processes data in memory. It's fast for hundreds of students,
-      // but for thousands, a backend solution (Cloud Function) would be more scalable.
       List<StudentDataPoint> studentDataPoints = [];
       for (final doc in studentsSnapshot.docs) {
         final data = doc.data();
@@ -1329,115 +1662,6 @@ class ComparisonAnalyticsView extends StatelessWidget {
     required this.fullSchoolReport,
   });
 
-  Future<void> _exportRankedClasses(BuildContext context, List<RankedClass> classes) async {
-    final excel = Excel.createExcel();
-    final sheet = excel['ترتيب الفصول'];
-    sheet.isRTL = true;
-    sheet.appendRow([
-      TextCellValue('الترتيب'), TextCellValue('الفصل'), TextCellValue('متوسط الدرجات'), TextCellValue('المعلمون')
-    ]);
-    for (int i = 0; i < classes.length; i++) {
-      final rc = classes[i];
-      final teachers = rc.teachers.isEmpty ? 'لا يوجد معلمين' : rc.teachers.map((t) => t.name).join(', ');
-      sheet.appendRow([
-        IntCellValue(i + 1),
-        TextCellValue(rc.classId),
-        DoubleCellValue(double.parse(rc.average.toStringAsFixed(2))),
-        TextCellValue(teachers)
-      ]);
-    }
-    _saveAndDownloadExcel(context, excel, 'ranked_classes_report.xlsx');
-  }
-
-  Future<void> _exportTopStudents(BuildContext context, Map<String, List<StudentDataPoint>> topStudents) async {
-    final excel = Excel.createExcel();
-    excel.delete('Sheet1');
-
-    topStudents.forEach((grade, students) {
-      final sheet = excel[grade];
-      sheet.isRTL = true;
-      sheet.appendRow([
-        TextCellValue('الترتيب'), TextCellValue('الطالب'), TextCellValue('الفصل'), TextCellValue('متوسط الدرجات'), TextCellValue('النسبة المئوية')
-      ]);
-      for (int i = 0; i < students.length; i++) {
-        final student = students[i];
-        sheet.appendRow([
-          IntCellValue(i + 1),
-          TextCellValue(student.name),
-          TextCellValue(student.className),
-          DoubleCellValue(double.parse(student.averageScore.toStringAsFixed(2))),
-          TextCellValue('${(student.averagePercentage * 100).toStringAsFixed(1)}%'),
-        ]);
-      }
-    });
-
-    _saveAndDownloadExcel(context, excel, 'top_10_students_report.xlsx');
-  }
-
-  Future<void> _exportDetailedComparison(BuildContext context, FullSchoolReport report, List<StudentDataPoint> allStudents) async {
-    final excel = Excel.createExcel();
-    final sheet = excel['تفصيل المستويات'];
-    sheet.isRTL = true;
-
-    sheet.appendRow([
-      TextCellValue('المستوى'), TextCellValue('الاسم'), TextCellValue('متوسط الدرجات'), TextCellValue('النسبة المئوية')
-    ]);
-
-    report.stageAverages.forEach((stage, avg) {
-      sheet.appendRow([TextCellValue('مرحلة'), TextCellValue(stage), DoubleCellValue(avg), TextCellValue('')]);
-      final gradesInStage = allStudents.where((s) => s.stage == stage).map((s) => s.grade).toSet();
-      for (final grade in gradesInStage) {
-        final gradeAvg = report.gradeAverages[grade] ?? 0;
-        sheet.appendRow([TextCellValue('  صف'), TextCellValue(grade), DoubleCellValue(gradeAvg), TextCellValue('')]);
-        final classesInGrade = allStudents.where((s) => s.grade == grade).map((s) => s.className).toSet();
-        for (final className in classesInGrade) {
-          final classId = '$stage - $grade - $className';
-          final classAvg = report.classAverages[classId] ?? 0;
-          sheet.appendRow([TextCellValue('    فصل'), TextCellValue(className), DoubleCellValue(classAvg), TextCellValue('')]);
-          final studentsInClass = allStudents.where((s) => s.stage == stage && s.grade == grade && s.className == className).toList();
-          studentsInClass.sort((a, b) => b.averageScore.compareTo(a.averageScore));
-          for (final student in studentsInClass) {
-            sheet.appendRow([
-              TextCellValue('      طالب'),
-              TextCellValue(student.name),
-              DoubleCellValue(student.averageScore),
-              TextCellValue('${(student.averagePercentage * 100).toStringAsFixed(1)}%')
-            ]);
-          }
-        }
-      }
-    });
-
-    _saveAndDownloadExcel(context, excel, 'detailed_levels_report.xlsx');
-  }
-
-  Future<void> _exportMisbehavingStudents(BuildContext context, List<StudentDataPoint> students) async {
-    final excel = Excel.createExcel();
-    final sheet = excel['الطلاب أصحاب الملاحظات'];
-    sheet.isRTL = true;
-    sheet.appendRow([
-      TextCellValue('الترتيب'),
-      TextCellValue('اسم الطالب'),
-      TextCellValue('المرحلة'),
-      TextCellValue('الصف'),
-      TextCellValue('الفصل'),
-      TextCellValue('عدد الملاحظات')
-    ]);
-    for (int i = 0; i < students.length; i++) {
-      final student = students[i];
-      sheet.appendRow([
-        IntCellValue(i + 1),
-        TextCellValue(student.name),
-        TextCellValue(student.stage),
-        TextCellValue(student.grade),
-        TextCellValue(student.className),
-        IntCellValue(student.totalDislikes)
-      ]);
-    }
-    _saveAndDownloadExcel(context, excel, 'misbehaving_students_report.xlsx');
-  }
-
-
   @override
   Widget build(BuildContext context) {
     if (fullSchoolReport == null) {
@@ -1465,13 +1689,6 @@ class ComparisonAnalyticsView extends StatelessWidget {
       title: '❗️ قائمة الطلاب أصحاب الملاحظات السلوكية',
       icon: Icons.priority_high,
       iconColor: Colors.red.shade700,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.download),
-          tooltip: 'تصدير القائمة إلى Excel',
-          onPressed: () => _exportMisbehavingStudents(context, report.misbehavingStudents),
-        ),
-      ],
       child: report.misbehavingStudents.isEmpty
           ? const ListTile(
         leading: Icon(Icons.check_circle_outline, color: Colors.green),
@@ -1512,13 +1729,6 @@ class ComparisonAnalyticsView extends StatelessWidget {
       title: '🏆 ترتيب فصول المدرسة حسب الأداء',
       icon: Icons.emoji_events,
       iconColor: Colors.amber,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.download),
-          tooltip: 'تصدير الترتيب إلى Excel',
-          onPressed: () => _exportRankedClasses(context, report.rankedClasses),
-        ),
-      ],
       child: report.rankedClasses.isEmpty
           ? const Text('لا توجد بيانات كافية لعرض الترتيب.')
           : Column(
@@ -1556,13 +1766,6 @@ class ComparisonAnalyticsView extends StatelessWidget {
       title: '⭐ الطلاب العشرة الأوائل على كل صف',
       icon: Icons.star,
       iconColor: Colors.orange,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.download),
-          tooltip: 'تصدير الأوائل إلى Excel',
-          onPressed: () => _exportTopStudents(context, report.topStudentsPerGrade),
-        )
-      ],
       child: report.topStudentsPerGrade.isEmpty
           ? const Text('لا توجد بيانات كافية.')
           : ExpansionPanelList(
@@ -1598,13 +1801,6 @@ class ComparisonAnalyticsView extends StatelessWidget {
       subtitle: 'عرض هرمي للمتوسطات من المرحلة حتى الطالب',
       icon: Icons.account_tree,
       iconColor: Colors.purple,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.download),
-          tooltip: 'تصدير التفصيل إلى Excel',
-          onPressed: () => _exportDetailedComparison(context, report, allStudentsData),
-        )
-      ],
       child: Column(
         children: report.stageAverages.entries.map((stageEntry) {
           final stageName = stageEntry.key;
@@ -1680,47 +1876,6 @@ class _GradeComparisonViewState extends State<GradeComparisonView> {
 
   void _parseAvailableGrades() {
     _availableGrades = widget.allStudentsData.map((s) => s.grade).toSet().toList()..sort();
-  }
-
-  Future<void> _exportGradeComparison(BuildContext context, GradeComparisonResult result) async {
-    final excel = Excel.createExcel();
-    final sheet = excel['مقارنة فصول ${result.gradeName}'];
-    sheet.isRTL = true;
-
-    sheet.appendRow([TextCellValue('مقارنة أداء الفصول')]);
-    sheet.appendRow([TextCellValue('الفصل'), TextCellValue('متوسط الدرجات')]);
-    result.classAverages.forEach((className, avg) {
-      sheet.appendRow([TextCellValue(className), DoubleCellValue(double.parse(avg.toStringAsFixed(2)))]);
-    });
-    sheet.appendRow([]);
-
-    sheet.appendRow([TextCellValue('مقارنة المواد عبر الفصول')]);
-    final allSubjects = result.subjectAveragesPerClass.values.expand((map) => map.keys).toSet().toList();
-    final header = [TextCellValue('المادة'), ...result.subjectAveragesPerClass.keys.map((cn) => TextCellValue(cn))];
-    sheet.appendRow(header);
-
-    for (var subject in allSubjects) {
-      final row = [TextCellValue(subject)];
-      for (var className in result.subjectAveragesPerClass.keys) {
-        final avg = result.subjectAveragesPerClass[className]![subject] ?? 0.0;
-        row.add(DoubleCellValue(double.parse(avg.toStringAsFixed(2))) as TextCellValue);
-      }
-      sheet.appendRow(row);
-    }
-    sheet.appendRow([]);
-
-    sheet.appendRow([TextCellValue('الطلاب الأوائل على الصف')]);
-    sheet.appendRow([TextCellValue('الترتيب'), TextCellValue('الطالب'), TextCellValue('الفصل'), TextCellValue('المتوسط')]);
-    for(int i = 0; i < result.topPerformersInGrade.length; i++) {
-      final student = result.topPerformersInGrade[i];
-      sheet.appendRow([
-        IntCellValue(i+1),
-        TextCellValue(student.name),
-        TextCellValue(student.className),
-        DoubleCellValue(double.parse(student.averageScore.toStringAsFixed(2)))
-      ]);
-    }
-    _saveAndDownloadExcel(context, excel, 'grade_comparison_${result.gradeName}.xlsx');
   }
 
   void _generateGradeReport() {
@@ -1817,13 +1972,13 @@ class _GradeComparisonViewState extends State<GradeComparisonView> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('تقرير مقارن لفصول: ${result.gradeName}', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.download),
-              tooltip: 'تصدير التقرير إلى Excel',
-              onPressed: () => _exportGradeComparison(context, result),
-            )
+            Expanded(
+              child: Text(
+                'تقرير مقارن لفصول: ${result.gradeName}',
+                style: Theme.of(context).textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 20),
@@ -1977,32 +2132,24 @@ class _TeacherAnalyticsViewState extends State<TeacherAnalyticsView> {
         };
       }).toList();
 
-      // --- 🛑 START OF MODIFICATION 🛑 ---
-      // This is the corrected logic for identifying a teacher's subjects.
-      // It now correctly parses the class assignment fields.
-      final Map<String, String> teacherSubjects = {}; // Map<SubjectName, ProfessionKey>
+      final Map<String, String> teacherSubjects = {};
       final Set<String> foundSubjects = {};
 
-      // List all possible fields that store class/subject assignments
       final classFields = [
-        'class1', 'class2', 'class3', 'class4', 'class5', 'class6', // Primary
-        'class11', 'class22', 'class33', // Middle
-        'class111', 'class222', 'class333' // High School
+        'class1', 'class2', 'class3', 'class4', 'class5', 'class6',
+        'class11', 'class22', 'class33',
+        'class111', 'class222', 'class333'
       ];
 
       for (var field in classFields) {
-        // Check if the teacher document has this field and it's a string
         if (teacherData.containsKey(field) && teacherData[field] is String) {
           final String assignments = teacherData[field];
-          // Split "Class A=Math,Class B=Science" into individual assignments
           final pairs = assignments.split(',');
           for (var pair in pairs) {
-            // Split "Class A=Math" into "Class A" and "Math"
             final parts = pair.split('=');
             if (parts.length == 2) {
               final subjectName = parts[1].trim();
               if (subjectName.isNotEmpty) {
-                // Add the subject to a set to avoid duplicates
                 foundSubjects.add(subjectName);
               }
             }
@@ -2010,19 +2157,15 @@ class _TeacherAnalyticsViewState extends State<TeacherAnalyticsView> {
         }
       }
 
-      // Now, populate the final 'teacherSubjects' map using the unique subject names found
       for (var subject in foundSubjects) {
         if (_subjectToProfessionKeyMap.containsKey(subject)) {
           teacherSubjects[subject] = _subjectToProfessionKeyMap[subject]!;
         }
       }
 
-      // Check if any subjects were found. If not, the teacher has no assignments.
       if (teacherSubjects.isEmpty) {
         throw Exception('هذا المعلم ليس لديه مواد دراسية مسندة في أي فصل.');
       }
-      // --- 🛑 END OF MODIFICATION 🛑 ---
-
       final Map<String, List<num>> valueAddedScores = {};
       final Map<String, List<num>> consistencyScores = {};
       final Map<String, List<num>> benchmarkInternalScores = {};
@@ -2146,67 +2289,6 @@ class _TeacherAnalyticsViewState extends State<TeacherAnalyticsView> {
     }
   }
 
-  Future<void> _exportTeacherReportToExcel(TeacherAnalysisResult result) async {
-    final excel = Excel.createExcel();
-    final Sheet sheet = excel['Sheet1'];
-    sheet.isRTL = true;
-
-    void addHeader(String text, int rowIndex) {
-      sheet.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex), CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex));
-      final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex));
-      cell.value = TextCellValue(text);
-      cell.cellStyle = CellStyle(bold: true, fontSize: 14, backgroundColorHex: ExcelColor.blueGrey, fontColorHex: ExcelColor.white, horizontalAlign: HorizontalAlign.Center);
-    }
-
-    sheet.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0), CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: 0));
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0)).value = TextCellValue('تقرير أداء المعلم: ${result.name}');
-
-    addHeader('المقاييس الأساسية', 2);
-    sheet.appendRow([llValue('المقياس'), llValue('المادة/الفصل'), TextCellValue('القيمة')]);
-    result.netValueAdded.forEach((subject, value) {
-      sheet.appendRow([TextCellValue('القيمة المضافة الصافية'), TextCellValue(subject), TextCellValue(value.toStringAsFixed(2))]);
-    });
-    result.teachingConsistency.forEach((classSubject, value) {
-      sheet.appendRow([TextCellValue('مؤشر اتساق التدريس'), TextCellValue(classSubject), TextCellValue(value.toStringAsFixed(2))]);
-    });
-    result.benchmarkGap.forEach((subject, value) {
-      sheet.appendRow([TextCellValue('فجوة الأداء المعياري'), TextCellValue(subject), TextCellValue(value.toStringAsFixed(2))]);
-    });
-
-    int currentRow = sheet.maxRows + 1;
-    addHeader('أداء الفصول', currentRow);
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow + 1)).value = TextCellValue('المادة - الفصل');
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: currentRow + 1)).value = TextCellValue('متوسط الأداء');
-    sheet.cell(CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: currentRow + 1)).value = TextCellValue('حجم الفصل (طالب)');
-    result.classSubjectAverages.forEach((classSubject, avg) {
-      sheet.appendRow([TextCellValue(classSubject), TextCellValue(avg.toStringAsFixed(2)), TextCellValue(result.classSizes[classSubject]?.toString() ?? 'N/A')]);
-    });
-
-    currentRow = sheet.maxRows + 1;
-    addHeader('متابعة السلوك', currentRow);
-    sheet.appendRow([TextCellValue('إعجاب (طالب نبيل)'), TextCellValue(result.likesGiven.toString())]);
-    sheet.appendRow([TextCellValue('ملاحظة سلوكية'), TextCellValue(result.dislikesGiven.toString())]);
-
-    currentRow = sheet.maxRows + 2;
-    addHeader('توصيات للإدارة', currentRow);
-    for (var rec in result.recommendationsToAdmin) {
-      sheet.appendRow([TextCellValue(rec)]);
-    }
-
-    currentRow = sheet.maxRows + 2;
-    addHeader('توصيات للمعلم', currentRow);
-    for (var rec in result.recommendationsToTeacher) {
-      sheet.appendRow([TextCellValue(rec)]);
-    }
-
-    for (var i = 0; i < 4; i++) {
-      sheet.setColAutoFit(i);
-    }
-
-    _saveAndDownloadExcel(context, excel, "teacher_report_${result.name.replaceAll(' ', '_')}.xlsx");
-  }
-
-
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -2228,14 +2310,6 @@ class _TeacherAnalyticsViewState extends State<TeacherAnalyticsView> {
                 ),
               ),
             ),
-            if (_result != null && !_isLoading) ...[
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.download),
-                tooltip: 'تصدير التقرير إلى Excel',
-                onPressed: () => _exportTeacherReportToExcel(_result!),
-              ),
-            ]
           ],
         ),
         const SizedBox(height: 20),
@@ -2446,8 +2520,6 @@ class _TeacherAnalyticsViewState extends State<TeacherAnalyticsView> {
   llValue(String s) {}
 }
 
-// --- ✅ START OF MODIFICATION ---
-// The entire implementation of ComplaintsBoxPage is replaced here.
 class ComplaintsBoxPage extends StatefulWidget {
   const ComplaintsBoxPage({super.key});
 
@@ -2456,15 +2528,6 @@ class ComplaintsBoxPage extends StatefulWidget {
 }
 
 class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
-  // The state is now simpler. We don't need to track the admin status anymore
-  // as the view is the same for everyone.
-
-  /// Builds the Firestore stream to fetch complaints.
-  ///
-  /// This query is now the same for all users (admins and teachers).
-  /// It fetches all behavior reports that have been replied to by a parent
-  /// or have been closed, ordered by the most recent reply.
-  /// This query works correctly with the existing index on `status` and `replyTimestamp`.
   Stream<QuerySnapshot> _buildStream() {
     return FirebaseFirestore.instance
         .collection('behavior_reports')
@@ -2479,7 +2542,6 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
       appBar: AppBar(
         title: const Text('صندوق الشكاوى والردود'),
       ),
-      // We directly use a StreamBuilder, which handles loading states internally.
       body: StreamBuilder<QuerySnapshot>(
         stream: _buildStream(),
         builder: (context, snapshot) {
@@ -2489,7 +2551,6 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
           if (snapshot.hasError) {
             return Center(child: Text('حدث خطأ: ${snapshot.error}'));
           }
-          // The check `!snapshot.hasData` is important for the initial frame.
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(
               child: Column(
@@ -2504,8 +2565,6 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
             );
           }
 
-          // No client-side filtering is needed.
-          // All fetched documents are displayed directly.
           final docs = snapshot.data!.docs;
 
           return ListView.builder(
@@ -2521,9 +2580,6 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
     );
   }
 }
-// --- ✅ END OF MODIFICATION ---
-
-// --- (ويدجت عرض المحادثة بين المعلم وولي الأمر) ---
 class _ComplaintConversationCard extends StatefulWidget {
   final DocumentSnapshot reportDoc;
   const _ComplaintConversationCard({required this.reportDoc});
@@ -2537,12 +2593,10 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
 
-  // --- 🛑 MODIFICATION START 🛑 ---
   Future<void> _submitTeacherFinalReply() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isSubmitting = true);
 
-    // Get the current user to save their ID and Name.
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       if (mounted) {
@@ -2555,7 +2609,6 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
     }
 
     try {
-      // Fetch the current teacher's name
       final currentUserDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
       final replierName = currentUserDoc.data()?['name'] ?? 'معلم';
 
@@ -2566,20 +2619,17 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
 
       final batch = FirebaseFirestore.instance.batch();
 
-      // 1. Update the complaint with the final reply, new status, and the replier's info.
       batch.update(reportRef, {
         'teacherFinalReply': _finalReplyController.text.trim(),
         'teacherFinalReplyTimestamp': FieldValue.serverTimestamp(),
         'status': 'closed',
-        'finalReplierId': currentUser.uid,   // Save the ID of the teacher who replied
-        'finalReplierName': replierName,       // Save the Name of the teacher who replied
+        'finalReplierId': currentUser.uid,
+        'finalReplierName': replierName,
       });
 
-      // 2. Send a notification to the student.
       if (studentId != null) {
         final studentNotificationRef = FirebaseFirestore.instance.collection('students').doc(studentId).collection('notifications').doc();
         batch.set(studentNotificationRef, {
-          // Use the name of the teacher who actually replied.
           'message': 'وصل رد من أ. $replierName بخصوص ملاحظة مادة $subject',
           'timestamp': FieldValue.serverTimestamp(),
           'isRead': false,
@@ -2606,7 +2656,6 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
       }
     }
   }
-  // --- 🛑 MODIFICATION END 🛑 ---
 
 
   @override
@@ -2624,12 +2673,8 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
     final studentReply = data['studentReply'] ?? '...';
     final teacherFinalReply = data['teacherFinalReply'] as String?;
 
-    // --- 🛑 MODIFICATION START 🛑 ---
-    // Read the new fields for the final replier's name and the original teacher's name.
     final finalReplierName = data['finalReplierName'] as String?;
     final originalTeacherName = data['teacherName'] ?? 'المعلم';
-    // --- 🛑 MODIFICATION END 🛑 ---
-
     final timestamp = data['timestamp'] as Timestamp?;
     final replyTimestamp = data['replyTimestamp'] as Timestamp?;
     final finalReplyTimestamp = data['teacherFinalReplyTimestamp'] as Timestamp?;
@@ -2660,8 +2705,6 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
             _buildConversationBubble(
               context,
               isMe: true,
-              // --- 🛑 MODIFICATION 🛑 ---
-              // Show the name of the original teacher.
               author: 'ملاحظة من: أ. $originalTeacherName',
               text: teacherNote,
               timestamp: timestamp,
@@ -2679,8 +2722,6 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
               _buildConversationBubble(
                 context,
                 isMe: true,
-                // --- 🛑 MODIFICATION 🛑 ---
-                // Show the name of the teacher who wrote the final reply.
                 author: 'رد نهائي من: أ. ${finalReplierName ?? originalTeacherName}',
                 text: teacherFinalReply,
                 timestamp: finalReplyTimestamp,
@@ -2688,14 +2729,10 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
               ),
             ] else ...[
               const Divider(height: 24),
-              // --- 🛑 MODIFICATION 🛑 ---
-              // Check if the current user is a teacher before showing the reply box.
-              // This uses the same logic as the security rules.
               if (FirebaseAuth.instance.currentUser != null)
                 FutureBuilder<DocumentSnapshot>(
                     future: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).get(),
                     builder: (context, snapshot) {
-                      // Only show the reply box if the user is a confirmed teacher.
                       if (snapshot.hasData && snapshot.data!.exists && (snapshot.data!.data() as Map).containsKey('profession')) {
                         return Form(
                           key: _formKey,
@@ -2726,7 +2763,6 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
                           ),
                         );
                       }
-                      // If user is not a teacher, show nothing.
                       return const SizedBox.shrink();
                     }
                 ),
@@ -2772,7 +2808,6 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
   }
 }
 
-// --- ( ✅ تعديل: تحويل الصفحة إلى StatefulWidget للتعامل مع صلاحيات المشرف ) ---
 class ViolationsLogPage extends StatefulWidget {
   const ViolationsLogPage({super.key});
 
@@ -2815,7 +2850,6 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
         .where('type', isEqualTo: 'dislike')
         .orderBy('timestamp', descending: true);
 
-    // إذا لم يكن المستخدم مشرفاً، قم بتصفية المخالفات لعرض مخالفاته فقط
     if (!_isAdmin) {
       query = query.where('teacherId', isEqualTo: _currentUser?.uid);
     }
@@ -2920,8 +2954,6 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
 extension on Sheet {
   void setColAutoFit(int i) {}
 }
-
-// --- Common Helper Widgets & Functions ---
 
 Future<void> _saveAndDownloadExcel(BuildContext context, Excel excel, String fileName) async {
   final fileBytes = excel.save();
