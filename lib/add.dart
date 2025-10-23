@@ -21,6 +21,10 @@ import 'package:universal_html/html.dart' as html;
 // --- (إضافة جديدة) المكتبات المطلوبة ---
 import 'package:url_launcher/url_launcher.dart';
 
+// --- ✅✅✅  إضافة المكتبة المطلوبة للتكريم  ✅✅✅ ---
+import 'package:animated_text_kit/animated_text_kit.dart';
+
+
 class AddPage extends StatefulWidget {
   const AddPage({super.key});
 
@@ -393,13 +397,56 @@ class _AddPageState extends State<AddPage> {
         )
       ],))
           : _buildTeacherDashboard(),
+
+      // --- ✅✅✅  بداية التعديل والتكريم  ✅✅✅ ---
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _launchWhatsAppForSupport,
         backgroundColor: Colors.deepPurple,
-        icon: const Icon(Icons.support_agent),
-        label: const Text('الدعم الفني للمنصة'),
-        tooltip: '</>  أ/ لحل المشكلات التقنية',
+        icon: const Icon(Icons.code, color: Colors.white), // أيقونة المبرمج
+
+        // استخدام مكتبة animated_text_kit لعرض التكريم
+        label: SizedBox(
+          width: 210, // تحديد عرض مناسب
+          child: AnimatedTextKit(
+            animatedTexts: [
+              RotateAnimatedText(
+                'مبرمج المنصة: أ/ مصطفي سعيد',
+                textAlign: TextAlign.center,
+                textStyle: const TextStyle(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: 'Cairo', // ضمان استخدام الخط العربي
+                ),
+              ),
+              RotateAnimatedText(
+                'معلم الرقمية بمدارس المعرفة',
+                textAlign: TextAlign.center,
+                textStyle: const TextStyle(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: 'Cairo',
+                ),
+              ),
+              RotateAnimatedText(
+                'للدعم الفني (اضغط هنا)',
+                textAlign: TextAlign.center,
+                textStyle: const TextStyle(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: 'Cairo',
+                ),
+              ),
+            ],
+            repeatForever: true, // تكرار لا نهائي
+            pause: const Duration(milliseconds: 1500), // مدة التوقف بين كل نص
+          ),
+        ),
+        tooltip: 'مبرمج المنصة: أ/ مصطفي سعيد - معلم الرقمية (للدعم الفني)', // تعديل الـ Tooltip
       ),
+      // --- ✅✅✅  نهاية التعديل والتكريم  ✅✅✅ ---
     );
   }
 

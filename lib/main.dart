@@ -13,6 +13,8 @@ import 'dart:math' as math; // استيراد مكتبة الرياضيات لت
 // تم إضافة المكتبات المطلوبة لتشغيل ميزة إعادة التحميل على الويب
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
+// --- ✅✅✅  إضافة المكتبة المطلوبة للتكريم  ✅✅✅ ---
+import 'package:animated_text_kit/animated_text_kit.dart';
 // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
 // --- ✅ MODIFIED: Using the new package ---
@@ -399,8 +401,11 @@ class _WelcomePageState extends State<WelcomePage> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
+
+      // --- ✅✅✅  بداية التعديل (إزالة التكريم الأرجواني)  ✅✅✅ ---
+      // تم إرجاع الزر العائم الأصلي الخاص بجهات الاتصال
       floatingActionButton: SpeedDial(
-        heroTag: 'main-fab',
+        heroTag: 'main-fab', // Tag أصلي
         icon: Icons.support_agent, // Main icon
         activeIcon: Icons.close,    // Icon when the menu is open
         backgroundColor: Theme.of(context).primaryColor,
@@ -444,6 +449,7 @@ class _WelcomePageState extends State<WelcomePage> {
           ),
         ],
       ),
+      // --- ✅✅✅  نهاية التعديل  ✅✅✅ ---
     );
   }
 
@@ -618,6 +624,50 @@ class _WelcomePageState extends State<WelcomePage> {
               ),
             ),
             // --- ✅✅✅ END OF MODIFICATION #1 (Welcome Page) ✅✅✅ ---
+
+            // --- ✅✅✅ بداية التكريم (تحت اللوجو) ✅✅✅ ---
+            const SizedBox(height: 16), // فاصل
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              decoration: BoxDecoration(
+                color: Colors.transparent, // خلفية شفافة
+                border: Border.all(
+                  color: Theme.of(context).primaryColor, // حواف زرقاء
+                  width: 1.5, // رفيعه
+                ),
+                borderRadius: BorderRadius.circular(12.0), // شكل جيد
+              ),
+              child: AnimatedTextKit(
+                animatedTexts: [
+                  TypewriterAnimatedText(
+                    'مبرمج المنصة: أ/ مصطفي سعيد',
+                    textAlign: TextAlign.center,
+                    textStyle: TextStyle(
+                      fontSize: 15.0,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor, // نص أزرق
+                      fontFamily: 'Cairo',
+                    ),
+                    speed: const Duration(milliseconds: 100),
+                  ),
+                  TypewriterAnimatedText(
+                    'معلم الرقمية بمدارس المعرفة',
+                    textAlign: TextAlign.center,
+                    textStyle: TextStyle(
+                      fontSize: 15.0,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                      fontFamily: 'Cairo',
+                    ),
+                    speed: const Duration(milliseconds: 100),
+                  ),
+                ],
+                repeatForever: true,
+                pause: const Duration(milliseconds: 2000), // مدة التوقف بعد كل نص
+              ),
+            ),
+            // --- ✅✅✅ نهاية التكريم (تحت اللوجو) ✅✅✅ ---
+
             const SizedBox(height: 24),
             Text(
               'بوابة مدرسة المعرفة الاهلية',
