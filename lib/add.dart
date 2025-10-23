@@ -74,18 +74,19 @@ class _AddPageState extends State<AddPage> {
     }
   }
 
-  Future<void> _launchWhatsAppForSupport() async {
-    const phoneNumber = '966569064173';
-    final Uri whatsappUri = Uri.parse('https://wa.me/$phoneNumber');
-
-    if (!await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('لا يمكن فتح تطبيق واتساب.')),
-        );
-      }
-    }
-  }
+  // --- (ملاحظة) هذه الدالة أصبحت غير مستخدمة بعد إزالة الزر ---
+  // Future<void> _launchWhatsAppForSupport() async {
+  //   const phoneNumber = '966569064173';
+  //   final Uri whatsappUri = Uri.parse('https://wa.me/$phoneNumber');
+  //
+  //   if (!await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)) {
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('لا يمكن فتح تطبيق واتساب.')),
+  //       );
+  //     }
+  //   }
+  // }
 
   Future<void> _launchEduFormsUrl() async {
     final Uri url = Uri.parse('https://edu-forms.com/');
@@ -382,7 +383,59 @@ class _AddPageState extends State<AddPage> {
           ),
         ],
         automaticallyImplyLeading: false,
+
+        // --- ✅✅✅ START OF MODIFICATION (Programmer Tribute) ✅✅✅ ---
+        // تم نقل التكريم إلى هنا وإزالته من الأسفل
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(30.0), // ارتفاع مناسب
+          child: Container(
+            height: 30.0,
+            alignment: Alignment.center,
+            color: Colors.deepPurple.shade700, // لون مميز للتكريم
+            child: SizedBox(
+              width: 210, // عرض مناسب
+              child: AnimatedTextKit(
+                animatedTexts: [
+                  RotateAnimatedText(
+                    'مبرمج المنصة: أ/ مصطفي سعيد',
+                    textAlign: TextAlign.center,
+                    textStyle: const TextStyle(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'Cairo', // ضمان استخدام الخط العربي
+                    ),
+                  ),
+                  RotateAnimatedText(
+                    'معلم الرقمية بمدارس المعرفة',
+                    textAlign: TextAlign.center,
+                    textStyle: const TextStyle(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'Cairo',
+                    ),
+                  ),
+                  RotateAnimatedText(
+                    'للدعم الفني: 966569064173+',
+                    textAlign: TextAlign.center,
+                    textStyle: const TextStyle(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'Cairo',
+                    ),
+                  ),
+                ],
+                repeatForever: true, // تكرار لا نهائي
+                pause: const Duration(milliseconds: 1500), // مدة التوقف بين كل نص
+              ),
+            ),
+          ),
+        ),
+        // --- ✅✅✅ END OF MODIFICATION (Programmer Tribute) ✅✅✅ ---
       ),
+
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _isExporting || _isMassExporting
@@ -398,55 +451,10 @@ class _AddPageState extends State<AddPage> {
       ],))
           : _buildTeacherDashboard(),
 
-      // --- ✅✅✅  بداية التعديل والتكريم  ✅✅✅ ---
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _launchWhatsAppForSupport,
-        backgroundColor: Colors.deepPurple,
-        icon: const Icon(Icons.code, color: Colors.white), // أيقونة المبرمج
-
-        // استخدام مكتبة animated_text_kit لعرض التكريم
-        label: SizedBox(
-          width: 210, // تحديد عرض مناسب
-          child: AnimatedTextKit(
-            animatedTexts: [
-              RotateAnimatedText(
-                'مبرمج المنصة: أ/ مصطفي سعيد',
-                textAlign: TextAlign.center,
-                textStyle: const TextStyle(
-                  fontSize: 14.0,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  fontFamily: 'Cairo', // ضمان استخدام الخط العربي
-                ),
-              ),
-              RotateAnimatedText(
-                'معلم الرقمية بمدارس المعرفة',
-                textAlign: TextAlign.center,
-                textStyle: const TextStyle(
-                  fontSize: 14.0,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  fontFamily: 'Cairo',
-                ),
-              ),
-              RotateAnimatedText(
-                'للدعم الفني (اضغط هنا)',
-                textAlign: TextAlign.center,
-                textStyle: const TextStyle(
-                  fontSize: 14.0,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  fontFamily: 'Cairo',
-                ),
-              ),
-            ],
-            repeatForever: true, // تكرار لا نهائي
-            pause: const Duration(milliseconds: 1500), // مدة التوقف بين كل نص
-          ),
-        ),
-        tooltip: 'مبرمج المنصة: أ/ مصطفي سعيد - معلم الرقمية (للدعم الفني)', // تعديل الـ Tooltip
-      ),
-      // --- ✅✅✅  نهاية التعديل والتكريم  ✅✅✅ ---
+      // --- ✅✅✅  بداية التعديل (إزالة التكريم)  ✅✅✅ ---
+      // تم حذف الزر العائم الخاص بالتكريم بالكامل
+      // floatingActionButton: ... (تم الحذف)
+      // --- ✅✅✅  نهاية التعديل (إزالة التكريم)  ✅✅✅ ---
     );
   }
 
@@ -3020,7 +3028,7 @@ Future<void> _saveAndDownloadExcel(BuildContext context, Excel excel, String fil
       final directory = await getApplicationDocumentsDirectory();
       final path = '${directory.path}/$fileName';
       final file = File(path);
-      await file.writeAsBytes(fileBytes);
+      await file.writeAsBytes(fileBytes); // Write bytes to file
       final result = await OpenFilex.open(path);
       if (result.type != ResultType.done) {
         throw Exception('لا يمكن فتح الملف: ${result.message}');
