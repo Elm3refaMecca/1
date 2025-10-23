@@ -496,7 +496,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                 ),
               ),
               RotateAnimatedText(
-                'للدعم الفني (اضغط أيقونة الواتساب)',
+                'للدعم الفني (+966569064173)',
                 textAlign: TextAlign.center,
                 textStyle: const TextStyle(
                   fontSize: 14.0,
