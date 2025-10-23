@@ -24,6 +24,9 @@ import 'package:url_launcher/url_launcher.dart';
 // تم إضافة المكتبات المطلوبة لتشغيل ميزة إعادة التحميل على الويب
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
+// --- ✅✅✅  إضافة المكتبات المطلوبة للتكريم والأيقونات الجمالية  ✅✅✅ ---
+import 'package:animated_text_kit/animated_text_kit.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
 enum StudentView { dashboard, results, noble, teacherComplaints }
@@ -394,14 +397,12 @@ class _StudentViewPageState extends State<StudentViewPage>
       );
     }
 
-    // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-    // تم تغليف الشعار بويدجت GestureDetector و Tooltip لتفعيل ميزة إعادة التحميل
+    // --- ✅✅✅ START OF MODIFICATION (Reload Button) ✅✅✅ ---
     appBarActions.add(
       Tooltip(
         message: 'تحديث الصفحة للحصول على آخر التعديلات',
         child: GestureDetector(
           onTap: () {
-            // هذا السطر يقوم بإعادة تحميل الصفحة (يعمل فقط على الويب)
             if (kIsWeb) {
               html.window.location.reload();
             }
@@ -413,7 +414,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         ),
       ),
     );
-    // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+    // --- ✅✅✅ END OF MODIFICATION (Reload Button) ✅✅✅ ---
 
     return AppBar(
       title: Text(title,
@@ -436,6 +437,56 @@ class _StudentViewPageState extends State<StudentViewPage>
           : null,
       actions: appBarActions,
       automaticallyImplyLeading: !isDashboard || isTeacherView,
+
+      // --- ✅✅✅ START OF MODIFICATION (Programmer Tribute) ✅✅✅ ---
+      // إضافة التكريم في شريط الـ AppBar
+      bottom: (isDashboard && !isTeacherView) // يظهر فقط في الواجهة الرئيسية للطالب
+          ? PreferredSize(
+        preferredSize: const Size.fromHeight(30.0), // ارتفاع مناسب
+        child: Container(
+          height: 30.0,
+          alignment: Alignment.center,
+          color: Colors.deepPurple.shade700, // لون مميز للتكريم
+          child: AnimatedTextKit(
+            animatedTexts: [
+              RotateAnimatedText(
+                'مبرمج المنصة: أ/ مصطفي سعيد',
+                textAlign: TextAlign.center,
+                textStyle: const TextStyle(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: 'Cairo',
+                ),
+              ),
+              RotateAnimatedText(
+                'معلم الرقمية بمدارس المعرفة',
+                textAlign: TextAlign.center,
+                textStyle: const TextStyle(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: 'Cairo',
+                ),
+              ),
+              RotateAnimatedText(
+                'للدعم الفني 0569064173',
+                textAlign: TextAlign.center,
+                textStyle: const TextStyle(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: 'Cairo',
+                ),
+              ),
+            ],
+            repeatForever: true,
+            pause: const Duration(milliseconds: 1500),
+          ),
+        ),
+      )
+          : null, // لا يظهر في الصفحات الداخلية
+      // --- ✅✅✅ END OF MODIFICATION (Programmer Tribute) ✅✅✅ ---
     );
   }
 
@@ -481,103 +532,124 @@ class _StudentViewPageState extends State<StudentViewPage>
     final int totalLikes = _studentData?['totalLikes'] ?? 0;
     final int totalDislikes = _studentData?['totalDislikes'] ?? 0;
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
+    // --- ✅✅✅ START OF MODIFICATION (Staggered Animation) ✅✅✅ ---
+    // قائمة الأزرار
+    final List<Widget> dashboardButtons = [
+      _buildDashboardButton(
+        title: 'النتائج والتحليل',
+        icon: Icons.bar_chart_rounded,
+        color: Colors.green.shade700,
+        onTap: () => setState(() => _currentView = StudentView.results),
+      ),
+      _buildDashboardButton(
+        title: 'الطالب المنضبط',
+        icon: Icons.thumb_up,
+        color: Colors.blue.shade700,
+        count: totalLikes,
+        onTap: () => setState(() => _currentView = StudentView.noble),
+      ),
+      _buildDashboardButton(
+        title: 'الملاحظات السلوكية',
+        icon: Icons.report_problem_outlined,
+        color: Colors.red.shade700,
+        count: totalDislikes,
+        onTap: _promptForParentPassword,
+      ),
+      _buildDashboardButton(
+        title: 'فيزا الطلاب',
+        icon: Icons.credit_card,
+        color: Colors.deepPurple.shade500,
+        onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا جدا'),
+      ),
+      _buildDashboardButton(
+        title: 'الكتاب المدرسي',
+        icon: Icons.menu_book,
+        color: Colors.brown.shade500,
+        onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+      ),
+      _buildDashboardButton(
+        title: 'الاحتفالات',
+        icon: Icons.celebration,
+        color: Colors.pink.shade500,
+        onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+      ),
+      _buildDashboardButton(
+        title: 'استديو الطالب',
+        icon: Icons.photo_library,
+        color: Colors.orange.shade700,
+        onTap: () => _showPlaceholderSnackBar('لا يوجد صور لك متوفرة حالياً.'),
+      ),
+      _buildDashboardButton(
+        title: 'الانجازات',
+        icon: Icons.emoji_events,
+        color: Colors.amber.shade800,
+        onTap: () => _showPlaceholderSnackBar('لا يوجد لديك أي إنجازات مسجلة حالياً.'),
+      ),
+      _buildDashboardButton(
+        title: 'المسابقات',
+        icon: Icons.military_tech,
+        color: Colors.lightGreen.shade700,
+        onTap: () => _showPlaceholderSnackBar('لا توجد مسابقات حالية الآن.'),
+      ),
+      _buildDashboardButton(
+        title: 'الإذاعة المدرسية',
+        icon: Icons.mic,
+        color: Colors.cyan.shade600,
+        onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+      ),
+      _buildDashboardButton(
+        title: 'كرة القدم',
+        icon: Icons.sports_soccer,
+        color: Colors.black,
+        onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+      ),
+      _buildDashboardButton(
+        title: 'الكاراتيه',
+        icon: Icons.sports_kabaddi,
+        color: Colors.red.shade900,
+        onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+      ),
+      _buildDashboardButton(
+        title: 'السباحة',
+        icon: Icons.pool,
+        color: Colors.blue.shade900,
+        onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+      ),
+      _buildDashboardButton(
+        title: 'المسابقات الرقمية',
+        icon: Icons.laptop_chromebook,
+        color: Colors.grey.shade700,
+        onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
+      ),
+    ];
+
+    // استخدام AnimationLimiter لتطبيق الحركة على GridView
+    return AnimationLimiter(
       child: GridView.extent(
         maxCrossAxisExtent: 150,
+        padding: const EdgeInsets.all(16.0),
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
         childAspectRatio: 0.9,
-        children: [
-          _buildDashboardButton(
-            title: 'النتائج والتحليل',
-            icon: Icons.bar_chart_rounded,
-            color: Colors.green.shade700,
-            onTap: () => setState(() => _currentView = StudentView.results),
-          ),
-          _buildDashboardButton(
-            title: 'الطالب المنضبط',
-            icon: Icons.thumb_up,
-            color: Colors.blue.shade700,
-            count: totalLikes,
-            onTap: () => setState(() => _currentView = StudentView.noble),
-          ),
-          _buildDashboardButton(
-            title: 'الملاحظات السلوكية',
-            icon: Icons.report_problem_outlined,
-            color: Colors.red.shade700,
-            count: totalDislikes,
-            onTap: _promptForParentPassword,
-          ),
-          _buildDashboardButton(
-            title: 'فيزا الطلاب',
-            icon: Icons.credit_card,
-            color: Colors.deepPurple.shade500,
-            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا جدا'),
-          ),
-          _buildDashboardButton(
-            title: 'الكتاب المدرسي',
-            icon: Icons.menu_book,
-            color: Colors.brown.shade500,
-            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
-          ),
-          _buildDashboardButton(
-            title: 'الاحتفالات',
-            icon: Icons.celebration,
-            color: Colors.pink.shade500,
-            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
-          ),
-          _buildDashboardButton(
-            title: 'استديو الطالب',
-            icon: Icons.photo_library,
-            color: Colors.orange.shade700,
-            onTap: () => _showPlaceholderSnackBar('لا يوجد صور لك متوفرة حالياً.'),
-          ),
-          _buildDashboardButton(
-            title: 'الانجازات',
-            icon: Icons.emoji_events,
-            color: Colors.amber.shade800,
-            onTap: () => _showPlaceholderSnackBar('لا يوجد لديك أي إنجازات مسجلة حالياً.'),
-          ),
-          _buildDashboardButton(
-            title: 'المسابقات',
-            icon: Icons.military_tech,
-            color: Colors.lightGreen.shade700,
-            onTap: () => _showPlaceholderSnackBar('لا توجد مسابقات حالية الآن.'),
-          ),
-          _buildDashboardButton(
-            title: 'الإذاعة المدرسية',
-            icon: Icons.mic,
-            color: Colors.cyan.shade600,
-            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
-          ),
-          _buildDashboardButton(
-            title: 'كرة القدم',
-            icon: Icons.sports_soccer,
-            color: Colors.black,
-            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
-          ),
-          _buildDashboardButton(
-            title: 'الكاراتيه',
-            icon: Icons.sports_kabaddi,
-            color: Colors.red.shade900,
-            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
-          ),
-          _buildDashboardButton(
-            title: 'السباحة',
-            icon: Icons.pool,
-            color: Colors.blue.shade900,
-            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
-          ),
-          _buildDashboardButton(
-            title: 'المسابقات الرقمية',
-            icon: Icons.laptop_chromebook,
-            color: Colors.grey.shade700,
-            onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
-          ),
-        ],
+        children: List.generate(
+          dashboardButtons.length,
+              (index) {
+            // تطبيق الحركة على كل عنصر في الشبكة
+            return AnimationConfiguration.staggeredGrid(
+              position: index,
+              duration: const Duration(milliseconds: 375),
+              columnCount: (MediaQuery.of(context).size.width / 166).floor(), // (150 + 16)
+              child: ScaleAnimation(
+                child: FadeInAnimation(
+                  child: dashboardButtons[index],
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
+    // --- ✅✅✅ END OF MODIFICATION (Staggered Animation) ✅✅✅ ---
   }
 
   Widget _buildDashboardButton({
@@ -587,7 +659,9 @@ class _StudentViewPageState extends State<StudentViewPage>
     required VoidCallback onTap,
     int count = 0,
   }) {
-    return GestureDetector(
+    // --- ✅✅✅ START OF MODIFICATION (Button Animation) ✅✅✅ ---
+    // استخدام ويدجت مخصص لإضافة تأثير النبض عند الضغط
+    return _AnimatedScaleButton(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
@@ -669,6 +743,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         ),
       ),
     );
+    // --- ✅✅✅ END OF MODIFICATION (Button Animation) ✅✅✅ ---
   }
 
 
@@ -2447,3 +2522,67 @@ class _MarqueeTextState extends State<_MarqueeText> {
     );
   }
 }
+
+// --- ✅✅✅ START OF MODIFICATION (Animated Button Widget) ✅✅✅ ---
+/// ويدجت مخصص لإضافة تأثير "نبض" عند الضغط على الزر
+class _AnimatedScaleButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+
+  const _AnimatedScaleButton({required this.child, required this.onTap});
+
+  @override
+  _AnimatedScaleButtonState createState() => _AnimatedScaleButtonState();
+}
+
+class _AnimatedScaleButtonState extends State<_AnimatedScaleButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+      reverseDuration: const Duration(milliseconds: 100),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails details) {
+    _controller.forward();
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    _controller.reverse();
+    widget.onTap(); // تنفيذ الدالة الأصلية
+  }
+
+  void _onTapCancel() {
+    _controller.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: widget.child,
+      ),
+    );
+  }
+}
+// --- ✅✅✅ END OF MODIFICATION (Animated Button Widget) ✅✅✅ ---
