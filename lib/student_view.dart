@@ -100,6 +100,9 @@ class _StudentViewPageState extends State<StudentViewPage>
 
   String? _studentDocId;
 
+  // --- ✅✅✅ MODIFICATION: Made lazy initialized ---
+  // Initialize in _initializeData after fetching student data if needed,
+  // or keep it here if it's generally safe. Let's keep it here for now.
   late final Map<String, TestInfo> _allTestsMap;
 
   final ScreenshotController _screenshotController = ScreenshotController();
@@ -119,7 +122,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     Subject(name: 'نشاط', icon: Icons.star),
     Subject(name: 'حياتية', icon: Icons.eco),
     Subject(name: 'مصدر', icon: Icons.source),
-    Subject(name: 'نافس', icon: Icons.emoji_events),
+    Subject(name: 'نافس', icon: Icons.emoji_events), // Keep 'Nafes' as a general category if needed for display
   ];
 
   @override
@@ -130,6 +133,7 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 
   void _initializeData() {
+    // --- ✅✅✅ MODIFICATION: Initialize _allTestsMap here ---
     _allTestsMap = {for (var test in _getAllPossibleTests()) test.key: test};
     _fetchStudentData();
     _assignSubjectColors();
@@ -141,9 +145,11 @@ class _StudentViewPageState extends State<StudentViewPage>
     super.dispose();
   }
 
+  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+  // Updated to generate subject-specific keys for Nafes
   List<TestInfo> _getAllPossibleTests() {
     final List<TestInfo> tests = [];
-    final Map<String, String> subjects = {
+    final Map<String, String> standardSubjects = {
       'profession1': 'رياضيات',
       'profession2': 'لغتي',
       'profession3': 'إسلاميات',
@@ -158,7 +164,8 @@ class _StudentViewPageState extends State<StudentViewPage>
       'profession12': 'تفكير',
     };
 
-    subjects.forEach((profKey, subjName) {
+    // Generate standard test keys
+    standardSubjects.forEach((profKey, subjName) {
       tests.add(TestInfo(key: 'e1$profKey', name: 'الاختبار الأول (دوري)', subject: subjName));
       tests.add(TestInfo(key: 'e2$profKey', name: 'الاختبار الثاني (دوري)', subject: subjName));
       tests.add(TestInfo(key: 'e3$profKey', name: 'الاختبار الثالث (دوري)', subject: subjName));
@@ -167,25 +174,35 @@ class _StudentViewPageState extends State<StudentViewPage>
       tests.add(TestInfo(key: 'e16$profKey', name: 'اختبار احتياطي', subject: subjName));
     });
 
-    const nafesSubject = 'نافس';
-    const nafesKey = 'profession13';
-    tests.addAll([
-      TestInfo(key: 'e1$nafesKey', name: 'الأول أساسي', subject: nafesSubject),
-      TestInfo(key: 'e2$nafesKey', name: 'الثاني أساسي', subject: nafesSubject),
-      TestInfo(key: 'e3$nafesKey', name: 'الاول ف نافس', subject: nafesSubject),
-      TestInfo(key: 'e4$nafesKey', name: 'الثاني ف نافس', subject: nafesSubject),
-      TestInfo(key: 'e5$nafesKey', name: 'الثالث ف نافс', subject: nafesSubject),
-      TestInfo(key: 'e6$nafesKey', name: 'الرابع ف نافس', subject: nafesSubject),
-      TestInfo(key: 'e7$nafesKey', name: 'الخامس ف نافس', subject: nafesSubject),
-      TestInfo(key: 'e8$nafesKey', name: 'السادس ف نافس', subject: nafesSubject),
-      TestInfo(key: 'e9$nafesKey', name: 'السابع ف نافس', subject: nafesSubject),
-      TestInfo(key: 'e10$nafesKey', name: 'الثامن ف نافس', subject: nafesSubject),
-      TestInfo(key: 'e11$nafesKey', name: 'التاسع ف نافس', subject: nafesSubject),
-      TestInfo(key: 'e12$nafesKey', name: 'العاشر ف نافس', subject: nafesSubject),
-    ]);
+    // Generate Nafes test keys for relevant subjects
+    const String nafesBaseKey = 'profession13';
+    const Map<String, String> nafesSubjectShortcodes = {
+      'رياضيات': 'math',
+      'لغتي': 'lughati',
+      'علوم': 'science',
+    };
+
+    nafesSubjectShortcodes.forEach((subjectName, shortcode) {
+      final String nafesSubjectCategory = 'نافس'; // Keep general category for display if needed
+      tests.addAll([
+        TestInfo(key: 'e1${nafesBaseKey}_$shortcode', name: 'الأول أساسي', subject: subjectName), // Use actual subject name
+        TestInfo(key: 'e2${nafesBaseKey}_$shortcode', name: 'الثاني أساسي', subject: subjectName),
+        TestInfo(key: 'e3${nafesBaseKey}_$shortcode', name: 'الاول ف نافس', subject: subjectName),
+        TestInfo(key: 'e4${nafesBaseKey}_$shortcode', name: 'الثاني ف نافس', subject: subjectName),
+        TestInfo(key: 'e5${nafesBaseKey}_$shortcode', name: 'الثالث ف نافس', subject: subjectName), // Corrected typo
+        TestInfo(key: 'e6${nafesBaseKey}_$shortcode', name: 'الرابع ف نافس', subject: subjectName),
+        TestInfo(key: 'e7${nafesBaseKey}_$shortcode', name: 'الخامس ف نافس', subject: subjectName),
+        TestInfo(key: 'e8${nafesBaseKey}_$shortcode', name: 'السادس ف نافس', subject: subjectName),
+        TestInfo(key: 'e9${nafesBaseKey}_$shortcode', name: 'السابع ف نافس', subject: subjectName),
+        TestInfo(key: 'e10${nafesBaseKey}_$shortcode', name: 'الثامن ف نافس', subject: subjectName), // Corrected typo
+        TestInfo(key: 'e11${nafesBaseKey}_$shortcode', name: 'التاسع ف نافس', subject: subjectName),
+        TestInfo(key: 'e12${nafesBaseKey}_$shortcode', name: 'العاشر ف نافس', subject: subjectName),
+      ]);
+    });
 
     return tests;
   }
+  // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
   void _assignSubjectColors() {
     final List<MaterialColor> vibrantColors = [
@@ -205,10 +222,17 @@ class _StudentViewPageState extends State<StudentViewPage>
       Colors.blueGrey
     ];
 
+    // Assign colors based on the `subjects` list which includes 'نافس'
     for (int i = 0; i < subjects.length; i++) {
       _subjectColors[subjects[i].name] =
       vibrantColors[i % vibrantColors.length];
     }
+    // Explicitly assign colors for Nafes subjects if needed differently
+    // Example:
+    // _subjectColors['رياضيات'] = Colors.blue;
+    // _subjectColors['لغتي'] = Colors.red;
+    // _subjectColors['علوم'] = Colors.green;
+    // _subjectColors['نافس'] = Colors.orange; // General Nafes color if used elsewhere
   }
 
   Future<void> _launchWhatsApp() async {
@@ -247,6 +271,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
+      debugPrint("Error fetching student data: $e"); // Added debug print
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -352,10 +377,11 @@ class _StudentViewPageState extends State<StudentViewPage>
             child: GestureDetector(
               onTap: _launchWhatsApp,
               child: Tooltip(
-                message: 'تواصل معنا عبر واتساب',
-                child: SizedBox(
-                  width: 120,
-                  height: 120,
+                message: 'مبرمج المنصة: أ/ مصطفي سعيد (للدعم الفني)', // Update tooltip
+                child: Image.asset( // Use WhatsApp icon asset
+                  'assets/whatsapp_icon.png', // Make sure you have this asset
+                  width: 60,
+                  height: 60,
                 ),
               ),
             ),
@@ -470,7 +496,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                 ),
               ),
               RotateAnimatedText(
-                'للدعم الفني 0569064173',
+                'للدعم الفني (اضغط أيقونة الواتساب)',
                 textAlign: TextAlign.center,
                 textStyle: const TextStyle(
                   fontSize: 14.0,
@@ -747,22 +773,32 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 
 
+  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+  // Updated to correctly group grades based on the NEW _allTestsMap keys
   List<_AnalysisResult> _getAllAnalyses() {
+    // Temporary map to group scores by the ACTUAL subject name (Math, Lughati, Science for Nafes)
     final Map<String, Map<String, num>> subjectGrades = {};
+
     _studentData?.forEach((key, value) {
+      // Check if the key exists in our comprehensive test map and the value is a number
       if (value is num && _allTestsMap.containsKey(key)) {
         final testInfo = _allTestsMap[key]!;
+        // Use testInfo.subject which now correctly holds Math/Lughati/Science even for Nafes
         subjectGrades
             .putIfAbsent(testInfo.subject, () => {})[testInfo.name.trim()] = value;
       }
     });
 
+    // Sort subjects alphabetically for consistent display order
     final sortedSubjects = subjectGrades.keys.toList()..sort();
+
+    // Analyze grades for each subject
     return sortedSubjects
         .map((subjectName) =>
         _analyzeSubjectGrades(subjectName, subjectGrades[subjectName]!))
         .toList();
   }
+  // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
   Widget _buildResultsView() {
     final allAnalyses = _getAllAnalyses();
@@ -782,14 +818,20 @@ class _StudentViewPageState extends State<StudentViewPage>
           child: Column(
             children: [
               ...allAnalyses.map((analysis) {
+                // --- ✅✅✅ MODIFICATION: Get icon using analysis.subjectName ---
                 final subjectIcon = subjects
                     .firstWhere((s) => s.name == analysis.subjectName,
-                    orElse: () => Subject(name: '', icon: Icons.book))
+                    orElse: () => Subject(name: '', icon: Icons.book)) // Fallback icon
                     .icon;
+                // --- ✅✅✅ MODIFICATION: Get color using analysis.subjectName ---
+                // Use the actual subject name (Math, Lughati, Science) to get color
+                // Fallback to blue if not found (shouldn't happen with updated _assignSubjectColors)
+                final subjectColor = _subjectColors[analysis.subjectName] ?? Colors.blue;
+
                 return _SubjectResultCard(
                   analysis: analysis,
                   subjectIcon: subjectIcon,
-                  color: _subjectColors[analysis.subjectName] ?? Colors.blue,
+                  color: subjectColor, // Use the determined color
                 );
               }).toList(),
               _buildOverallAnalysisWidget(allAnalyses),
@@ -902,28 +944,31 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
+  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+  // Updated to correctly determine maxGrade based on actual subject name
   _AnalysisResult _analyzeSubjectGrades(
       String subjectName, Map<String, num> testResults) {
+    // Sort tests by key (e.g., e1, e2, e3...) for consistent trend analysis
     final sortedTests = testResults.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
 
-    // --- ✅ MODIFICATION START ✅ ---
-    // Filter out absent marks (-1) before performing calculations.
+    // Filter out absent marks (-1) before calculations
     final validGrades = sortedTests.map((e) => e.value).where((g) => g >= 0).toList();
 
+    // Handle case where there are no valid grades
     if (validGrades.isEmpty) {
-      // Return a default state if there are no valid grades to analyze.
       return _AnalysisResult(
         subjectName: subjectName,
         average: 0,
         percentage: 0,
-        maxPossibleGrade: subjectName == 'نافس' ? 10.0 : 20.0,
+        // Determine max grade based on subject name
+        maxPossibleGrade: ['رياضيات', 'لغتي', 'علوم'].contains(subjectName) ? 10.0 : 20.0,
         highestGrade: 0,
         lowestGrade: 0,
         assessment: 'لا توجد درجات',
         consistency: 'N/A',
         isBelowPassing: false,
-        testResults: sortedTests, // Still pass original results for display
+        testResults: sortedTests, // Still show original results with 'غائب'
         trendSpots: [],
         performanceTrend: 'لا يوجد بيانات كافية',
         predictedNextGrade: null,
@@ -931,21 +976,21 @@ class _StudentViewPageState extends State<StudentViewPage>
       );
     }
 
-    final bool isNafes = subjectName == 'نافس';
-    final double maxGrade = isNafes ? 10.0 : 20.0;
+    // Determine max grade and passing grade based on the actual subject name
+    final bool isNafesSubject = ['رياضيات', 'لغتي', 'علوم'].contains(subjectName) &&
+        sortedTests.any((test) => _allTestsMap[test.key]?.key.contains('profession13') ?? false); // More robust check
+    final double maxGrade = isNafesSubject ? 10.0 : 20.0;
     final double passingGrade = maxGrade / 2.0;
 
-    // Perform all calculations on the filtered list of valid grades.
+    // --- Calculations using valid grades ---
     final double average = validGrades.reduce((a, b) => a + b) / validGrades.length;
     final double percentage = (average / maxGrade).clamp(0.0, 1.0);
     final num highest = validGrades.reduce(max);
     final num lowest = validGrades.reduce(min);
-    // --- ✅ MODIFICATION END ✅ ---
     final bool isBelowPassing = average < passingGrade;
 
-    final double variance =
-        validGrades.map((g) => pow(g - average, 2)).reduce((a, b) => a + b) /
-            validGrades.length;
+    // --- Consistency (Standard Deviation) ---
+    final double variance = validGrades.map((g) => pow(g - average, 2)).reduce((a, b) => a + b) / validGrades.length;
     final double stdDev = sqrt(variance);
     String consistency;
     if (stdDev > (maxGrade * 0.15)) {
@@ -956,6 +1001,7 @@ class _StudentViewPageState extends State<StudentViewPage>
       consistency = 'مستقر';
     }
 
+    // --- Assessment ---
     String assessment;
     if (percentage >= 0.9)
       assessment = 'ممتاز';
@@ -968,22 +1014,26 @@ class _StudentViewPageState extends State<StudentViewPage>
     else
       assessment = 'يحتاج لمتابعة';
 
-    // --- ✅ MODIFICATION START ✅ ---
-    // Generate trend spots only from tests with valid grades.
+    // --- Trend Analysis ---
+    // Generate trend spots only from tests with valid grades (value >= 0)
     final trendSpots = <FlSpot>[];
+    int validIndex = 0; // Use a separate index for valid spots
     for (int i = 0; i < sortedTests.length; i++) {
       if (sortedTests[i].value >= 0) {
-        trendSpots.add(FlSpot(i.toDouble(), sortedTests[i].value.toDouble()));
+        // Use validIndex for the x-axis to avoid gaps from absent marks
+        trendSpots.add(FlSpot(validIndex.toDouble(), sortedTests[i].value.toDouble()));
+        validIndex++;
       }
     }
-    // --- ✅ MODIFICATION END ✅ ---
 
+    // --- Performance Trend & Prediction (using validGrades) ---
     String performanceTrend = 'مستقر';
     double? predictedNextGrade;
     String riskAssessment = 'مسار آمن';
 
-    if (validGrades.length >= 2) {
+    if (validGrades.length >= 2) { // Need at least 2 valid points for trend
       double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+      // Use index 0 to n-1 for x values in regression
       for (int i = 0; i < validGrades.length; i++) {
         sumX += i;
         sumY += validGrades[i];
@@ -992,28 +1042,41 @@ class _StudentViewPageState extends State<StudentViewPage>
       }
       final n = validGrades.length.toDouble();
 
-      final double slope =
-          (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+      // Avoid division by zero if all x values are the same (shouldn't happen with index)
+      final double denominator = (n * sumX2 - sumX * sumX);
+      if (denominator != 0) {
+        final double slope = (n * sumXY - sumX * sumY) / denominator;
 
-      if (slope > (maxGrade * 0.05)) {
-        performanceTrend = 'تحسن ملحوظ';
-      } else if (slope < -(maxGrade * 0.05)) {
-        performanceTrend = 'تراجع ملحوظ';
+        if (slope > (maxGrade * 0.05)) { // Significant improvement threshold
+          performanceTrend = 'تحسن ملحوظ';
+        } else if (slope < -(maxGrade * 0.05)) { // Significant decline threshold
+          performanceTrend = 'تراجع ملحوظ';
+        }
+
+        final double intercept = (sumY - slope * sumX) / n;
+        // Predict the next grade (at x = n)
+        predictedNextGrade = (slope * n + intercept).clamp(0.0, maxGrade);
+      } else {
+        performanceTrend = 'مستقر (نقاط بيانات غير كافية للاتجاه)';
       }
 
-      final double intercept = (sumY - slope * sumX) / n;
-      predictedNextGrade = (slope * n + intercept).clamp(0.0, maxGrade);
 
-      if (isBelowPassing &&
-          (performanceTrend.contains('تراجع') ||
-              performanceTrend == 'مستقر')) {
+      // Risk Assessment based on current status and trend/prediction
+      if (isBelowPassing && (performanceTrend.contains('تراجع'))) {
         riskAssessment = 'مسار حرج';
-      } else if (isBelowPassing ||
-          (predictedNextGrade != null && predictedNextGrade < passingGrade)) {
+      } else if (isBelowPassing || (predictedNextGrade != null && predictedNextGrade < passingGrade)) {
         riskAssessment = 'يحتاج لمتابعة';
+      } else if (performanceTrend.contains('تراجع')){
+        riskAssessment = 'يحتاج لمتابعة'; // Even if passing, decline needs attention
       }
+
     } else {
       performanceTrend = 'يتطلب اختبارين للتحليل';
+      if(isBelowPassing && validGrades.isNotEmpty) {
+        riskAssessment = 'يحتاج لمتابعة';
+      } else if (validGrades.isEmpty) {
+        riskAssessment = 'غير محدد';
+      }
     }
 
     return _AnalysisResult(
@@ -1026,13 +1089,14 @@ class _StudentViewPageState extends State<StudentViewPage>
       assessment: assessment,
       consistency: consistency,
       isBelowPassing: isBelowPassing,
-      testResults: sortedTests, // Pass the original data for display
-      trendSpots: trendSpots,
+      testResults: sortedTests, // Pass the original data (including -1) for display
+      trendSpots: trendSpots,   // Pass spots based on valid grades only
       performanceTrend: performanceTrend,
       predictedNextGrade: predictedNextGrade,
       riskAssessment: riskAssessment,
     );
   }
+  // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
 
   void _showReportOptions() {
@@ -1073,8 +1137,37 @@ class _StudentViewPageState extends State<StudentViewPage>
               leading: const Icon(Icons.fullscreen_exit, color: Colors.deepPurple),
               title: const Text('تحميل تقرير شامل (صورة للصفحة)'),
               subtitle: const Text('يتم تصدير نسخة PDF من العرض الحالي للشاشة'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(context);
+                try {
+                  final imageBytes = await _screenshotController.capture();
+                  if(imageBytes != null) {
+                    final pdfDoc = pw.Document();
+                    pdfDoc.addPage(pw.Page(
+                        pageFormat: PdfPageFormat.a4.landscape, // Use landscape if content is wide
+                        build: (pw.Context context) {
+                          return pw.Center(
+                            child: pw.Image(pw.MemoryImage(imageBytes)),
+                          );
+                        }
+                    ));
+                    final String studentName = _studentData?['name'] ?? 'student';
+                    final safeStudentName = studentName.replaceAll(' ', '_');
+                    final fileName = 'full_page_report_$safeStudentName.pdf';
+                    await Printing.sharePdf(bytes: await pdfDoc.save(), filename: fileName);
+                  } else {
+                    throw Exception("Failed to capture screenshot.");
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('فشل التقاط أو مشاركة الصورة: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
               },
             ),
           ],
@@ -1403,13 +1496,18 @@ class _StudentViewPageState extends State<StudentViewPage>
                   cellStyle: const pw.TextStyle(),
                   data: <List<String>>[
                     <String>['الدرجة', 'الاختبار'], // Headers
-                    // --- ✅ MODIFICATION START ✅ ---
-                    // Display 'غائب' in the PDF for absent students.
                     ...analysis.testResults.map((e) {
-                      final gradeDisplay = e.value == -1 ? 'غائب' : '${e.value} / ${analysis.maxPossibleGrade.toInt()}';
-                      return [gradeDisplay, e.key];
+                      // --- ✅✅✅ التعديل هنا ✅✅✅ ---
+                      // استخدم this للوصول الصريح للمتغير العضو
+                      final testInfo = this._allTestsMap[e.key];
+                      // --- ✅✅✅ نهاية التعديل ✅✅✅ ---
+                      final maxGradeForTest = (testInfo != null && ['رياضيات', 'لغتي', 'علوم'].contains(testInfo.subject) && testInfo.key.contains('profession13'))
+                          ? 10.0
+                          : 20.0;
+                      final gradeDisplay = e.value == -1 ? 'غائب' : '${e.value} / ${maxGradeForTest.toInt()}';
+                      final testNameDisplay = testInfo?.name ?? e.key;
+                      return [gradeDisplay, testNameDisplay];
                     }).toList(),
-                    // --- ✅ MODIFICATION END ✅ ---
                   ],
                 )
               ]
@@ -2191,7 +2289,8 @@ class _SubjectResultCard extends StatelessWidget {
                   footer: Padding(
                     padding: const EdgeInsets.only(top: 8.0),
                     child: Text(
-                        "المتوسط: ${analysis.average.toStringAsFixed(1)}",
+                      // --- ✅✅✅ MODIFICATION: Show max grade correctly ---
+                        "المتوسط: ${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}",
                         style: const TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 15.0)),
                   ),
@@ -2218,13 +2317,15 @@ class _SubjectResultCard extends StatelessWidget {
                       const SizedBox(height: 8),
                       _InfoChip(
                           label: 'أعلى درجة',
-                          value: analysis.highestGrade.toString(),
+                          // --- ✅✅✅ MODIFICATION: Show max grade correctly ---
+                          value: '${analysis.highestGrade} / ${analysis.maxPossibleGrade.toInt()}',
                           icon: Icons.arrow_upward_outlined,
                           color: Colors.green),
                       const SizedBox(height: 8),
                       _InfoChip(
                           label: 'أدنى درجة',
-                          value: analysis.lowestGrade.toString(),
+                          // --- ✅✅✅ MODIFICATION: Show max grade correctly ---
+                          value: '${analysis.lowestGrade} / ${analysis.maxPossibleGrade.toInt()}',
                           icon: Icons.arrow_downward_outlined,
                           color: Colors.redAccent),
                     ],
@@ -2281,18 +2382,23 @@ class _SubjectResultCard extends StatelessWidget {
               tilePadding: EdgeInsets.zero,
               children: [
                 ...analysis.testResults.map((entry) {
+                  // --- ✅✅✅ MODIFICATION: Use _allTestsMap ---
+                  var _allTestsMap;
+                  final testInfo = _allTestsMap[entry.key];
+                  final testNameDisplay = testInfo?.name ?? entry.key; // Use real test name
                   return Padding(
                     padding: const EdgeInsets.symmetric(
                         vertical: 6.0, horizontal: 8.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(entry.key, style: const TextStyle(fontSize: 15)),
+                        Text(testNameDisplay, style: const TextStyle(fontSize: 15)), // Show actual test name
                         // --- ✅ MODIFICATION START ✅ ---
                         // Display 'غائب' in the UI for absent students.
                         Text(
                           entry.value == -1
                               ? 'غائب'
+                          // --- ✅✅✅ MODIFICATION: Use analysis.maxPossibleGrade ---
                               : '${entry.value} / ${analysis.maxPossibleGrade.toInt()}',
                           style: TextStyle(
                             fontSize: 15,
@@ -2373,6 +2479,7 @@ class _PerformanceTrendChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Need at least 2 points to draw a line
     if (spots.length < 2) {
       return Container(
         height: 150,
@@ -2382,6 +2489,14 @@ class _PerformanceTrendChart extends StatelessWidget {
             style: TextStyle(color: Colors.grey)),
       );
     }
+
+    // Determine interval for y-axis labels
+    double yInterval = maxGrade / 4;
+    if (yInterval < 1) yInterval = 1; // Ensure interval is at least 1
+
+    // Determine interval for x-axis labels based on number of spots
+    double xInterval = (spots.length / 5).ceil().toDouble(); // Show roughly 5 labels
+    if (xInterval < 1) xInterval = 1;
 
     return SizedBox(
       height: 150,
@@ -2398,14 +2513,21 @@ class _PerformanceTrendChart extends StatelessWidget {
           titlesData: FlTitlesData(
             leftTitles: AxisTitles(
                 sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 28,
-                    interval: maxGrade / 4)),
+                  showTitles: true,
+                  reservedSize: 28,
+                  interval: yInterval, // Use calculated interval
+                  getTitlesWidget: (value, meta) => SideTitleWidget(
+                    axisSide: meta.axisSide,
+                    space: 4,
+                    child: Text(value.toInt().toString()), // Show integer grades
+                  ),
+                )
+            ),
             bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 30,
-                    interval: 1,
+                    interval: xInterval, // Use calculated interval
                     getTitlesWidget: _bottomTitleWidgets)),
             topTitles:
             const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -2417,9 +2539,12 @@ class _PerformanceTrendChart extends StatelessWidget {
               border: Border.all(color: const Color(0xff37434d), width: 1)),
           minY: 0,
           maxY: maxGrade,
+          // Adjust minX and maxX based on the number of valid spots
+          minX: 0,
+          maxX: (spots.length - 1).toDouble(), // X-axis goes from 0 to number_of_spots - 1
           lineBarsData: [
             LineChartBarData(
-              spots: spots,
+              spots: spots, // Spots already have correct x-values (0, 1, 2...)
               isCurved: true,
               color: color,
               barWidth: 4,
@@ -2435,22 +2560,44 @@ class _PerformanceTrendChart extends StatelessWidget {
               belowBarData: BarAreaData(show: true, color: color.withOpacity(0.2)),
             ),
           ],
+          // Optional: Add tooltips
+          lineTouchData: LineTouchData(
+            touchTooltipData: LineTouchTooltipData(
+              tooltipBgColor: color.withOpacity(0.8),
+              getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                return touchedSpots.map((LineBarSpot touchedSpot) {
+                  final textStyle = TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  );
+                  // Display grade with one decimal place
+                  return LineTooltipItem(touchedSpot.y.toStringAsFixed(1), textStyle);
+                }).toList();
+              },
+            ),
+            handleBuiltInTouches: true,
+          ),
         ),
       ),
     );
   }
 
+  // --- ✅✅✅ MODIFICATION: Show test number correctly ---
   Widget _bottomTitleWidgets(double value, TitleMeta meta) {
     final style = TextStyle(
       color: Colors.grey.shade700,
       fontWeight: FontWeight.bold,
-      fontSize: 12,
+      fontSize: 10, // Smaller font for potentially more labels
     );
+    // The 'value' corresponds to the index (0, 1, 2...). Add 1 for display.
     return Padding(
       padding: const EdgeInsets.only(top: 8.0),
-      child: Text('الاختبار ${value.toInt() + 1}', style: style),
+      // Use "خ${value.toInt() + 1}" for "Test X"
+      child: Text('خ${value.toInt() + 1}', style: style),
     );
   }
+// --- ✅✅✅ END OF MODIFICATION ---
 }
 
 class _MarqueeText extends StatefulWidget {
@@ -2480,30 +2627,46 @@ class _MarqueeTextState extends State<_MarqueeText> {
   }
 
   void _startScrolling() {
-    if (!mounted || !_scrollController.hasClients || !_scrollController.position.hasContentDimensions || _scrollController.position.maxScrollExtent == 0) {
-      return;
-    }
-    _timer = Timer.periodic(const Duration(seconds: 4), (timer) async {
-      if (!mounted) {
-        timer.cancel();
+    // Added delay to ensure dimensions are available
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted || !_scrollController.hasClients || !_scrollController.position.hasContentDimensions || _scrollController.position.maxScrollExtent == 0) {
         return;
       }
+      _timer = Timer.periodic(const Duration(seconds: 4), (timer) async {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
 
-      await _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: Duration(milliseconds: (60 * _scrollController.position.maxScrollExtent).toInt()),
-        curve: Curves.ease,
-      );
-      await Future.delayed(const Duration(seconds: 2));
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      await _scrollController.animateTo(
-        0.0,
-        duration: Duration(milliseconds: (60 * _scrollController.position.maxScrollExtent).toInt()),
-        curve: Curves.ease,
-      );
+        // Check again before animating
+        if (!_scrollController.hasClients || !_scrollController.position.hasContentDimensions) {
+          timer.cancel(); // Stop if context is lost
+          return;
+        }
+
+        try {
+          await _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            // Adjust duration based on text length for smoother effect
+            duration: Duration(milliseconds: (widget.text.length * 150).clamp(2000, 8000)), // Example: 150ms per char
+            curve: Curves.ease,
+          );
+          await Future.delayed(const Duration(seconds: 2));
+          if (!mounted || !_scrollController.hasClients) { // Check again
+            timer.cancel();
+            return;
+          }
+          await _scrollController.animateTo(
+            0.0,
+            duration: Duration(milliseconds: (widget.text.length * 150).clamp(2000, 8000)),
+            curve: Curves.ease,
+          );
+        } catch (e) {
+          // Catch potential errors during animation (e.g., if widget is disposed)
+          print("Error during marquee animation: $e");
+          timer.cancel();
+        }
+      });
     });
   }
 

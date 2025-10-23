@@ -1,3 +1,5 @@
+// test_selection_page.dart (MODIFIED)
+
 import 'dart:async'; // <-- إضافة مهمة للتعامل مع StreamSubscription
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -24,7 +26,7 @@ class TestSelectionPage extends StatelessWidget {
   final String grade;
   final String className;
   final String subject;
-  final String professionKey;
+  final String professionKey; // Note: This might not be directly used for Nafes anymore
   final bool isBehaviorMode;
   final bool isAdmin;
 
@@ -34,44 +36,66 @@ class TestSelectionPage extends StatelessWidget {
     required this.grade,
     required this.className,
     required this.subject,
-    required this.professionKey,
+    required this.professionKey, // Keep for non-Nafes subjects
     required this.isBehaviorMode,
     required this.isAdmin,
   });
 
-  List<TestItem> _getTestsForSubject() {
-    // ابدأ بالاختبارات القياسية للمادة المحددة
-    final List<TestItem> allTests = [
-      TestItem(testFieldKey: 'e1$professionKey', name: 'الاختبار الاول (دوري)', term: 'الترم الأول'),
-      TestItem(testFieldKey: 'e2$professionKey', name: 'الاختبار الثاني (دوري)', term: 'الترم الأول'),
-      TestItem(testFieldKey: 'e3$professionKey', name: 'الاختبار الثالث (دوري)', term: 'الترم الأول'),
-      TestItem(testFieldKey: 'e14$professionKey', name: 'اختبار قبلي', term: 'اختبارات إضافية'),
-      TestItem(testFieldKey: 'e15$professionKey', name: 'اختبار بعدي', term: 'اختبارات إضافية'),
-      TestItem(testFieldKey: 'e16$professionKey', name: 'اختبار احتياطي', term: 'اختبارات إضافية'),
-    ];
+  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+  // Helper map to convert subject name to a shortcode for the key
+  static const Map<String, String> _subjectShortcodes = {
+    'رياضيات': 'math',
+    'لغتي': 'lughati',
+    'علوم': 'science',
+    // Add other subjects if Nafes expands to them in the future
+  };
 
-    // أضف اختبارات نافس بشكل مشروط
+  List<TestItem> _getTestsForSubject() {
+    final List<TestItem> allTests = [];
+    final bool isNafesSubject = ['رياضيات', 'لغتي', 'علوم'].contains(subject);
+    final String currentSubjectShortcode = _subjectShortcodes[subject] ?? '';
+
+    // Add standard tests only if the subject is NOT Nafes OR if it IS a Nafes subject
+    // (This avoids adding standard math tests when selecting Nafes-Math)
+    // We use the passed `professionKey` for standard tests.
+    if (!isNafesSubject || professionKey != 'profession13') {
+      allTests.addAll([
+        TestItem(testFieldKey: 'e1$professionKey', name: 'الاختبار الاول (دوري)', term: 'الترم الأول'),
+        TestItem(testFieldKey: 'e2$professionKey', name: 'الاختبار الثاني (دوري)', term: 'الترم الأول'),
+        TestItem(testFieldKey: 'e3$professionKey', name: 'الاختبار الثالث (دوري)', term: 'الترم الأول'),
+        TestItem(testFieldKey: 'e14$professionKey', name: 'اختبار قبلي', term: 'اختبارات إضافية'),
+        TestItem(testFieldKey: 'e15$professionKey', name: 'اختبار بعدي', term: 'اختبارات إضافية'),
+        TestItem(testFieldKey: 'e16$professionKey', name: 'اختبار احتياطي', term: 'اختبارات إضافية'),
+      ]);
+    }
+
+
+    // Conditionally add Nafes tests with subject-specific keys
     final bool isGrade6 = grade == 'الصف السادس';
     final bool isGrade3 = grade == 'الصف الثالث';
     final bool isScienceMathsLughati = ['علوم', 'رياضيات', 'لغتي'].contains(subject);
     final bool isMathsLughati = ['رياضيات', 'لغتي'].contains(subject);
 
-    if ((isGrade6 && isScienceMathsLughati) || (isGrade3 && isMathsLughati)) {
+    // Check if Nafes tests should be shown for the current grade and subject combination
+    if (currentSubjectShortcode.isNotEmpty && ((isGrade6 && isScienceMathsLughati) || (isGrade3 && isMathsLughati))) {
+      // Use 'profession13' as the base key part for Nafes
+      const String nafesBaseKey = 'profession13';
       allTests.addAll([
-        TestItem(testFieldKey: 'e1profession13', name: 'الاختبار الأول أساسي', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e2profession13', name: 'الاختبار الثاني أساسي', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e3profession13', name: 'الاختبار الاول ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e4profession13', name: 'الاختبار الثاني ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e5profession13', name: 'الاختبار الثالث ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e6profession13', name: 'الاختبار الرابع ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e7profession13', name: 'الاختبار الخامس ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e8profession13', name: 'الاختبار السادس ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e9profession13', name: 'الاختبار السابع ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e10profession13', name: 'الاختبار الثامن ف نافс', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e11profession13', name: 'الاختبار التاسع ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e12profession13', name: 'الاختبار العاشر ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e1${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الأول أساسي', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e2${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثاني أساسي', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e3${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الاول ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e4${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثاني ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e5${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثالث ف نافس', term: 'اختبارات نافس'), // Corrected typo
+        TestItem(testFieldKey: 'e6${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الرابع ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e7${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الخامس ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e8${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار السادس ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e9${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار السابع ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e10${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثامن ف نافس', term: 'اختبارات نافس'), // Corrected typo
+        TestItem(testFieldKey: 'e11${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار التاسع ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e12${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار العاشر ف نافس', term: 'اختبارات نافس'),
       ]);
     }
+    // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
     return allTests;
   }
@@ -81,6 +105,7 @@ class TestSelectionPage extends StatelessWidget {
     // --- MODIFIED: Navigate directly to GradeEntryPage ---
     if (isBehaviorMode) {
       // For behavior mode, navigate directly to the page.
+      // No changes needed here as it doesn't involve testFieldKey for grading
       return GradeEntryPage(
         stage: stage,
         grade: grade,
@@ -94,6 +119,7 @@ class TestSelectionPage extends StatelessWidget {
 
 
     final allTests = _getTestsForSubject();
+    // Group tests by term for display
     final term1Tests = allTests.where((t) => t.term == 'الترم الأول').toList();
     final additionalTests = allTests.where((t) => t.term == 'اختبارات إضافية').toList();
     final nafsTests = allTests.where((t) => t.term == 'اختبارات نافس').toList();
@@ -110,11 +136,14 @@ class TestSelectionPage extends StatelessWidget {
 
           if (term1Tests.isNotEmpty && (additionalTests.isNotEmpty || nafsTests.isNotEmpty))
             const SizedBox(height: 24),
+
           if (additionalTests.isNotEmpty)
             _buildTermSection(context, 'اختبارات إضافية', additionalTests),
 
           if (additionalTests.isNotEmpty && nafsTests.isNotEmpty)
             const SizedBox(height: 24),
+
+          // Display Nafes tests only if they exist for the selected context
           if (nafsTests.isNotEmpty)
             _buildTermSection(context, 'اختبارات نافس', nafsTests),
         ],
@@ -123,6 +152,9 @@ class TestSelectionPage extends StatelessWidget {
   }
 
   Widget _buildTermSection(BuildContext context, String title, List<TestItem> termTests) {
+    // Ensure the section is only built if there are tests for it
+    if (termTests.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -153,10 +185,10 @@ class TestSelectionPage extends StatelessWidget {
                       stage: stage,
                       grade: grade,
                       className: className,
-                      subject: subject,
-                      testFieldKey: test.testFieldKey,
+                      subject: subject, // Pass the actual subject name
+                      testFieldKey: test.testFieldKey, // Pass the potentially modified key
                       testName: test.name,
-                      isBehaviorMode: isBehaviorMode,
+                      isBehaviorMode: isBehaviorMode, // Should be false here
                     ),
                   ),
                 );
@@ -207,7 +239,7 @@ class __TestTileState extends State<_TestTile> {
   void _listenToLockStatus() {
     _lockStatusSubscription = _firestore
         .collection('test_status')
-        .doc(widget.test.testFieldKey)
+        .doc(widget.test.testFieldKey) // Listen using the potentially modified key
         .snapshots()
         .listen((doc) {
       if (mounted) {
@@ -218,6 +250,8 @@ class __TestTileState extends State<_TestTile> {
       }
     }, onError: (error) {
       if (mounted) {
+        // --- Added error handling ---
+        debugPrint("Error listening to lock status for ${widget.test.testFieldKey}: $error");
         setState(() {
           // On error (e.g., permission denied), default to locked for safety.
           _isLocked = true;
@@ -227,7 +261,7 @@ class __TestTileState extends State<_TestTile> {
   }
 
   Future<void> _toggleLockStatus() async {
-    if (_isLocked == null) return;
+    if (_isLocked == null) return; // Don't allow toggle if status is not loaded
     final newStatus = !_isLocked!;
 
     // Optimistic UI update for instant feedback
@@ -239,16 +273,17 @@ class __TestTileState extends State<_TestTile> {
       // Set the new status in Firestore. This will create the document if it doesn't exist.
       await _firestore.collection('test_status').doc(widget.test.testFieldKey).set({
         'isLocked': newStatus,
-        'testName': widget.test.name,
+        'testName': widget.test.name, // Good practice to store test name too
       });
     } catch (e) {
       // If the Firestore update fails, revert the UI change and show an error.
+      debugPrint("Error toggling lock status for ${widget.test.testFieldKey}: $e");
       setState(() {
-        _isLocked = !newStatus;
+        _isLocked = !newStatus; // Revert optimistic update
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل تحديث حالة الاختبار: $e')),
+          SnackBar(content: Text('فشل تحديث حالة الاختبار: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -272,9 +307,11 @@ class __TestTileState extends State<_TestTile> {
       );
     }
 
+    // Use the determined lock status
     final bool isEffectivelyLocked = _isLocked!;
     final Color iconColor = isEffectivelyLocked ? Colors.grey : Theme.of(context).primaryColor;
     final Color textColor = isEffectivelyLocked ? Colors.grey : Colors.black;
+    final bool canTap = !isEffectivelyLocked || widget.isAdmin; // Admin can always tap
 
     return Card(
       elevation: 2,
@@ -295,10 +332,10 @@ class __TestTileState extends State<_TestTile> {
             ? IconButton(
           icon: Icon(isEffectivelyLocked ? Icons.lock : Icons.lock_open, color: iconColor),
           tooltip: isEffectivelyLocked ? 'فتح الاختبار للمعلمين' : 'قفل الاختبار على المعلمين',
-          onPressed: _toggleLockStatus,
+          onPressed: _toggleLockStatus, // Always allow admin to toggle
         )
-            : (isEffectivelyLocked ? null : const Icon(Icons.arrow_forward_ios, size: 16)),
-        onTap: () => widget.onTap(isEffectivelyLocked),
+            : (isEffectivelyLocked ? null : const Icon(Icons.arrow_forward_ios, size: 16)), // Show arrow only if unlocked for non-admin
+        onTap: canTap ? () => widget.onTap(isEffectivelyLocked) : null, // Disable tap if locked for non-admin
       ),
     );
   }
