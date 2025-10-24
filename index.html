@@ -100,6 +100,20 @@
         });
       }
     }
+
+    // --- ✅✅✅ (هذا هو التعديل المطلوب) ✅✅✅ ---
+    // تسجيل ملف Firebase Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('firebase-messaging-sw.js').then(function (registration) {
+          console.log('Firebase MS SW registered: ', registration);
+        }).catch(function (err) {
+          console.log('Firebase MS SW registration failed: ', err);
+        });
+      });
+    }
+    // --- ✅✅✅ (نهاية التعديل) ✅✅✅ ---
+
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
