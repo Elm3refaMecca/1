@@ -1,4 +1,4 @@
-// C:\appweb1\fcm\index.js (النسخة الكاملة والصحيحة v3)
+// C:\appweb1\fcm\index.js (النسخة المعدلة v4 - تدعم الصوت المخصص)
 
 // 1. استيراد المكتبات v2
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
@@ -93,12 +93,30 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
 
   // 1. بناء رسالة الإشعار (Payload)
   const payload = {
+    // (أ) الإشعار القياسي (للتوافق العام)
     notification: {
       title: title,
       body: body,
-      sound: "default",
+      // --- ✅✅✅ التعديل (1) ---
+      // تم تغيير "default" إلى "1.mp3" لضمان تشغيل النغمة
+      sound: "1.mp3", 
     },
+    // (ب) بيانات إضافية (للتطبيق عندما يكون مفتوحاً)
     data: actionData,
+
+    // --- ✅✅✅ التعديل (2): إضافة حمولة Webpush ---
+    // هذا هو الجزء الأهم لجوالات الويب (PWA)
+    // هو يخبر المتصفح مباشرة بتشغيل الصوت والأيقونة
+    webpush: {
+      notification: {
+        title: title,
+        body: body,
+        // تأكد أن المسارات صحيحة وتبدأ من جذر مجلد /web
+        sound: "/1.mp3", 
+        icon: "/icons/Icon-192.png", 
+      },
+    },
+    // --- نهاية التعديل ---
   };
 
   // 2. إرسال الإشعار
