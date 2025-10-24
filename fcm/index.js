@@ -107,7 +107,7 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
         body: body,   // النص الرئيسي للإشعار
         // ✅ المسار إلى أيقونة الإشعار (يجب أن يكون في مجلد web/icons)
         icon: "/icons/Icon-192.png",
-        // ✅ المسار إلى ملف الصوت (يجب أن يكون في مجلد web)
+        // ✅ المسار إلى ملف الصوت (يجب أن يكون في مجلد web) - سيُشغل فقط في onMessage
         sound: "/1.mp3",
         // خيارات إضافية ممكنة:
         // badge: "/icons/badge-72.png", // أيقونة صغيرة اختيارية
@@ -116,7 +116,7 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
       },
       // يمكنك إضافة fcm_options هنا إذا أردت رابطاً مباشراً عند النقر
       // fcm_options: {
-      //   link: "https://your-app-url.com/student_view" // مثال
+      //   link: "https://your-app-url.com/" // مثال: الرابط الرئيسي للتطبيق
       // }
     },
     // --- نهاية قسم webpush ---
