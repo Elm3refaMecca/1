@@ -5,7 +5,7 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-
+  
   <meta name="description" content="موقع مدرسة المعرفة الأهلية بمكة المكرمة (القسم الابتدائي).">
 
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -70,10 +70,6 @@
 
     let deferredPrompt;
     window.isInstallable = false;
-    // --- ✅✅✅ START OF MODIFICATION (Update Flag) ✅✅✅ ---
-    window.isUpdateAvailable = false; // Flag to indicate if update is ready
-    // --- ✅✅✅ END OF MODIFICATION (Update Flag) ✅✅✅ ---
-
 
     window.addEventListener('beforeinstallprompt', (e) => {
       // Prevent the mini-infobar from appearing on mobile.
@@ -105,60 +101,8 @@
       }
     }
 
-    // --- ✅✅✅ START OF MODIFICATION (PWA Update Logic) ✅✅✅ ---
-    let newWorker; // Variable to hold the new service worker
-
-    // Function called by Flutter to trigger the update
-    function triggerPwaUpdate() {
-        if (newWorker) {
-            newWorker.postMessage({ action: 'skipWaiting' });
-            // Optionally, reload the page after skipWaiting activates the new worker
-            // We listen for the 'controllerchange' event below.
-        } else {
-            console.warn('No new service worker available to trigger update.');
-        }
-    }
-
-    // --- ✅ تسجيل ملف Flutter Service Worker الأساسي ---
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('flutter_service_worker.js?v=1685616690')
-          .then(function (reg) {
-            console.log('Flutter SW registered: ', reg);
-
-            // Listen for updates to the service worker registration
-            reg.addEventListener('updatefound', () => {
-              newWorker = reg.installing;
-              console.log('New service worker found:', newWorker);
-
-              newWorker.addEventListener('statechange', () => {
-                // When the new worker is installed and waiting
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    console.log('New service worker installed and waiting.');
-                    // Set the flag and notify Flutter
-                    window.isUpdateAvailable = true;
-                    window.dispatchEvent(new CustomEvent('pwa-update-available'));
-                }
-              });
-            });
-          }).catch(function (err) {
-            console.log('Flutter SW registration failed: ', err);
-          });
-
-          // Reload the page once the new service worker has taken control
-          let refreshing;
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
-              if (!refreshing) {
-                  console.log('New service worker activated. Reloading page...');
-                  window.location.reload();
-                  refreshing = true;
-              }
-          });
-
-      });
-    }
-
-    // --- ✅ تسجيل ملف Firebase Service Worker ---
+    // --- ✅✅✅ (هذا هو التعديل المطلوب) ✅✅✅ ---
+    // تسجيل ملف Firebase Service Worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('firebase-messaging-sw.js').then(function (registration) {
@@ -168,7 +112,7 @@
         });
       });
     }
-    // --- ✅✅✅ END OF MODIFICATION (PWA Update Logic) ✅✅✅ ---
+    // --- ✅✅✅ (نهاية التعديل) ✅✅✅ ---
 
   </script>
   <script src="flutter_bootstrap.js" async></script>
