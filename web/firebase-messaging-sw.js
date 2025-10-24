@@ -1,40 +1,47 @@
 // في المسار: /web/firebase-messaging-sw.js
 
+// استيراد مكتبات Firebase (متوافق مع الإصدارات الأقدم v9 compat)
 importScripts("https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js");
 
-// --- 🛑🛑🛑 هام جداً 🛑🛑🛑 ---
-// --- قم بملء هذه البيانات من مشروعك على Firebase ---
+// --- 🛑🛑🛑 معلومات المشروع (تم تحديث بعضها من الصور) 🛑🛑🛑 ---
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY", // (استبدل هذا)
-  authDomain: "YOUR_AUTH_DOMAIN", // (استبدل هذا)
-  projectId: "YOUR_PROJECT_ID", // (استبدل هذا)
-  storageBucket: "YOUR_STORAGE_BUCKET", // (استبدل هذا)
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID", // (استبدل هذا)
-  appId: "YOUR_APP_ID" // (استبدل هذا)
+  apiKey: "AIzaSyDdS923nE9iXPVVuVLXebIAFPx0gTTdl2o", // (من الصورة)
+  authDomain: "YOUR_AUTH_DOMAIN", // ⚠️ (استبدل هذا - غير موجود في الصور)
+  projectId: "mostfa-said", // (من الصورة)
+  storageBucket: "YOUR_STORAGE_BUCKET", // ⚠️ (استبدل هذا - غير موجود في الصور)
+  messagingSenderId: "773233380314", // (من رقم المشروع في الصورة)
+  appId: "YOUR_APP_ID" // ⚠️ (استبدل هذا - غير موجود في الصور)
 };
-// --- 🛑🛑🛑 نهاية القسم الهام 🛑🛑🛑 ---
+// --- 🛑🛑🛑 تأكد من استبدال القيم المتبقية 🛑🛑🛑 ---
 
-
+// تهيئة Firebase
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// هذا الجزء يعالج الإشعارات في الخلفية
+// معالجة الرسائل الواردة في الخلفية
 messaging.onBackgroundMessage((payload) => {
   console.log("[firebase-messaging-sw.js] Received background message ", payload);
 
-  // جلب البيانات من الحمولة (Payload) التي أرسلتها الدالة السحابية
-  // (نحن نعتمد الآن على حمولة webpush التي أرسلناها من index.js)
-  const notificationTitle = payload.notification.title;
+  // استخراج العنوان والنص من الحمولة (Payload)
+  const notificationTitle = payload.notification?.title || "إشعار جديد";
+  const notificationBody = payload.notification?.body || "لديك إشعار جديد.";
+
+  // خيارات الإشعار (الأيقونة والصوت)
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: payload.notification.icon || '/icons/Icon-192.png',
-    
-    // --- ✅✅✅ (هذا هو التعديل المطلوب) ✅✅✅ ---
-    // التأكد من استخدام المسار الصحيح للنغمة كما هو في مجلد web
-    // صورتك تؤكد أن الملف اسمه 1.mp3 وموجود في الجذر
-    sound: payload.notification.sound || '/1.mp3', 
+    body: notificationBody,
+    icon: payload.notification?.icon || '/icons/Icon-192.png', // الأيقونة الافتراضية
+    sound: payload.notification?.sound || '/1.mp3', // الصوت الافتراضي
   };
 
+  // عرض الإشعار الأصلي للمستخدم
   return self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// التعامل مع النقر على الإشعار (اختياري)
+self.addEventListener('notificationclick', (event) => {
+  console.log('[firebase-messaging-sw.js] Notification click Received.', event.notification);
+  event.notification.close();
+  // يمكنك إضافة منطق لفتح نافذة معينة هنا
+  // event.waitUntil(clients.openWindow('/some-page'));
 });
