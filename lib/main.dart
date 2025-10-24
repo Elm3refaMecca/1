@@ -49,10 +49,42 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   debugPrint("Handling a background message: ${message.messageId}");
-  // يمكن هنا حفظ بيانات الإشعار في قاعدة البيانات (Firestore) لإنشاء سجل
-  // إشعار داخل التطبيق عند فتحه، أو لمعالجة الإجراء المطلوب (مثل تحديث بيانات الطالب).
+  // (ملاحظة: هذا المعالج خاص بالجوالات بشكل أساسي)
+  // (على الويب، ملف firebase-messaging-sw.js هو الذي يتولى إشعارات الخلفية)
+  // الحمولة الحالية (notification) كافية لإظهار الإشعار في الخلفية على الويب.
 }
-// --- ✅✅✅ END OF MODIFICATION (FCM Background Handler) ✅✅✅ ---
+// --- ✅✅✅ END OF MODIFICATION (FCM Background Handler setup) ✅✅✅ ---
+
+
+// --- ✅✅✅ START OF MODIFICATION (دوال تشغيل الصوت والإشعار) ✅✅✅ ---
+// تم نقل هذه الدوال هنا من student_view.dart لتكون متاحة بشكل فوري
+void _playNotificationSound() {
+  if (kIsWeb) {
+    try {
+      // إنشاء عنصر صوتي بشكل برمجي
+      final html.AudioElement audio = html.AudioElement('1.mp3'); // يفترض وجود 1.mp3 في مجلد web
+      audio.play();
+    } catch (e) {
+      debugPrint("Error playing notification sound: $e");
+      // قد يفشل التشغيل التلقائي بسبب سياسات المتصفح، يحتاج لتفاعل المستخدم أولاً
+    }
+  }
+}
+
+/// دالة عرض الإشعار في المتصفح (مثل إشعارات جوجل كروم)
+void _showBrowserNotification(String title, String body) {
+  if (kIsWeb && html.Notification.supported) {
+    // نتأكد أن لدينا الإذن أولاً
+    if (html.Notification.permission == 'granted') {
+      // إنشاء الإشعار
+      html.Notification(title,
+          body: body,
+          icon: 'icons/Icon-192.png'); // تأكد من وجود هذه الأيقونة في web/icons
+    }
+  }
+}
+// --- ✅✅✅ END OF MODIFICATION (دوال تشغيل الصوت والإشعار) ✅✅✅ ---
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -78,8 +110,7 @@ class TeacherLoginApp extends StatelessWidget {
     return MaterialApp(
       title: 'بوابة مدرسة المعرفة الاهلية',
       debugShowCheckedModeBanner: false,
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
+      localizationsDelegates: [
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
@@ -206,12 +237,25 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     debugPrint('User granted permission: ${settings.authorizationStatus}');
 
+    // --- ⭐️⭐️⭐️  هذا هو التعديل المطلوب  ⭐️⭐️⭐️ ---
+    // هذا السطر يجعل "كل" من يفتح التطبيق (ضيف أو طالب أو معلم)
+    // مشتركاً في قناة الإشعارات العامة
+    try {
+      await messaging.subscribeToTopic('public_announcements');
+      debugPrint("Subscribed to public_announcements topic");
+    } catch (e) {
+      debugPrint("Failed to subscribe to topic: $e");
+    }
+    // --- ⭐️⭐️⭐️  نهاية التعديل المطلوب  ⭐️⭐️⭐️ ---
+
+
     // 2. الحصول على رمز الجهاز (FCM Token) لـ Firebase
     String? token = await messaging.getToken();
     debugPrint("FCM Token: $token");
 
     // يجب هنا إرسال الـ token إلى Firestore وتخزينه مع بيانات المستخدم (الطالب/المعلم)
     // حتى تتمكن الدوال السحابية (Cloud Functions) من إرسال إشعار مستهدف لهذا الجهاز.
+    // (ملاحظة: الكود الخاص بك يقوم بهذا في student_view.dart وهذا جيد للطالب)
 
     // 3. معالجة الإشعارات أثناء عمل التطبيق في الواجهة الأمامية (Foreground)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -219,12 +263,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
       debugPrint('Message data: ${message.data}');
 
       if (message.notification != null) {
-        debugPrint('Message also contained a notification: ${message.notification!.title} / ${message.notification!.body}');
-        // هنا يمكن عرض الإشعار داخل التطبيق (In-App Notification/Banner)
-        // ومهم: استدعاء تحديث لبيانات الطالب (مثل FutureBuilder) ليرى التغيير فوراً.
+        final title = message.notification!.title ?? 'إشعار جديد';
+        final body = message.notification!.body ?? 'لديك إشعار جديد';
+        debugPrint('Message also contained a notification: $title / $body');
+
+        // --- ✅✅✅  هذا هو التعديل المطلوب (تشغيل الصوت والإشعار فورا)  ✅✅✅ ---
+        // استدعاء الدوال التي تم نقلها للأعلى
+        _playNotificationSound();
+        _showBrowserNotification(title, body);
+        // --- ✅✅✅  نهاية التعديل  ✅✅✅ ---
       }
-      // يمكن إضافة منطق تحديث الواجهة هنا لتظهر التغييرات للطالب فوراً
-      // (مثل استدعاء FutureBuilder مرة أخرى).
+      // (ملاحظة: الـ StreamBuilder في student_view.dart سيتولى تحديث الجرس)
     });
 
     // 4. معالجة الإشعارات عند النقر عليها
@@ -245,21 +294,40 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<String> _getUserRole(User user) async {
     try {
+      // (ملاحظة: هذا الكود يفترض أن المعلم والطالب لهما UID مختلف)
+      // (إذا كان المعلم هو نفسه الطالب، ستحتاج لمنطق مختلف)
+
+      // 1. تحقق إذا كان UID موجود في 'users' (المعلمين)
       final teacherDoc =
       await _firestore.collection('users').doc(user.uid).get();
       if (teacherDoc.exists) {
         return 'teacher';
       }
+
+      // 2. إذا لم يكن معلماً، تحقق إذا كان UID موجود في 'students' (الطلاب)
       final studentDoc = await _firestore
           .collection('students')
           .doc(user.uid)
           .get();
       if (studentDoc.exists) {
+
+        // --- ⭐️ إضافة مقترحة لحفظ التوكن ⭐️ ---
+        // بما أننا تأكدنا أنه طالب، نحفظ التوكن الخاص به هنا
+        String? token = await FirebaseMessaging.instance.getToken();
+        if (token != null) {
+          await studentDoc.reference.set({'fcmToken': token}, SetOptions(merge: true));
+          debugPrint("FCM Token saved for student.");
+        }
+        // --- نهاية الإضافة المقترحة ---
+
         return 'student';
       }
+
+      // 3. إذا لم يكن أياً منهما، فهو غير مصرح له
       await FirebaseAuth.instance.signOut();
       return 'unauthorized';
     } catch (e) {
+      debugPrint("Error checking user role: $e");
       await FirebaseAuth.instance.signOut();
       return 'unauthorized';
     }
@@ -276,6 +344,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
 
         if (authSnapshot.hasData && authSnapshot.data != null) {
+          // المستخدم قام بتسجيل الدخول، تحقق من نوعه
           return FutureBuilder<String>(
             future: _getUserRole(authSnapshot.data!),
             builder: (context, roleSnapshot) {
@@ -286,16 +355,18 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
               switch (roleSnapshot.data) {
                 case 'teacher':
-                  return const AddPage();
+                  return const AddPage(); // صفحة المعلمين
                 case 'student':
-                  return const StudentViewPage();
+                  return const StudentViewPage(); // صفحة الطلاب
                 default:
+                // 'unauthorized' أو خطأ، أعده لصفحة الدخول
                   return const WelcomePage();
               }
             },
           );
         }
 
+        // لا يوجد مستخدم مسجل دخول، اعرض صفحة الترحيب (الضيوف)
         return const WelcomePage();
       },
     );
@@ -818,6 +889,62 @@ class _WelcomePageState extends State<WelcomePage> {
                   ),
                 ),
               ),
+
+            // --- ✅✅✅  بداية إضافة زر تجربة الإشعارات  ✅✅✅ ---
+            const SizedBox(height: 12),
+            TextButton.icon(
+              icon: const Icon(Icons.notifications_active_outlined, color: Colors.orangeAccent),
+              label: const Text('تجربة الإشعارات (للمطور)', style: TextStyle(color: Colors.orangeAccent)),
+              onPressed: () {
+                // استخدام ScaffoldMessenger لعرض SnackBar كـ "بانر"
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    // يجعله يطفو في الأعلى بدلاً من الأسفل
+                    behavior: SnackBarBehavior.floating,
+                    // تحديد الهوامش ليظهر في الأعلى (نطرح قيمة لرفعه عن الأسفل)
+                    margin: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).size.height - 150, // يظهر قرب الأعلى
+                      left: 16.0,
+                      right: 16.0,
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    backgroundColor: Colors.blueGrey.shade800,
+                    content: const Row(
+                      children: [
+                        Icon(Icons.campaign, color: Colors.white),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'إشعار تجريبي',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Cairo',
+                                ),
+                              ),
+                              Text(
+                                'مرحبا بكم في بوابة مدارس المعرفة!',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontFamily: 'Cairo',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
+              },
+            ),
+            // --- ✅✅✅  نهاية إضافة زر تجربة الإشعارات  ✅✅✅ ---
+
           ],
         ),
       ),
@@ -912,34 +1039,15 @@ class _LoginPageState extends State<LoginPage> {
 
       if (user == null) throw FirebaseAuthException(code: 'user-not-found');
 
-      bool isAuthorized = false;
-
-      if (widget.accountType == 'teacher') {
-        final doc = await _firestore.collection('users').doc(user.uid).get();
-        if (doc.exists) {
-          isAuthorized = true;
-        }
-      } else if (widget.accountType == 'student') {
-        final doc = await _firestore.collection('students').doc(user.uid).get();
-        if (doc.exists) {
-          isAuthorized = true;
-        }
-      }
+      // (تم نقل منطق التحقق من الصلاحيات وحفظ التوكن إلى AuthWrapper)
+      // (سيعيد التوجيه تلقائياً بعد تسجيل الدخول الناجح)
 
       if (mounted) {
-        if (isAuthorized) {
-          Navigator.of(context)
-              .pushNamedAndRemoveUntil('/', (route) => false);
-        } else {
-          await _auth.signOut();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text(
-                    'الحساب غير مصرح له بالدخول من هذه الواجهة.'),
-                backgroundColor: Colors.red),
-          );
-        }
+        // العودة إلى AuthWrapper وهو سيتولى عملية التوجيه
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/', (route) => false);
       }
+
     } on FirebaseAuthException catch (e) {
       String message = 'حدث خطأ ما.';
       if (e.code == 'invalid-credential' ||

@@ -1,0 +1,98 @@
+// C:\appweb1\fcm\index.js (النسخة الصحيحة v2)
+
+// 1. استيراد المكتبات بالإصدار v2
+// onDocumentUpdated هو البديل لـ onUpdate
+const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { initializeApp } = require("firebase-admin/app");
+const { getMessaging } = require("firebase-admin/messaging");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore"); // FieldValue لحذف التوكن
+const logger = require("firebase-functions/logger"); // بديل console.log
+
+// 2. تهيئة التطبيق
+initializeApp();
+
+// 3. تعريف الدالة باستخدام onDocumentUpdated
+exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId}", async (event) => {
+
+    // 4. التحقق من وجود البيانات
+    if (!event.data) {
+        logger.warn("No data in event, exiting.");
+        return;
+    }
+
+    // 5. جلب البيانات (قبل وبعد التحديث)
+    const studentDataBefore = event.data.before.data();
+    const studentDataAfter = event.data.after.data();
+    const studentId = event.params.studentId; // جلب معرّف الطالب
+
+    // 6. التحقق من التوكن (fcmToken)
+    const fcmToken = studentDataAfter.fcmToken;
+    if (!fcmToken) {
+        logger.info(`الطالب ${studentId} لا يملك FCM Token. تم تخطي الإشعار.`);
+        return;
+    }
+    
+    // 7. جلب القيم القديمة والجديدة للإعجابات والملاحظات
+    const likesBefore = studentDataBefore.totalLikes ?? 0;
+    const likesAfter = studentDataAfter.totalLikes ?? 0;
+    const dislikesBefore = studentDataBefore.totalDislikes ?? 0;
+    const dislikesAfter = studentDataAfter.totalDislikes ?? 0;
+
+    // 8. التحقق إذا كان هناك تغيير فعلي
+    if (likesAfter === likesBefore && dislikesAfter === dislikesBefore) {
+        logger.info(`لم يتم تغيير الإعجابات أو الملاحظات للطالب ${studentId}. تم تخطي الإشعار.`);
+        return;
+    }
+
+    // 9. تحديد نص الإشعار
+    let notificationTitle = "تحديث هام!";
+    let notificationBody = "راجع صفحة الطالب لمعرفة التفاصيل.";
+
+    if (likesAfter > likesBefore) {
+        // إذا زادت الإعجابات
+        notificationBody = `لقد حصلت على إعجاب جديد! رائع! 🎉`;
+        notificationTitle = `تهنئة من المعلم!`;
+    } else if (dislikesAfter > dislikesBefore) {
+        // إذا زادت الملاحظات
+        notificationBody = `تم تسجيل ملاحظة سلوك. يرجى المراجعة. ⚠️`;
+        notificationTitle = `ملاحظة سلوكية`;
+    } else {
+        logger.info(`حدث تغيير غير متوقع (مثل النقصان) للطالب ${studentId}. تم التخطي.`);
+        return; 
+    }
+
+    // 10. بناء رسالة الإشعار (Payload)
+    const payload = {
+        notification: {
+            title: notificationTitle,
+            body: notificationBody,
+            sound: 'default' 
+        },
+        data: {
+            action: 'OPEN_STUDENT_VIEW',
+            studentId: studentId
+        }
+    };
+
+    // 11. إرسال الإشعار
+    try {
+        // استخدام getMessaging() v2
+        const response = await getMessaging().sendToDevice(fcmToken, payload);
+        logger.info(`تم إرسال الإشعار بنجاح إلى الطالب: ${studentId}`, response);
+    } catch (error) {
+        logger.error(`فشل في إرسال الإشعار إلى ${studentId}:`, error);
+        
+        // إذا كان الخطأ بسبب أن التوكن لم يعد صالحاً، قم بحذفه
+        if (error.code === 'messaging/registration-token-not-registered') {
+            try {
+                // استخدام getFirestore() و FieldValue (v2)
+                await getFirestore().collection("students").doc(studentId).update({
+                    fcmToken: FieldValue.delete() 
+                });
+                logger.warn(`تم حذف التوكن غير الصالح للطالب: ${studentId}`);
+            } catch (deleteError) {
+                logger.error(`فشل في حذف التوكن للطالب ${studentId}:`, deleteError);
+            }
+        }
+    }
+});
