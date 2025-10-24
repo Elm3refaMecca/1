@@ -98,6 +98,7 @@ flutter:
     - assets/e2.png
     - assets/whatsapp-button.json
     - assets/m1.png
+    - assets/1.mp3
 
 
   fonts:

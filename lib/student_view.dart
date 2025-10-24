@@ -1,6 +1,6 @@
-// student_view.dart (MODIFIED)
+// student_view.dart (MODIFIED FOR NAFES KEYS AND NOTIFICATIONS)
 
-import 'dart:async';
+import 'dart:async'; // <-- ✅ إضافة جديدة للاستماع
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -23,6 +23,7 @@ import 'package:url_launcher/url_launcher.dart';
 // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
 // تم إضافة المكتبات المطلوبة لتشغيل ميزة إعادة التحميل على الويب
 import 'package:flutter/foundation.dart' show kIsWeb;
+// --- ✅ إضافة html للتحكم بالصوت والإشعارات ---
 import 'package:universal_html/html.dart' as html;
 // --- ✅✅✅  إضافة المكتبات المطلوبة للتكريم والأيقونات الجمالية  ✅✅✅ ---
 import 'package:animated_text_kit/animated_text_kit.dart';
@@ -36,7 +37,7 @@ enum ReportType { graphical, table, studentData }
 class TestInfo {
   final String key;
   final String name;
-  final String subject;
+  final String subject; // Stores the actual subject name (e.g., رياضيات)
 
   TestInfo({required this.key, required this.name, required this.subject});
 }
@@ -51,13 +52,13 @@ class _AnalysisResult {
   final String subjectName;
   final double average;
   final double percentage;
-  final double maxPossibleGrade;
+  final double maxPossibleGrade; // The max grade used for THIS analysis (10 or 20)
   final num highestGrade;
   final num lowestGrade;
   final String assessment;
   final String consistency;
   final bool isBelowPassing;
-  final List<MapEntry<String, num>> testResults;
+  final List<MapEntry<String, num>> testResults; // Map key is test KEY now
   final List<FlSpot> trendSpots;
   final String performanceTrend;
   final double? predictedNextGrade;
@@ -100,12 +101,15 @@ class _StudentViewPageState extends State<StudentViewPage>
 
   String? _studentDocId;
 
-  // --- ✅✅✅ MODIFICATION: Made lazy initialized ---
-  // Initialize in _initializeData after fetching student data if needed,
-  // or keep it here if it's generally safe. Let's keep it here for now.
+  // Map to hold all possible test info (key -> TestInfo)
   late final Map<String, TestInfo> _allTestsMap;
 
   final ScreenshotController _screenshotController = ScreenshotController();
+
+  // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
+  StreamSubscription? _notificationSubscription;
+  final Set<String> _processedNotificationIds = {};
+  // --- ✅✅✅ END OF NOTIFICATION MODIFICATION ✅✅✅ ---
 
 
   final List<Subject> subjects = [
@@ -122,7 +126,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     Subject(name: 'نشاط', icon: Icons.star),
     Subject(name: 'حياتية', icon: Icons.eco),
     Subject(name: 'مصدر', icon: Icons.source),
-    Subject(name: 'نافس', icon: Icons.emoji_events), // Keep 'Nafes' as a general category if needed for display
+    // Nafes subjects are handled implicitly by _getAllPossibleTests associating keys with correct subject names
   ];
 
   @override
@@ -133,7 +137,7 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 
   void _initializeData() {
-    // --- ✅✅✅ MODIFICATION: Initialize _allTestsMap here ---
+    // Populate _allTestsMap first
     _allTestsMap = {for (var test in _getAllPossibleTests()) test.key: test};
     _fetchStudentData();
     _assignSubjectColors();
@@ -142,11 +146,13 @@ class _StudentViewPageState extends State<StudentViewPage>
   @override
   void dispose() {
     _tabController.dispose();
+    // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
+    _notificationSubscription?.cancel(); // إلغاء المتابعة عند الخروج
+    // --- ✅✅✅ END OF NOTIFICATION MODIFICATION ✅✅✅ ---
     super.dispose();
   }
 
-  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-  // Updated to generate subject-specific keys for Nafes
+  // Generates keys like 'eXprofession1', 'eXprofession13_math', etc.
   List<TestInfo> _getAllPossibleTests() {
     final List<TestInfo> tests = [];
     final Map<String, String> standardSubjects = {
@@ -183,18 +189,18 @@ class _StudentViewPageState extends State<StudentViewPage>
     };
 
     nafesSubjectShortcodes.forEach((subjectName, shortcode) {
-      final String nafesSubjectCategory = 'نافس'; // Keep general category for display if needed
+      // Nafes tests are associated with their *actual* subject name
       tests.addAll([
-        TestInfo(key: 'e1${nafesBaseKey}_$shortcode', name: 'الأول أساسي', subject: subjectName), // Use actual subject name
+        TestInfo(key: 'e1${nafesBaseKey}_$shortcode', name: 'الأول أساسي', subject: subjectName),
         TestInfo(key: 'e2${nafesBaseKey}_$shortcode', name: 'الثاني أساسي', subject: subjectName),
         TestInfo(key: 'e3${nafesBaseKey}_$shortcode', name: 'الاول ف نافس', subject: subjectName),
         TestInfo(key: 'e4${nafesBaseKey}_$shortcode', name: 'الثاني ف نافس', subject: subjectName),
-        TestInfo(key: 'e5${nafesBaseKey}_$shortcode', name: 'الثالث ف نافس', subject: subjectName), // Corrected typo
+        TestInfo(key: 'e5${nafesBaseKey}_$shortcode', name: 'الثالث ف نافس', subject: subjectName),
         TestInfo(key: 'e6${nafesBaseKey}_$shortcode', name: 'الرابع ف نافس', subject: subjectName),
         TestInfo(key: 'e7${nafesBaseKey}_$shortcode', name: 'الخامس ف نافس', subject: subjectName),
         TestInfo(key: 'e8${nafesBaseKey}_$shortcode', name: 'السادس ف نافس', subject: subjectName),
         TestInfo(key: 'e9${nafesBaseKey}_$shortcode', name: 'السابع ف نافس', subject: subjectName),
-        TestInfo(key: 'e10${nafesBaseKey}_$shortcode', name: 'الثامن ف نافس', subject: subjectName), // Corrected typo
+        TestInfo(key: 'e10${nafesBaseKey}_$shortcode', name: 'الثامن ف نافس', subject: subjectName),
         TestInfo(key: 'e11${nafesBaseKey}_$shortcode', name: 'التاسع ف نافس', subject: subjectName),
         TestInfo(key: 'e12${nafesBaseKey}_$shortcode', name: 'العاشر ف نافس', subject: subjectName),
       ]);
@@ -202,37 +208,19 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     return tests;
   }
-  // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+
 
   void _assignSubjectColors() {
     final List<MaterialColor> vibrantColors = [
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-      Colors.orange,
-      Colors.purple,
-      Colors.teal,
-      Colors.pink,
-      Colors.amber,
-      Colors.indigo,
-      Colors.cyan,
-      Colors.deepOrange,
-      Colors.lightGreen,
-      Colors.brown,
-      Colors.blueGrey
+      Colors.blue, Colors.red, Colors.green, Colors.orange, Colors.purple,
+      Colors.teal, Colors.pink, Colors.amber, Colors.indigo, Colors.cyan,
+      Colors.deepOrange, Colors.lightGreen, Colors.brown, Colors.blueGrey
     ];
 
-    // Assign colors based on the `subjects` list which includes 'نافس'
+    // Assign colors based on the `subjects` list (which contains actual subject names)
     for (int i = 0; i < subjects.length; i++) {
-      _subjectColors[subjects[i].name] =
-      vibrantColors[i % vibrantColors.length];
+      _subjectColors[subjects[i].name] = vibrantColors[i % vibrantColors.length];
     }
-    // Explicitly assign colors for Nafes subjects if needed differently
-    // Example:
-    // _subjectColors['رياضيات'] = Colors.blue;
-    // _subjectColors['لغتي'] = Colors.red;
-    // _subjectColors['علوم'] = Colors.green;
-    // _subjectColors['نافس'] = Colors.orange; // General Nafes color if used elsewhere
   }
 
   Future<void> _launchWhatsApp() async {
@@ -267,14 +255,101 @@ class _StudentViewPageState extends State<StudentViewPage>
           _studentDocId = docSnapshot.id;
           _isLoading = false;
         });
+        // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
+        // بمجرد جلب بيانات الطالب، نبدأ الاستماع للإشعارات
+        if (_studentDocId != null) {
+          _listenForNewNotifications();
+          _requestNotificationPermission(); // طلب الإذن عند تحميل الصفحة
+        }
+        // --- ✅✅✅ END OF NOTIFICATION MODIFICATION ✅✅✅ ---
       } else {
         if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
-      debugPrint("Error fetching student data: $e"); // Added debug print
+      debugPrint("Error fetching student data: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
+  /// دالة لطلب إذن عرض الإشعارات من المتصفح
+  void _requestNotificationPermission() {
+    if (kIsWeb) {
+      // التأكد من أن المتصفح يدعم الإشعارات
+      if (html.Notification.supported) {
+        html.Notification.requestPermission().then((permission) {
+          if (permission != 'granted') {
+            debugPrint('Notification permission not granted.');
+          }
+        });
+      }
+    }
+  }
+
+  /// دالة للاستماع المستمر للإشعارات الجديدة
+  void _listenForNewNotifications() {
+    _notificationSubscription?.cancel(); // إلغاء أي متابعة سابقة
+    _notificationSubscription = FirebaseFirestore.instance
+        .collection('students')
+        .doc(_studentDocId)
+        .collection('notifications')
+        .where('isRead', isEqualTo: false) // جلب الإشعارات غير المقروءة فقط
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.docs.isEmpty) return; // لا يوجد شيء جديد
+
+      bool foundNew = false;
+      String lastMessage = '';
+
+      for (var doc in snapshot.docs) {
+        // التحقق إذا كان هذا الإشعار لم يتم عرضه مسبقاً
+        if (!_processedNotificationIds.contains(doc.id)) {
+          _processedNotificationIds.add(doc.id); // تعليمه كـ "معالج"
+          foundNew = true;
+          lastMessage = doc.data()['message'] ?? 'لديك إشعار جديد';
+        }
+      }
+
+      // إذا وجدنا إشعارات جديدة (لم تُعرض من قبل)
+      if (foundNew) {
+        _playNotificationSound(); // تشغيل الصوت
+        _showBrowserNotification(lastMessage); // عرض الإشعار
+      }
+    }, onError: (error) {
+      debugPrint("Error listening to notifications: $error");
+    });
+  }
+
+  /// دالة تشغيل ملف الصوت 1.mp3 من مجلد web
+  void _playNotificationSound() {
+    if (kIsWeb) {
+      try {
+        // إنشاء عنصر صوتي بشكل برمجي
+        final html.AudioElement audio = html.AudioElement('1.mp3'); // يفترض وجود 1.mp3 في مجلد web
+        audio.play();
+      } catch (e) {
+        debugPrint("Error playing notification sound: $e");
+        // قد يفشل التشغيل التلقائي بسبب سياسات المتصفح، يحتاج لتفاعل المستخدم أولاً
+      }
+    }
+  }
+
+  /// دالة عرض الإشعار في المتصفح (مثل إشعارات جوجل كروم)
+  void _showBrowserNotification(String message) {
+    if (kIsWeb && html.Notification.supported) {
+      // نتأكد أن لدينا الإذن أولاً
+      if (html.Notification.permission == 'granted') {
+        // إنشاء الإشعار
+        html.Notification('إشعار جديد من مدارس المعرفة',
+            body: message,
+            icon: 'icons/Icon-192.png'); // تأكد من وجود هذه الأيقونة في web/icons
+      }
+      // إذا لم يكن الإذن ممنوحاً، فإن دالة _requestNotificationPermission
+      // التي استدعيت عند تحميل الصفحة تكون قد طلبت الإذن بالفعل.
+    }
+  }
+  // --- ✅✅✅ END OF NOTIFICATION MODIFICATION ✅✅✅ ---
+
 
   Future<void> _promptForParentPassword() async {
     if (_studentDocId == null) {
@@ -423,7 +498,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       );
     }
 
-    // --- ✅✅✅ START OF MODIFICATION (Reload Button) ✅✅✅ ---
     appBarActions.add(
       Tooltip(
         message: 'تحديث الصفحة للحصول على آخر التعديلات',
@@ -440,7 +514,6 @@ class _StudentViewPageState extends State<StudentViewPage>
         ),
       ),
     );
-    // --- ✅✅✅ END OF MODIFICATION (Reload Button) ✅✅✅ ---
 
     return AppBar(
       title: Text(title,
@@ -463,9 +536,6 @@ class _StudentViewPageState extends State<StudentViewPage>
           : null,
       actions: appBarActions,
       automaticallyImplyLeading: !isDashboard || isTeacherView,
-
-      // --- ✅✅✅ START OF MODIFICATION (Programmer Tribute) ✅✅✅ ---
-      // إضافة التكريم في شريط الـ AppBar
       bottom: (isDashboard && !isTeacherView) // يظهر فقط في الواجهة الرئيسية للطالب
           ? PreferredSize(
         preferredSize: const Size.fromHeight(30.0), // ارتفاع مناسب
@@ -496,7 +566,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                 ),
               ),
               RotateAnimatedText(
-                'للدعم الفني (+966569064173)',
+                'للدعم الفني (اضغط أيقونة الواتساب)',
                 textAlign: TextAlign.center,
                 textStyle: const TextStyle(
                   fontSize: 14.0,
@@ -512,7 +582,6 @@ class _StudentViewPageState extends State<StudentViewPage>
         ),
       )
           : null, // لا يظهر في الصفحات الداخلية
-      // --- ✅✅✅ END OF MODIFICATION (Programmer Tribute) ✅✅✅ ---
     );
   }
 
@@ -558,8 +627,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     final int totalLikes = _studentData?['totalLikes'] ?? 0;
     final int totalDislikes = _studentData?['totalDislikes'] ?? 0;
 
-    // --- ✅✅✅ START OF MODIFICATION (Staggered Animation) ✅✅✅ ---
-    // قائمة الأزرار
     final List<Widget> dashboardButtons = [
       _buildDashboardButton(
         title: 'النتائج والتحليل',
@@ -649,7 +716,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       ),
     ];
 
-    // استخدام AnimationLimiter لتطبيق الحركة على GridView
     return AnimationLimiter(
       child: GridView.extent(
         maxCrossAxisExtent: 150,
@@ -660,11 +726,10 @@ class _StudentViewPageState extends State<StudentViewPage>
         children: List.generate(
           dashboardButtons.length,
               (index) {
-            // تطبيق الحركة على كل عنصر في الشبكة
             return AnimationConfiguration.staggeredGrid(
               position: index,
               duration: const Duration(milliseconds: 375),
-              columnCount: (MediaQuery.of(context).size.width / 166).floor(), // (150 + 16)
+              columnCount: (MediaQuery.of(context).size.width / 166).floor(),
               child: ScaleAnimation(
                 child: FadeInAnimation(
                   child: dashboardButtons[index],
@@ -675,7 +740,6 @@ class _StudentViewPageState extends State<StudentViewPage>
         ),
       ),
     );
-    // --- ✅✅✅ END OF MODIFICATION (Staggered Animation) ✅✅✅ ---
   }
 
   Widget _buildDashboardButton({
@@ -685,8 +749,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     required VoidCallback onTap,
     int count = 0,
   }) {
-    // --- ✅✅✅ START OF MODIFICATION (Button Animation) ✅✅✅ ---
-    // استخدام ويدجت مخصص لإضافة تأثير النبض عند الضغط
     return _AnimatedScaleButton(
       onTap: onTap,
       child: Container(
@@ -769,14 +831,13 @@ class _StudentViewPageState extends State<StudentViewPage>
         ),
       ),
     );
-    // --- ✅✅✅ END OF MODIFICATION (Button Animation) ✅✅✅ ---
   }
 
-
-  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+  // --- ✅✅✅ START OF MODIFICATION (Grade Grouping Logic) ✅✅✅ ---
   // Updated to correctly group grades based on the NEW _allTestsMap keys
   List<_AnalysisResult> _getAllAnalyses() {
-    // Temporary map to group scores by the ACTUAL subject name (Math, Lughati, Science for Nafes)
+    // Map to group scores by the ACTUAL subject name (Math, Lughati, Science for Nafes)
+    // Key: Subject Name (e.g., "رياضيات"), Value: Map<Test Key, Grade>
     final Map<String, Map<String, num>> subjectGrades = {};
 
     _studentData?.forEach((key, value) {
@@ -785,7 +846,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         final testInfo = _allTestsMap[key]!;
         // Use testInfo.subject which now correctly holds Math/Lughati/Science even for Nafes
         subjectGrades
-            .putIfAbsent(testInfo.subject, () => {})[testInfo.name.trim()] = value;
+            .putIfAbsent(testInfo.subject, () => {})[testInfo.key] = value; // Use test KEY here
       }
     });
 
@@ -798,7 +859,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         _analyzeSubjectGrades(subjectName, subjectGrades[subjectName]!))
         .toList();
   }
-  // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+  // --- ✅✅✅ END OF MODIFICATION (Grade Grouping Logic) ✅✅✅ ---
 
   Widget _buildResultsView() {
     final allAnalyses = _getAllAnalyses();
@@ -818,20 +879,17 @@ class _StudentViewPageState extends State<StudentViewPage>
           child: Column(
             children: [
               ...allAnalyses.map((analysis) {
-                // --- ✅✅✅ MODIFICATION: Get icon using analysis.subjectName ---
                 final subjectIcon = subjects
                     .firstWhere((s) => s.name == analysis.subjectName,
                     orElse: () => Subject(name: '', icon: Icons.book)) // Fallback icon
                     .icon;
-                // --- ✅✅✅ MODIFICATION: Get color using analysis.subjectName ---
-                // Use the actual subject name (Math, Lughati, Science) to get color
-                // Fallback to blue if not found (shouldn't happen with updated _assignSubjectColors)
                 final subjectColor = _subjectColors[analysis.subjectName] ?? Colors.blue;
 
                 return _SubjectResultCard(
                   analysis: analysis,
                   subjectIcon: subjectIcon,
-                  color: subjectColor, // Use the determined color
+                  color: subjectColor,
+                  allTestsMap: _allTestsMap, // Pass the map here
                 );
               }).toList(),
               _buildOverallAnalysisWidget(allAnalyses),
@@ -944,16 +1002,23 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-  // Updated to correctly determine maxGrade based on actual subject name
+  // --- ✅✅✅ START OF MODIFICATION (Analyze Logic) ✅✅✅ ---
+  // Updated to correctly determine maxGrade based on whether ANY test in the group is Nafes
   _AnalysisResult _analyzeSubjectGrades(
-      String subjectName, Map<String, num> testResults) {
-    // Sort tests by key (e.g., e1, e2, e3...) for consistent trend analysis
+      String subjectName, Map<String, num> testResults) { // testResults key is test KEY
+    // Sort tests by key for consistent trend analysis
     final sortedTests = testResults.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
 
     // Filter out absent marks (-1) before calculations
     final validGrades = sortedTests.map((e) => e.value).where((g) => g >= 0).toList();
+
+    // Check if *any* test key in this subject's results indicates it's a Nafes test
+    final bool containsNafesTests = sortedTests.any((test) => test.key.contains('profession13'));
+
+    // Determine max grade and passing grade based on whether Nafes tests are present
+    final double maxGradeForThisAnalysis = containsNafesTests ? 10.0 : 20.0;
+    final double passingGradeForThisAnalysis = maxGradeForThisAnalysis / 2.0;
 
     // Handle case where there are no valid grades
     if (validGrades.isEmpty) {
@@ -961,14 +1026,13 @@ class _StudentViewPageState extends State<StudentViewPage>
         subjectName: subjectName,
         average: 0,
         percentage: 0,
-        // Determine max grade based on subject name
-        maxPossibleGrade: ['رياضيات', 'لغتي', 'علوم'].contains(subjectName) ? 10.0 : 20.0,
+        maxPossibleGrade: maxGradeForThisAnalysis, // Use determined max grade
         highestGrade: 0,
         lowestGrade: 0,
         assessment: 'لا توجد درجات',
         consistency: 'N/A',
         isBelowPassing: false,
-        testResults: sortedTests, // Still show original results with 'غائب'
+        testResults: sortedTests, // Still show original results with 'غائب' (key -> grade)
         trendSpots: [],
         performanceTrend: 'لا يوجد بيانات كافية',
         predictedNextGrade: null,
@@ -976,26 +1040,20 @@ class _StudentViewPageState extends State<StudentViewPage>
       );
     }
 
-    // Determine max grade and passing grade based on the actual subject name
-    final bool isNafesSubject = ['رياضيات', 'لغتي', 'علوم'].contains(subjectName) &&
-        sortedTests.any((test) => _allTestsMap[test.key]?.key.contains('profession13') ?? false); // More robust check
-    final double maxGrade = isNafesSubject ? 10.0 : 20.0;
-    final double passingGrade = maxGrade / 2.0;
-
     // --- Calculations using valid grades ---
     final double average = validGrades.reduce((a, b) => a + b) / validGrades.length;
-    final double percentage = (average / maxGrade).clamp(0.0, 1.0);
+    final double percentage = (average / maxGradeForThisAnalysis).clamp(0.0, 1.0); // Use correct max grade
     final num highest = validGrades.reduce(max);
     final num lowest = validGrades.reduce(min);
-    final bool isBelowPassing = average < passingGrade;
+    final bool isBelowPassing = average < passingGradeForThisAnalysis; // Use correct passing grade
 
     // --- Consistency (Standard Deviation) ---
     final double variance = validGrades.map((g) => pow(g - average, 2)).reduce((a, b) => a + b) / validGrades.length;
     final double stdDev = sqrt(variance);
     String consistency;
-    if (stdDev > (maxGrade * 0.15)) {
+    if (stdDev > (maxGradeForThisAnalysis * 0.15)) { // Use correct max grade
       consistency = 'غير مستقر';
-    } else if (stdDev < (maxGrade * 0.05)) {
+    } else if (stdDev < (maxGradeForThisAnalysis * 0.05)) { // Use correct max grade
       consistency = 'مستقر جداً';
     } else {
       consistency = 'مستقر';
@@ -1015,25 +1073,22 @@ class _StudentViewPageState extends State<StudentViewPage>
       assessment = 'يحتاج لمتابعة';
 
     // --- Trend Analysis ---
-    // Generate trend spots only from tests with valid grades (value >= 0)
     final trendSpots = <FlSpot>[];
-    int validIndex = 0; // Use a separate index for valid spots
+    int validIndex = 0;
     for (int i = 0; i < sortedTests.length; i++) {
       if (sortedTests[i].value >= 0) {
-        // Use validIndex for the x-axis to avoid gaps from absent marks
         trendSpots.add(FlSpot(validIndex.toDouble(), sortedTests[i].value.toDouble()));
         validIndex++;
       }
     }
 
-    // --- Performance Trend & Prediction (using validGrades) ---
+    // --- Performance Trend & Prediction ---
     String performanceTrend = 'مستقر';
     double? predictedNextGrade;
     String riskAssessment = 'مسار آمن';
 
-    if (validGrades.length >= 2) { // Need at least 2 valid points for trend
+    if (validGrades.length >= 2) {
       double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-      // Use index 0 to n-1 for x values in regression
       for (int i = 0; i < validGrades.length; i++) {
         sumX += i;
         sumY += validGrades[i];
@@ -1041,33 +1096,30 @@ class _StudentViewPageState extends State<StudentViewPage>
         sumX2 += i * i;
       }
       final n = validGrades.length.toDouble();
-
-      // Avoid division by zero if all x values are the same (shouldn't happen with index)
       final double denominator = (n * sumX2 - sumX * sumX);
+
       if (denominator != 0) {
         final double slope = (n * sumXY - sumX * sumY) / denominator;
 
-        if (slope > (maxGrade * 0.05)) { // Significant improvement threshold
+        if (slope > (maxGradeForThisAnalysis * 0.05)) { // Use correct max grade
           performanceTrend = 'تحسن ملحوظ';
-        } else if (slope < -(maxGrade * 0.05)) { // Significant decline threshold
+        } else if (slope < -(maxGradeForThisAnalysis * 0.05)) { // Use correct max grade
           performanceTrend = 'تراجع ملحوظ';
         }
 
         final double intercept = (sumY - slope * sumX) / n;
-        // Predict the next grade (at x = n)
-        predictedNextGrade = (slope * n + intercept).clamp(0.0, maxGrade);
+        predictedNextGrade = (slope * n + intercept).clamp(0.0, maxGradeForThisAnalysis); // Use correct max grade
       } else {
         performanceTrend = 'مستقر (نقاط بيانات غير كافية للاتجاه)';
       }
 
-
-      // Risk Assessment based on current status and trend/prediction
+      // Risk Assessment
       if (isBelowPassing && (performanceTrend.contains('تراجع'))) {
         riskAssessment = 'مسار حرج';
-      } else if (isBelowPassing || (predictedNextGrade != null && predictedNextGrade < passingGrade)) {
+      } else if (isBelowPassing || (predictedNextGrade != null && predictedNextGrade < passingGradeForThisAnalysis)) {
         riskAssessment = 'يحتاج لمتابعة';
       } else if (performanceTrend.contains('تراجع')){
-        riskAssessment = 'يحتاج لمتابعة'; // Even if passing, decline needs attention
+        riskAssessment = 'يحتاج لمتابعة';
       }
 
     } else {
@@ -1083,20 +1135,20 @@ class _StudentViewPageState extends State<StudentViewPage>
       subjectName: subjectName,
       average: average,
       percentage: percentage,
-      maxPossibleGrade: maxGrade,
+      maxPossibleGrade: maxGradeForThisAnalysis, // Store the determined max grade
       highestGrade: highest,
       lowestGrade: lowest,
       assessment: assessment,
       consistency: consistency,
       isBelowPassing: isBelowPassing,
-      testResults: sortedTests, // Pass the original data (including -1) for display
-      trendSpots: trendSpots,   // Pass spots based on valid grades only
+      testResults: sortedTests, // Pass the original data (key -> grade)
+      trendSpots: trendSpots,
       performanceTrend: performanceTrend,
       predictedNextGrade: predictedNextGrade,
       riskAssessment: riskAssessment,
     );
   }
-  // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+  // --- ✅✅✅ END OF MODIFICATION (Analyze Logic) ✅✅✅ ---
 
 
   void _showReportOptions() {
@@ -1224,7 +1276,7 @@ class _StudentViewPageState extends State<StudentViewPage>
               textDirection: pw.TextDirection.rtl,
               style:
               pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-          ...allAnalyses.map((analysis) => _buildSubjectPdf(analysis)),
+          ...allAnalyses.map((analysis) => _buildSubjectPdf(analysis)), // Pass _allTestsMap here
         ];
         break;
       case ReportType.table:
@@ -1348,7 +1400,7 @@ class _StudentViewPageState extends State<StudentViewPage>
           children: [
             _buildPdfTableCell(analysis.assessment),
             _buildPdfTableCell('${(analysis.percentage * 100).toStringAsFixed(1)}%'),
-            _buildPdfTableCell('${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}'),
+            _buildPdfTableCell('${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}'), // Use max grade from analysis
             _buildPdfTableCell(analysis.subjectName),
           ],
         ),
@@ -1441,6 +1493,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
+  // --- ✅✅✅ START OF MODIFICATION (PDF Subject Logic) ✅✅✅ ---
   pw.Widget _buildSubjectPdf(_AnalysisResult analysis) {
     PdfColor riskColor;
     switch (analysis.riskAssessment) {
@@ -1473,7 +1526,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                     1: const pw.FlexColumnWidth(3),
                   },
                   children: [
-                    _buildPdfInfoRow('المتوسط', '${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}'),
+                    _buildPdfInfoRow('المتوسط', '${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}'), // Use max grade from analysis
                     _buildPdfInfoRow('النسبة المئوية', '${(analysis.percentage * 100).toStringAsFixed(1)}%'),
                     _buildPdfInfoRow('التقييم العام', analysis.assessment),
                     _buildPdfInfoRow('أعلى درجة', analysis.highestGrade.toString()),
@@ -1495,17 +1548,16 @@ class _StudentViewPageState extends State<StudentViewPage>
                   cellAlignment: pw.Alignment.center,
                   cellStyle: const pw.TextStyle(),
                   data: <List<String>>[
-                    <String>['الدرجة', 'الاختبار'], // Headers
-                    ...analysis.testResults.map((e) {
-                      // --- ✅✅✅ التعديل هنا ✅✅✅ ---
-                      // استخدم this للوصول الصريح للمتغير العضو
-                      final testInfo = this._allTestsMap[e.key];
-                      // --- ✅✅✅ نهاية التعديل ✅✅✅ ---
-                      final maxGradeForTest = (testInfo != null && ['رياضيات', 'لغتي', 'علوم'].contains(testInfo.subject) && testInfo.key.contains('profession13'))
+                    <String>['الدرجة', 'الاختبار'], // Headers (RTL order)
+                    ...analysis.testResults.map((e) { // e.key is test KEY, e.value is grade
+                      final testInfo = _allTestsMap[e.key];
+                      // Determine max grade for *this specific test*
+                      final double maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13'))
                           ? 10.0
                           : 20.0;
-                      final gradeDisplay = e.value == -1 ? 'غائب' : '${e.value} / ${maxGradeForTest.toInt()}';
+                      final gradeDisplay = e.value == -1 ? 'غائب' : '${e.value} / ${maxGradeForThisTest.toInt()}';
                       final testNameDisplay = testInfo?.name ?? e.key;
+                      // Ensure correct order for RTL table
                       return [gradeDisplay, testNameDisplay];
                     }).toList(),
                   ],
@@ -1515,8 +1567,10 @@ class _StudentViewPageState extends State<StudentViewPage>
         )
     );
   }
+  // --- ✅✅✅ END OF MODIFICATION (PDF Subject Logic) ✅✅✅ ---
 
   pw.TableRow _buildPdfInfoRow(String label, String value, {PdfColor? valueColor}) {
+    // Ensure correct order for RTL
     return pw.TableRow(children: [
       pw.Padding(
         padding: const pw.EdgeInsets.all(4),
@@ -1890,6 +1944,11 @@ class _StudentViewPageState extends State<StudentViewPage>
       batch.update(doc.reference, {'isRead': true});
     }
     await batch.commit();
+    // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
+    // بمجرد قراءة الإشعارات، نقوم بمسح قائمة الإشعارات "المُعالجة"
+    // للسماح بظهور إشعارات جديدة مرة أخرى
+    _processedNotificationIds.clear();
+    // --- ✅✅✅ END OF NOTIFICATION MODIFICATION ✅✅✅ ---
   }
 
   Future<void> _signOutAndGoToLogin() async {
@@ -2220,11 +2279,13 @@ class _SubjectResultCard extends StatelessWidget {
     required this.analysis,
     required this.subjectIcon,
     required this.color,
+    required this.allTestsMap, // Add this
   });
 
   final _AnalysisResult analysis;
   final IconData subjectIcon;
   final Color color;
+  final Map<String, TestInfo> allTestsMap; // Receive the map
 
   Widget _getRiskAssessmentWidget() {
     IconData icon;
@@ -2289,8 +2350,7 @@ class _SubjectResultCard extends StatelessWidget {
                   footer: Padding(
                     padding: const EdgeInsets.only(top: 8.0),
                     child: Text(
-                      // --- ✅✅✅ MODIFICATION: Show max grade correctly ---
-                        "المتوسط: ${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}",
+                        "المتوسط: ${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}", // Use max grade from analysis
                         style: const TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 15.0)),
                   ),
@@ -2317,15 +2377,13 @@ class _SubjectResultCard extends StatelessWidget {
                       const SizedBox(height: 8),
                       _InfoChip(
                           label: 'أعلى درجة',
-                          // --- ✅✅✅ MODIFICATION: Show max grade correctly ---
-                          value: '${analysis.highestGrade} / ${analysis.maxPossibleGrade.toInt()}',
+                          value: '${analysis.highestGrade} / ${analysis.maxPossibleGrade.toInt()}', // Use max grade from analysis
                           icon: Icons.arrow_upward_outlined,
                           color: Colors.green),
                       const SizedBox(height: 8),
                       _InfoChip(
                           label: 'أدنى درجة',
-                          // --- ✅✅✅ MODIFICATION: Show max grade correctly ---
-                          value: '${analysis.lowestGrade} / ${analysis.maxPossibleGrade.toInt()}',
+                          value: '${analysis.lowestGrade} / ${analysis.maxPossibleGrade.toInt()}', // Use max grade from analysis
                           icon: Icons.arrow_downward_outlined,
                           color: Colors.redAccent),
                     ],
@@ -2359,7 +2417,7 @@ class _SubjectResultCard extends StatelessWidget {
                 color: Theme.of(context).primaryColor,
                 label: 'الدرجة التالية المتوقعة',
                 value:
-                '~${analysis.predictedNextGrade!.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}',
+                '~${analysis.predictedNextGrade!.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}', // Use max grade from analysis
               ),
             const Divider(height: 32),
             Text('تتبع الأداء الزمني',
@@ -2371,7 +2429,7 @@ class _SubjectResultCard extends StatelessWidget {
             _PerformanceTrendChart(
                 spots: analysis.trendSpots,
                 color: color,
-                maxGrade: analysis.maxPossibleGrade),
+                maxGrade: analysis.maxPossibleGrade), // Use max grade from analysis
             const Divider(height: 32),
             ExpansionTile(
               title: Text('عرض تفاصيل الدرجات',
@@ -2381,11 +2439,16 @@ class _SubjectResultCard extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.bold)),
               tilePadding: EdgeInsets.zero,
               children: [
-                ...analysis.testResults.map((entry) {
-                  // --- ✅✅✅ MODIFICATION: Use _allTestsMap ---
-                  var _allTestsMap;
-                  final testInfo = _allTestsMap[entry.key];
+                // --- ✅✅✅ START OF MODIFICATION (Individual Grade Display) ✅✅✅ ---
+                ...analysis.testResults.map((entry) { // entry.key is test KEY, entry.value is grade
+                  final testInfo = allTestsMap[entry.key];
                   final testNameDisplay = testInfo?.name ?? entry.key; // Use real test name
+
+                  // Determine max grade for *this specific test*
+                  final double maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13'))
+                      ? 10.0
+                      : 20.0;
+
                   return Padding(
                     padding: const EdgeInsets.symmetric(
                         vertical: 6.0, horizontal: 8.0),
@@ -2393,24 +2456,21 @@ class _SubjectResultCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(testNameDisplay, style: const TextStyle(fontSize: 15)), // Show actual test name
-                        // --- ✅ MODIFICATION START ✅ ---
-                        // Display 'غائب' in the UI for absent students.
                         Text(
                           entry.value == -1
                               ? 'غائب'
-                          // --- ✅✅✅ MODIFICATION: Use analysis.maxPossibleGrade ---
-                              : '${entry.value} / ${analysis.maxPossibleGrade.toInt()}',
+                              : '${entry.value} / ${maxGradeForThisTest.toInt()}', // Show correct max grade
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                             color: entry.value == -1 ? Colors.grey.shade600 : Colors.black87,
                           ),
                         ),
-                        // --- ✅ MODIFICATION END ✅ ---
                       ],
                     ),
                   );
                 }),
+                // --- ✅✅✅ END OF MODIFICATION (Individual Grade Display) ✅✅✅ ---
               ],
             ),
           ],
@@ -2479,7 +2539,6 @@ class _PerformanceTrendChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Need at least 2 points to draw a line
     if (spots.length < 2) {
       return Container(
         height: 150,
@@ -2490,12 +2549,10 @@ class _PerformanceTrendChart extends StatelessWidget {
       );
     }
 
-    // Determine interval for y-axis labels
     double yInterval = maxGrade / 4;
-    if (yInterval < 1) yInterval = 1; // Ensure interval is at least 1
+    if (yInterval < 1) yInterval = 1;
 
-    // Determine interval for x-axis labels based on number of spots
-    double xInterval = (spots.length / 5).ceil().toDouble(); // Show roughly 5 labels
+    double xInterval = (spots.length / 5).ceil().toDouble();
     if (xInterval < 1) xInterval = 1;
 
     return SizedBox(
@@ -2515,11 +2572,11 @@ class _PerformanceTrendChart extends StatelessWidget {
                 sideTitles: SideTitles(
                   showTitles: true,
                   reservedSize: 28,
-                  interval: yInterval, // Use calculated interval
+                  interval: yInterval,
                   getTitlesWidget: (value, meta) => SideTitleWidget(
                     axisSide: meta.axisSide,
                     space: 4,
-                    child: Text(value.toInt().toString()), // Show integer grades
+                    child: Text(value.toInt().toString()),
                   ),
                 )
             ),
@@ -2527,7 +2584,7 @@ class _PerformanceTrendChart extends StatelessWidget {
                 sideTitles: SideTitles(
                     showTitles: true,
                     reservedSize: 30,
-                    interval: xInterval, // Use calculated interval
+                    interval: xInterval,
                     getTitlesWidget: _bottomTitleWidgets)),
             topTitles:
             const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -2538,13 +2595,12 @@ class _PerformanceTrendChart extends StatelessWidget {
               show: true,
               border: Border.all(color: const Color(0xff37434d), width: 1)),
           minY: 0,
-          maxY: maxGrade,
-          // Adjust minX and maxX based on the number of valid spots
+          maxY: maxGrade, // Use maxGrade from analysis
           minX: 0,
-          maxX: (spots.length - 1).toDouble(), // X-axis goes from 0 to number_of_spots - 1
+          maxX: (spots.length - 1).toDouble(),
           lineBarsData: [
             LineChartBarData(
-              spots: spots, // Spots already have correct x-values (0, 1, 2...)
+              spots: spots,
               isCurved: true,
               color: color,
               barWidth: 4,
@@ -2560,7 +2616,6 @@ class _PerformanceTrendChart extends StatelessWidget {
               belowBarData: BarAreaData(show: true, color: color.withOpacity(0.2)),
             ),
           ],
-          // Optional: Add tooltips
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
               tooltipBgColor: color.withOpacity(0.8),
@@ -2571,7 +2626,6 @@ class _PerformanceTrendChart extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   );
-                  // Display grade with one decimal place
                   return LineTooltipItem(touchedSpot.y.toStringAsFixed(1), textStyle);
                 }).toList();
               },
@@ -2583,21 +2637,17 @@ class _PerformanceTrendChart extends StatelessWidget {
     );
   }
 
-  // --- ✅✅✅ MODIFICATION: Show test number correctly ---
   Widget _bottomTitleWidgets(double value, TitleMeta meta) {
     final style = TextStyle(
       color: Colors.grey.shade700,
       fontWeight: FontWeight.bold,
-      fontSize: 10, // Smaller font for potentially more labels
+      fontSize: 10,
     );
-    // The 'value' corresponds to the index (0, 1, 2...). Add 1 for display.
     return Padding(
       padding: const EdgeInsets.only(top: 8.0),
-      // Use "خ${value.toInt() + 1}" for "Test X"
       child: Text('خ${value.toInt() + 1}', style: style),
     );
   }
-// --- ✅✅✅ END OF MODIFICATION ---
 }
 
 class _MarqueeText extends StatefulWidget {
@@ -2627,7 +2677,6 @@ class _MarqueeTextState extends State<_MarqueeText> {
   }
 
   void _startScrolling() {
-    // Added delay to ensure dimensions are available
     Future.delayed(const Duration(milliseconds: 500), () {
       if (!mounted || !_scrollController.hasClients || !_scrollController.position.hasContentDimensions || _scrollController.position.maxScrollExtent == 0) {
         return;
@@ -2637,22 +2686,18 @@ class _MarqueeTextState extends State<_MarqueeText> {
           timer.cancel();
           return;
         }
-
-        // Check again before animating
         if (!_scrollController.hasClients || !_scrollController.position.hasContentDimensions) {
-          timer.cancel(); // Stop if context is lost
+          timer.cancel();
           return;
         }
-
         try {
           await _scrollController.animateTo(
             _scrollController.position.maxScrollExtent,
-            // Adjust duration based on text length for smoother effect
-            duration: Duration(milliseconds: (widget.text.length * 150).clamp(2000, 8000)), // Example: 150ms per char
+            duration: Duration(milliseconds: (widget.text.length * 150).clamp(2000, 8000)),
             curve: Curves.ease,
           );
           await Future.delayed(const Duration(seconds: 2));
-          if (!mounted || !_scrollController.hasClients) { // Check again
+          if (!mounted || !_scrollController.hasClients) {
             timer.cancel();
             return;
           }
@@ -2662,7 +2707,6 @@ class _MarqueeTextState extends State<_MarqueeText> {
             curve: Curves.ease,
           );
         } catch (e) {
-          // Catch potential errors during animation (e.g., if widget is disposed)
           print("Error during marquee animation: $e");
           timer.cancel();
         }
@@ -2680,14 +2724,12 @@ class _MarqueeTextState extends State<_MarqueeText> {
         widget.text,
         style: widget.style,
         maxLines: 1,
-        softWrap: false, // Prevent wrapping to ensure horizontal scroll
+        softWrap: false,
       ),
     );
   }
 }
 
-// --- ✅✅✅ START OF MODIFICATION (Animated Button Widget) ✅✅✅ ---
-/// ويدجت مخصص لإضافة تأثير "نبض" عند الضغط على الزر
 class _AnimatedScaleButton extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
@@ -2728,7 +2770,7 @@ class _AnimatedScaleButtonState extends State<_AnimatedScaleButton>
 
   void _onTapUp(TapUpDetails details) {
     _controller.reverse();
-    widget.onTap(); // تنفيذ الدالة الأصلية
+    widget.onTap();
   }
 
   void _onTapCancel() {
@@ -2748,4 +2790,3 @@ class _AnimatedScaleButtonState extends State<_AnimatedScaleButton>
     );
   }
 }
-// --- ✅✅✅ END OF MODIFICATION (Animated Button Widget) ✅✅✅ ---
