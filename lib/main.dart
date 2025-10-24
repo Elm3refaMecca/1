@@ -9,6 +9,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'dart:math' as math; // استيراد مكتبة الرياضيات لتحديد الحجم الأقصى
 
+// --- ✅✅✅ START OF MODIFICATION (FCM Import) ✅✅✅ ---
+// يجب إضافة هذه الحزمة في pubspec.yaml لكي يعمل الكود
+import 'package:firebase_messaging/firebase_messaging.dart';
+// --- ✅✅✅ END OF MODIFICATION (FCM Import) ✅✅✅ ---
+
 // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
 // تم إضافة المكتبات المطلوبة لتشغيل ميزة إعادة التحميل على الويب
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -34,11 +39,30 @@ Future<void> _launchUrlHelper(String url) async {
   }
 }
 
+// --- ✅✅✅ START OF MODIFICATION (FCM Background Handler) ✅✅✅ ---
+// هذه الدالة ضرورية لمعالجة الإشعارات عندما يكون التطبيق يعمل في الخلفية أو مغلق
+// يجب أن تكون دالة علوية (Top-Level Function)
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // عند العمل في الخلفية، يجب تهيئة Firebase مرة أخرى
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  debugPrint("Handling a background message: ${message.messageId}");
+  // يمكن هنا حفظ بيانات الإشعار في قاعدة البيانات (Firestore) لإنشاء سجل
+  // إشعار داخل التطبيق عند فتحه، أو لمعالجة الإجراء المطلوب (مثل تحديث بيانات الطالب).
+}
+// --- ✅✅✅ END OF MODIFICATION (FCM Background Handler) ✅✅✅ ---
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  // --- ✅✅✅ START OF MODIFICATION (FCM Background Handler setup) ✅✅✅ ---
+  // تسجيل الدالة التي تتعامل مع إشعارات الخلفية
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  // --- ✅✅✅ END OF MODIFICATION (FCM Background Handler setup) ✅✅✅ ---
   runApp(const TeacherLoginApp());
 }
 
@@ -148,17 +172,85 @@ class TeacherLoginApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+// --- ✅✅✅ START OF MODIFICATION (AuthWrapper to StatefulWidget + FCM Logic) ✅✅✅ ---
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+
+  final _firestore = FirebaseFirestore.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupFCM(); // تهيئة إشعارات FCM عند بدء التشغيل
+  }
+
+  Future<void> _setupFCM() async {
+    final messaging = FirebaseMessaging.instance;
+
+    // 1. طلب الأذونات (مهم لجميع المنصات ولإشعارات شريط الحالة)
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      announcement: true, // قد تكون مفيدة
+      badge: true,
+      carPlay: false,
+      criticalAlert: true,
+      provisional: false,
+      sound: true,
+    );
+
+    debugPrint('User granted permission: ${settings.authorizationStatus}');
+
+    // 2. الحصول على رمز الجهاز (FCM Token) لـ Firebase
+    String? token = await messaging.getToken();
+    debugPrint("FCM Token: $token");
+
+    // يجب هنا إرسال الـ token إلى Firestore وتخزينه مع بيانات المستخدم (الطالب/المعلم)
+    // حتى تتمكن الدوال السحابية (Cloud Functions) من إرسال إشعار مستهدف لهذا الجهاز.
+
+    // 3. معالجة الإشعارات أثناء عمل التطبيق في الواجهة الأمامية (Foreground)
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('Got a message whilst in the foreground!');
+      debugPrint('Message data: ${message.data}');
+
+      if (message.notification != null) {
+        debugPrint('Message also contained a notification: ${message.notification!.title} / ${message.notification!.body}');
+        // هنا يمكن عرض الإشعار داخل التطبيق (In-App Notification/Banner)
+        // ومهم: استدعاء تحديث لبيانات الطالب (مثل FutureBuilder) ليرى التغيير فوراً.
+      }
+      // يمكن إضافة منطق تحديث الواجهة هنا لتظهر التغييرات للطالب فوراً
+      // (مثل استدعاء FutureBuilder مرة أخرى).
+    });
+
+    // 4. معالجة الإشعارات عند النقر عليها
+    // عند النقر على إشعار والتطبيق مغلق تماماً (Terminated)
+    RemoteMessage? initialMessage = await messaging.getInitialMessage();
+    if (initialMessage != null) {
+      debugPrint("App launched from terminated state by notification: ${initialMessage.data}");
+      // هنا يمكن توجيه المستخدم لصفحة معينة داخل التطبيق بناءً على بيانات الإشعار
+    }
+
+    // عند النقر على إشعار والتطبيق يعمل في الخلفية (Background)
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      debugPrint('A new onMessageOpenedApp event was published!');
+      debugPrint("App resumed from background by notification: ${message.data}");
+      // هنا أيضاً يمكن توجيه المستخدم
+    });
+  }
 
   Future<String> _getUserRole(User user) async {
     try {
       final teacherDoc =
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      await _firestore.collection('users').doc(user.uid).get();
       if (teacherDoc.exists) {
         return 'teacher';
       }
-      final studentDoc = await FirebaseFirestore.instance
+      final studentDoc = await _firestore
           .collection('students')
           .doc(user.uid)
           .get();
@@ -209,6 +301,7 @@ class AuthWrapper extends StatelessWidget {
     );
   }
 }
+// --- ✅✅✅ END OF MODIFICATION (AuthWrapper to StatefulWidget + FCM Logic) ✅✅✅ ---
 
 // Data models for the leaderboards
 class TopStudent {
@@ -745,7 +838,7 @@ class _WelcomePageState extends State<WelcomePage> {
             _buildFooterColumn(
               'للشكاوي والملاحظات',
               [
-                'مدير المدرسة  أ: عبدالله المطرفي (966539547972+)',
+                'مدير المدرسة أ: عبدالله المطرفي (966539547972+)',
                 'وكيل الشئون التعليمية: أ/عماد الجندي (966502361091+)',
                 'وكيل المدرسة: ا عصام المطرفي (966501468550+)',
                 'موجه الطلاب: أ عبدالرحمن عثمان (966500971015+)',
