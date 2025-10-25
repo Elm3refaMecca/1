@@ -99,12 +99,12 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
         title: prefixedTitle,
         body: body,
         icon: "/icons/Icon-192.png", 
-        badge: "/2.png", // تذكر: هذه يجب أن تكون أيقونة أحادية اللون
-        sound: "/1.mp3", // <-- تم الإبقاء على الصوت كما طلبت
+        badge: "/2.png", // ✅ <--- هنا يتم تحديد أيقونة شريط الحالة (2.png)
+        sound: "/1.mp3", // <-- تطبيق الصوت
         
         // --- ✅✅✅ التعديل هنا: جعل الإشعار "دائم" ---
-        requireInteraction: true, // <-- هذا يجعل الإشعار "دائم"
-        // تم حذف الـ "tag" لضمان ظهور كل إشعار بشكل مستقل
+        requireInteraction: true, // ✅ <--- هذا يجعل الإشعار "دائم"
+        // تم حذف الـ "tag" من هنا (وهذا صحيح) ليتم التعامل معه في المتصفح
         // --- نهاية التعديل ---
       },
     },

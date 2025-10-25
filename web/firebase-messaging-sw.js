@@ -29,7 +29,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationBody = payload.notification?.body || payload.webpush?.notification?.body || "لديك إشعار جديد.";
   
   const notificationIcon = payload.webpush?.notification?.icon || '/icons/Icon-192.png';
-  const notificationBadge = payload.webpush?.notification?.badge || '/2.png';
+  const notificationBadge = payload.webpush?.notification?.badge || '/2.png'; // ✅ <--- هنا يتم تحديد الأيقونة 2.png
   
   // التأكد من جلب الصوت المخصص
   const notificationSound = payload.webpush?.notification?.sound || '/1.mp3';
@@ -38,14 +38,14 @@ messaging.onBackgroundMessage((payload) => {
   const notificationOptions = {
     body: notificationBody,
     icon: notificationIcon,   
-    badge: notificationBadge,
-    sound: notificationSound, // <-- تطبيق الصوت المخصص
+    badge: notificationBadge, // ✅ <--- هنا يتم تطبيق الأيقونة 2.png
+    sound: notificationSound, // ✅ <--- هنا يتم تطبيق الصوت (بشكل صحيح ومتزامن)
     
     // يجعل الإشعار "دائم" حتى يتفاعل معه المستخدم
-    requireInteraction: payload.webpush?.notification?.requireInteraction || true, 
+    requireInteraction: payload.webpush?.notification?.requireInteraction || true, // ✅ <--- هنا يتم تطبيق الديمومة
     
     // استخدام "tag" فريد لضمان أن كل إشعار جديد ولا يستبدل القديم
-    tag: 'elm3refa-' + Date.now() 
+    tag: 'elm3refa-' + Date.now() // ✅ <--- هنا يتم ضمان تفرد الإشعار
   };
   // --- نهاية التعديل ---
 
