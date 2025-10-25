@@ -1,18 +1,20 @@
-// C:\appweb1\fcm\index.js (النسخة المعدلة v5 - أيقونة وشارة 2.png)
+// C:\appweb1\fcm\index.js (النسخة المعدلة v4 - تدعم الصوت المخصص)
 
+// 1. استيراد المكتبات v2
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getMessaging } = require("firebase-admin/messaging");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 const logger = require("firebase-functions/logger");
 
+// 2. تهيئة التطبيق وقاعدة البيانات
 initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
 
 // --- (دوال مساعدة مثل getTestMaps تبقى كما هي) ---
 function getTestMaps() {
-    // ... (الكود الخاص بها كما في الملف السابق) ...
+    // ... (الكود الخاص بها كما في الملف الأصلي) ...
   const testKeyToName = {};
   const testKeyToSubject = {};
 
@@ -82,45 +84,61 @@ function getTestMaps() {
 async function sendNotification(fcmToken, studentId, title, body, actionData) {
   if (!fcmToken) {
     logger.info(`الطالب ${studentId} لا يملك FCM Token. تم تخطي الإشعار.`);
-    return;
+    return; // لا نرسل إذا لم يكن هناك توكن
   }
 
+  // 1. بناء رسالة الإشعار (Payload)
   const payload = {
+    // (أ) الإشعار القياسي (للتوافق مع التطبيقات الأصلية وغيرها)
     notification: {
       title: title,
       body: body,
+      // يمكن تحديد صوت افتراضي هنا للتطبيقات الأصلية إذا أردت
+      // sound: "default", // أو اسم ملف صوتي خاص بالتطبيق الأصلي
     },
-    data: actionData,
+    // (ب) بيانات إضافية (مفيدة للتطبيق عندما يكون مفتوحاً)
+    data: actionData, // مثل { action: "OPEN_STUDENT_VIEW", studentId: "..." }
+
+    // --- ✅✅✅ التعديل الأساسي: قسم webpush ---
+    // هذا القسم مخصص لإشعارات الويب (PWA) ويتحكم بما يظهره المتصفح
     webpush: {
       notification: {
-        title: title,
-        body: body,
-        // --- ✅✅✅ التعديل هنا: تحديد الأيقونة والشارة ---
-        icon: "/2.png",  // الأيقونة الرئيسية
-        badge: "/2.png", // الأيقونة الصغيرة (الشارة) لشريط الحالة
-        // --- نهاية التعديل ---
-        sound: "/1.mp3", // سيُشغل فقط في onMessage (عندما يكون التطبيق مفتوحًا)
-        // tag: `student-update-${studentId}`, // لإلغاء الإشعارات القديمة بنفس الـ tag
-        // requireInteraction: false,
+        title: title, // العنوان الذي سيظهر
+        body: body,   // النص الرئيسي للإشعار
+        // ✅ المسار إلى أيقونة الإشعار (يجب أن يكون في مجلد web/icons)
+        icon: "/icons/Icon-192.png",
+        // ✅ المسار إلى ملف الصوت (يجب أن يكون في مجلد web) - سيُشغل فقط في onMessage
+        sound: "/1.mp3",
+        // خيارات إضافية ممكنة:
+        // badge: "/icons/badge-72.png", // أيقونة صغيرة اختيارية
+        // tag: `student-update-${studentId}`, // لتجميع الإشعارات
+        // requireInteraction: true, // يجعل الإشعار يبقى حتى يتفاعل المستخدم (استخدم بحذر)
       },
-      // يمكنك إضافة رابط عند النقر هنا إذا أردت
+      // يمكنك إضافة fcm_options هنا إذا أردت رابطاً مباشراً عند النقر
       // fcm_options: {
-      //   link: "https://your-app-url.com/"
+      //   link: "https://your-app-url.com/" // مثال: الرابط الرئيسي للتطبيق
       // }
     },
+    // --- نهاية قسم webpush ---
+
+    // يمكنك إضافة أقسام أخرى مثل apns (لـ iOS) أو android إذا لزم الأمر
   };
 
+  // 2. إرسال الإشعار باستخدام sendToDevice
   try {
     const response = await messaging.sendToDevice(fcmToken, payload);
     logger.info(`تم إرسال الإشعار بنجاح إلى الطالب: ${studentId}`, response);
 
+    // التحقق من وجود أخطاء في الاستجابة (مثل توكن غير صالح)
     response.results.forEach((result, index) => {
       const error = result.error;
       if (error) {
         logger.error(`فشل إرسال الإشعار إلى توكن [${index}]:`, error);
+        // إذا كان الخطأ بسبب توكن غير مسجل، قم بحذفه من Firestore
         if (error.code === "messaging/registration-token-not-registered" ||
             error.code === "messaging/invalid-registration-token") {
           logger.warn(`التوكن ${fcmToken} غير صالح للطالب: ${studentId}. سيتم محاولة حذفه.`);
+          // (يفضل التأكد أن fcmToken هو الـ token الفردي وليس مصفوفة هنا)
           db.collection("students").doc(studentId).update({
             fcmToken: FieldValue.delete(),
           }).then(() => {
@@ -134,15 +152,18 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
 
   } catch (error) {
     logger.error(`خطأ عام عند محاولة إرسال الإشعار إلى ${studentId}:`, error);
+    // قد تحتاج لمعالجة أخطاء أخرى هنا
   }
 
+  // 3. كتابة الإشعار في Firestore (لجرس الإشعارات داخل التطبيق)
   try {
     await db.collection("students").doc(studentId).collection("notifications").add({
-      message: body,
+      message: body, // النص الذي يظهر في الجرس
       timestamp: FieldValue.serverTimestamp(),
       isRead: false,
-      action: actionData.action,
-      relatedId: actionData.studentId,
+      // يمكنك إضافة بيانات أخرى هنا إذا احتجتها عند عرض الإشعار في التطبيق
+      action: actionData.action, // مثل "OPEN_STUDENT_VIEW"
+      relatedId: actionData.studentId, // أو أي ID ذو صلة
     });
     logger.info(`تم تسجيل الإشعار في Firestore للطالب: ${studentId}`);
   } catch (dbError) {
@@ -150,10 +171,9 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
   }
 }
 
-// الدالة الرئيسية التي تستمع لتحديثات الطلاب (تبقى كما هي)
+// 4. الدالة الرئيسية التي تستمع لتحديثات الطلاب
 exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId}", async (event) => {
-  // ... (الكود الخاص بها كما في الملف السابق بدون تغيير في المنطق) ...
-    if (!event.data) {
+  if (!event.data) {
     logger.warn("No data in event, exiting.");
     return null; // يجب أن تعيد الدالة شيئاً أو Promise
   }
@@ -188,11 +208,11 @@ exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId
 
   if (likesAfter > likesBefore) {
     notificationTitle = "تهنئة من المعلم!";
-    notificationBody = `أهلاً ${studentDataAfter.name || 'بالطالب'}، لقد حصلت على إعجاب جديد! رائع! 🎉`; // استخدام اسم الطالب
+    notificationBody = "لقد حصلت على إعجاب جديد! رائع! 🎉";
     shouldSend = true;
   } else if (dislikesAfter > dislikesBefore) {
     notificationTitle = "ملاحظة سلوكية";
-    notificationBody = `أهلاً ${studentDataAfter.name || 'بالطالب'}، تم تسجيل ملاحظة سلوك. يرجى المراجعة. ⚠️`; // استخدام اسم الطالب
+    notificationBody = "تم تسجيل ملاحظة سلوك. يرجى المراجعة. ⚠️";
     shouldSend = true;
   }
 
@@ -212,21 +232,20 @@ exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId
       const testName = testKeyToName[testKey] || "اختبار";
       const subjectName = testKeyToSubject[testKey] || "مادة";
       shouldSend = true; // وجدنا تغييراً في درجة
-      const studentName = studentDataAfter.name || 'أيها الطالب'; // استخدام اسم الطالب
 
       if (gradeBefore === undefined && gradeAfter !== undefined) { // رصد جديد
         notificationTitle = `تم رصد درجة: ${subjectName}`;
         notificationBody = (gradeAfter === -1) ?
-          `مرحباً ${studentName}، تم تسجيلك "غائب" في: ${testName}.` :
-          `مرحباً ${studentName}، تم رصد درجتك (${gradeAfter}) في: ${testName}.`;
+          `تم تسجيلك "غائب" في: ${testName}.` :
+          `تم رصد درجتك (${gradeAfter}) في: ${testName}.`;
       } else if (gradeBefore !== undefined && gradeAfter !== undefined) { // تعديل درجة
         notificationTitle = `تم تعديل درجة: ${subjectName}`;
         notificationBody = (gradeAfter === -1) ?
-          `مرحباً ${studentName}، تم تعديل حالتك إلى "غائب" في: ${testName}.` :
-          `مرحباً ${studentName}، تم تعديل درجتك في ${testName} إلى (${gradeAfter}).`;
+          `تم تعديل حالتك إلى "غائب" في: ${testName}.` :
+          `تم تعديل درجتك في ${testName} إلى (${gradeAfter}).`;
       } else if (gradeBefore !== undefined && gradeAfter === undefined) { // حذف درجة
         notificationTitle = `تم حذف درجة: ${subjectName}`;
-        notificationBody = `مرحباً ${studentName}، تم حذف درجتك التي كانت مسجلة في: ${testName}.`;
+        notificationBody = `تم حذف درجتك التي كانت مسجلة في: ${testName}.`;
       } else {
         shouldSend = false; // حالة غير متوقعة، لا ترسل
       }
