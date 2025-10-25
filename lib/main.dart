@@ -1,6 +1,5 @@
 // main.dart (MODIFIED FOR "KHURAAFI" UI/UX, SHIMMER, AND NOTIFICATIONS)
 // ✅✅✅ (FIXED) تم إصلاح مشكلة البطء عند أول تشغيل ✅✅✅
-// ✅✅✅ (ADDED) تم إضافة زر إعادة التحميل في WelcomePage ✅✅✅
 
 import 'dart:async';
 import 'dart:js' as js; // لاستدعاء دوال JavaScript
@@ -14,7 +13,6 @@ import 'dart:math' as math; // استيراد مكتبة الرياضيات لت
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
-// --- ✅ (MODIFIED) استخدام universal_html مطلوب لزر إعادة التحميل ---
 import 'package:universal_html/html.dart' as html;
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -218,13 +216,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
     _setupFCM();
   }
 
-  // --- START OF PERFORMANCE FIX (1) ---
+  // --- ✅✅✅ START OF PERFORMANCE FIX (1) ✅✅✅ ---
+  // تم تعديل هذه الدالة لتكون خفيفة جداً عند بدء التشغيل
+  // هي الآن تقوم فقط بـ "الاستماع" للإشعارات القادمة والاشتراك في المواضيع
+  // (تم حذف طلب الأذونات وطلب التوكن من هنا، لأنها كانت تسبب البطء)
   Future<void> _setupFCM() async {
     if (kIsWeb || defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
       try {
         final messaging = FirebaseMessaging.instance;
 
-        // 1. Subscribe to public topics (quick)
+        // 1. اشترك في المواضيع العامة (سريع)
         try {
           await messaging.subscribeToTopic('public_announcements');
           debugPrint("Subscribed to public_announcements topic");
@@ -232,7 +233,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           debugPrint("Failed to subscribe to topic: $e");
         }
 
-        // 2. Set up listeners (quick)
+        // 2. جهز المستمعات (سريع)
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
           debugPrint('Got a message whilst in the foreground!');
           if (message.notification != null) {
@@ -254,7 +255,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           debugPrint("App resumed from background by notification: ${message.data}");
         });
 
-        // --- 🛑 Removed requestPermission() and getToken() from here (caused slowness) ---
+        // --- 🛑 تم حذف طلب الأذونات والتوكن من هنا (كان يسبب البطء) ---
 
         debugPrint("FCM Listeners setup complete.");
 
@@ -266,15 +267,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 
-  /// --- START OF PERFORMANCE FIX (2) ---
-  /// Dedicated function to request notification permission and save token for a student
-  /// Will be called *only* after confirming the user is a student
+  /// --- ✅✅✅ START OF PERFORMANCE FIX (2) ✅✅✅ ---
+  /// دالة مخصصة لطلب إذن الإشعارات وحفظ التوكن للطالب
+  /// سيتم استدعاؤها "فقط" عندما نتأكد أن المستخدم هو "طالب"
   Future<void> _handleStudentTokenRegistration(DocumentReference studentDocRef, Map<String, dynamic>? studentData) async {
     if (kIsWeb || defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
       try {
         final messaging = FirebaseMessaging.instance;
 
-        // 1. Request permission now (when we know it's a student)
+        // 1. اطلب الإذن الآن (عندما نعرف أنه طالب)
         NotificationSettings settings = await messaging.requestPermission(
           alert: true,
           badge: true,
@@ -286,14 +287,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
         if (settings.authorizationStatus == AuthorizationStatus.authorized ||
             settings.authorizationStatus == AuthorizationStatus.provisional)
         {
-          // 2. Get token now
+          // 2. احصل على التوكن الآن
           String? token = await messaging.getToken();
           debugPrint("FCM Token acquired for student: $token");
 
           if (token != null) {
             final currentToken = studentData?['fcmToken'];
             if (currentToken != token) {
-              // 3. Save token to Firestore
+              // 3. احفظ التوكن في الفايرستور
               await studentDocRef.set({'fcmToken': token}, SetOptions(merge: true));
               debugPrint("FCM Token saved/updated for student.");
             }
@@ -307,8 +308,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
   }
 
-  // --- START OF PERFORMANCE FIX (3) ---
-  // Modified to call token registration function *without* awaiting (runs in background)
+  // --- ✅✅✅ START OF PERFORMANCE FIX (3) ✅✅✅ ---
+  // تم تعديل هذه الدالة لتستدعي دالة حفظ التوكن "بدون" أن توقف الواجهة
   Future<String> _getUserRole(User user) async {
     try {
       final teacherDoc =
@@ -323,11 +324,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (studentDoc.exists) {
         debugPrint("User role determined: student");
 
-        // --- ✅ Modification Here ---
-        // Call the new function to handle token *after* confirming student role
-        // (await removed) This will run in the background and not block UI
+        // --- ✅ التعديل هنا ---
+        // استدعاء الدالة الجديدة للتعامل مع التوكن *بعد* التحقق من أنه طالب
+        // (تم حذف await) هذا سيجعلها تعمل في الخلفية ولن توقف تحميل الواجهة
         _handleStudentTokenRegistration(studentDocRef, studentDoc.data() as Map<String, dynamic>?);
-        // --- End of Modification ---
+        // --- نهاية التعديل ---
 
         return 'student';
       }
@@ -346,7 +347,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       return 'unauthorized';
     }
   }
-  // --- END OF PERFORMANCE FIXES ---
+  // --- ✅✅✅ END OF PERFORMANCE FIXES ✅✅✅ ---
 
 
   @override
@@ -373,7 +374,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
               }
 
               if (roleSnapshot.hasError) {
-                // If error, return to WelcomePage instead of getting stuck
+                // في حالة حدوث خطأ، أعده لصفحة الترحيب بدلاً من تعليقه
                 return const WelcomePage();
               }
 
@@ -423,7 +424,7 @@ class WelcomePage extends StatefulWidget {
 class _WelcomePageState extends State<WelcomePage> {
   bool _isInstallable = false;
   bool _updateAvailable = false;
-  bool _isLoadingLeaderboards = true; // <-- Starts showing shimmer
+  bool _isLoadingLeaderboards = true; // <-- (مهم) سيبدأ وهو يعرض الشيمر
   List<TopStudent> _topStudents = [];
   List<TopClass> _topClasses = [];
   String _notificationPermission = 'default'; // 'default', 'granted', 'denied'
@@ -434,15 +435,19 @@ class _WelcomePageState extends State<WelcomePage> {
     _setupPwaListeners();
     _checkNotificationPermission();
 
-    // --- START OF PERFORMANCE FIX (4) - Lazy Loading ---
-    // Delay leaderboard fetching slightly
-    // This allows the login UI to render immediately
+    // --- ✅✅✅ START OF PERFORMANCE FIX (4) - تنفيذ اقتراحك ✅✅✅ ---
+    // لن يتم تحميل لوحة المتصدرين فوراً
+    // _fetchLeaderboards(); // <-- 🛑 تم التعطيل
+
+    // سيتم تأخير التحميل 300 مللي ثانية
+    // هذا يعطي الواجهة (الجزء العلوي) فرصة للظهور فوراً
+    // وسيعرض الشيمر في الجزء السفلي أثناء التحميل
     Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) {
         _fetchLeaderboards();
       }
     });
-    // --- END OF PERFORMANCE FIX (4) ---
+    // --- ✅✅✅ END OF PERFORMANCE FIX (4) ✅✅✅ ---
   }
 
   void _setupPwaListeners() {
@@ -578,7 +583,8 @@ class _WelcomePageState extends State<WelcomePage> {
 
   Future<void> _fetchLeaderboards() async {
     if (!mounted) return;
-    // No need to set _isLoadingLeaderboards = true, it starts true
+    // لا نحتاج لتغيير _isLoadingLeaderboards إلى true لأنه بدأ كذلك
+    // setState(() => _isLoadingLeaderboards = true);
     try {
       final studentsSnapshot = await FirebaseFirestore.instance
           .collection('students')
@@ -630,7 +636,7 @@ class _WelcomePageState extends State<WelcomePage> {
         setState(() {
           _topStudents = students;
           _topClasses = top5Classes;
-          _isLoadingLeaderboards = false; // <-- Stop shimmer
+          _isLoadingLeaderboards = false; // <-- (مهم) إيقاف الشيمر
         });
       }
 
@@ -638,7 +644,7 @@ class _WelcomePageState extends State<WelcomePage> {
       debugPrint("Error fetching leaderboards: $e\nStacktrace: $s");
       if(mounted) {
         setState(() {
-          _isLoadingLeaderboards = false; // <-- Stop shimmer even on error
+          _isLoadingLeaderboards = false; // <-- (مهم) إيقاف الشيمر حتى لو حدث خطأ
         });
       }
     }
@@ -667,26 +673,6 @@ class _WelcomePageState extends State<WelcomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // --- ✅✅✅ START OF REFRESH BUTTON MODIFICATION ✅✅✅ ---
-      appBar: AppBar(
-        title: const Text('بوابة المعرفة الأهلية'), // عنوان مناسب للصفحة الرئيسية
-        backgroundColor: Colors.transparent, // شفاف ليتماشى مع التدرج
-        elevation: 0, // إزالة الظل
-        actions: [
-          // إضافة زر التحديث هنا
-          if (kIsWeb) // يظهر الزر فقط على الويب
-            Tooltip(
-              message: 'إعادة تحميل الصفحة',
-              child: IconButton(
-                icon: const Icon(Icons.refresh, color: Colors.black54), // لون مناسب
-                onPressed: () {
-                  html.window.location.reload();
-                },
-              ),
-            ),
-        ],
-      ),
-      // --- ✅✅✅ END OF REFRESH BUTTON MODIFICATION ✅✅✅ ---
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -699,31 +685,33 @@ class _WelcomePageState extends State<WelcomePage> {
           ),
         ),
         child: SafeArea(
-          child: CustomScrollView( // Using CustomScrollView for lazy loading effect
+          // --- ✅✅✅ التعديل هنا: استخدام CustomScrollView يسمح بالتحميل الكسول ---
+          child: CustomScrollView(
             slivers: [
               SliverPadding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0), // Reduced vertical padding
+                padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 16.0),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate(
                     [
-                      // 1. Login card (appears immediately)
+                      // 1. الجزء العلوي (يظهر فوراً)
                       _buildLoginCard(),
                       const SizedBox(height: 24),
 
-                      // 2. Leaderboards (show shimmer, then data)
+                      // 2. الجزء السفلي (يعرض الشيمر ثم البيانات)
                       _buildTopStudentsCard(),
                       const SizedBox(height: 16),
                       _buildTopClassesCard(),
 
                       const SizedBox(height: 32),
                       _buildFooter(),
-                      const SizedBox(height: 70), // Space for FAB
+                      const SizedBox(height: 70), // مسافة للزر العائم
                     ],
                   ),
                 ),
               ),
             ],
           ),
+          // --- ✅✅✅ نهاية التعديل ---
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
@@ -774,7 +762,8 @@ class _WelcomePageState extends State<WelcomePage> {
     );
   }
 
-  // --- START OF MODIFICATION (Top Students Card - Shows shimmer) ---
+  // --- ✅✅✅ START OF MODIFICATION (New Top Students Card) ✅✅✅ ---
+  // (هذه الدالة الآن تعرض الشيمر تلقائياً إذا كانت _isLoadingLeaderboards = true)
   Widget _buildTopStudentsCard() {
     final Map<int, double> podiumHeights = {1: 150.0, 2: 120.0, 3: 90.0};
     final List<TopStudent> students = _topStudents;
@@ -789,16 +778,18 @@ class _WelcomePageState extends State<WelcomePage> {
               children: [
                 Icon(Icons.emoji_events, color: Colors.amber.shade700, size: 28),
                 const SizedBox(width: 8),
+                // --- ✅ إضافة "جمل أكثر" ---
                 Text("🏆 الطلاب المتميزون", style: Theme.of(context).textTheme.headlineSmall),
               ],
             ),
+            // --- ✅ إضافة "جمل أكثر" ---
             Text(
               "الأعلى انضباطاً على مستوى المدرسة",
               style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
             ),
             const Divider(height: 24),
-            // --- Shows shimmer while loading ---
-            if (_isLoadingLeaderboards)
+            // --- ✅ استخدام الشيمر الاحترافي ---
+            if (_isLoadingLeaderboards) // <-- (مهم) التحقق من حالة التحميل
               _buildLeaderboardShimmer()
             else if (students.isEmpty)
               const Padding(
@@ -903,10 +894,11 @@ class _WelcomePageState extends State<WelcomePage> {
       ),
     );
   }
-  // --- END OF MODIFICATION (Top Students Card) ---
+  // --- ✅✅✅ END OF MODIFICATION (New Top Students Card) ✅✅✅ ---
 
 
-  // --- START OF MODIFICATION (Top Classes Card - Shows shimmer) ---
+  // --- ✅✅✅ START OF MODIFICATION (New Top Classes Card) ✅✅✅ ---
+  // (هذه الدالة الآن تعرض الشيمر تلقائياً إذا كانت _isLoadingLeaderboards = true)
   Widget _buildTopClassesCard() {
     return Card(
       child: Padding(
@@ -918,16 +910,18 @@ class _WelcomePageState extends State<WelcomePage> {
               children: [
                 Icon(Icons.groups, color: Colors.teal.shade600, size: 28),
                 const SizedBox(width: 8),
+                // --- ✅ إضافة "جمل أكثر" ---
                 Text("🏛️ الفصول الأكثر انضباطاً", style: Theme.of(context).textTheme.headlineSmall),
               ],
             ),
+            // --- ✅ إضافة "جمل أكثر" ---
             Text(
               "كن سبباً في فوز فصلك!",
               style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
             ),
             const Divider(height: 24),
-            // --- Shows shimmer while loading ---
-            if (_isLoadingLeaderboards)
+            // --- ✅ استخدام الشيمر الاحترافي ---
+            if (_isLoadingLeaderboards) // <-- (مهم) التحقق من حالة التحميل
               _buildLeaderboardShimmer()
             else if (_topClasses.isEmpty)
               const Padding(
@@ -1013,7 +1007,7 @@ class _WelcomePageState extends State<WelcomePage> {
     );
   }
 
-  /// --- Shimmer Widget ---
+  /// --- ✅✅✅ ويدجت الشيمر الاحترافي الجديد ✅✅✅ ---
   Widget _buildLeaderboardShimmer() {
     return Shimmer.fromColors(
       baseColor: Colors.grey[200]!,
@@ -1053,7 +1047,7 @@ class _WelcomePageState extends State<WelcomePage> {
       ),
     );
   }
-  // --- END OF MODIFICATION (Top Classes Card & Shimmer) ---
+  // --- ✅✅✅ END OF MODIFICATION (New Top Classes Card & Shimmer) ✅✅✅ ---
 
 
   Widget _buildLoginCard() {
@@ -1097,6 +1091,7 @@ class _WelcomePageState extends State<WelcomePage> {
                 ),
                 borderRadius: BorderRadius.circular(12.0),
               ),
+              // --- ✅ تعديل: استخدام أنيميشن مختلف للمبرمج ---
               child: DefaultTextStyle(
                 style: TextStyle(
                   fontSize: 15.0,
@@ -1112,7 +1107,7 @@ class _WelcomePageState extends State<WelcomePage> {
                       speed: const Duration(milliseconds: 150),
                     ),
                     WavyAnimatedText(
-                      'elm3refa.sait', // (Error corrected in previous line, kept here for consistency with original)
+                      'elm3refa.site', // (هذا السطر كان به خطأ إملائي في ملفك الأصلي، أصلحته في السطر الذي قبله ولكن تركته هنا مطابقاً للأصل)
                       textAlign: TextAlign.center,
                       speed: const Duration(milliseconds: 150),
                     ),
@@ -1131,6 +1126,7 @@ class _WelcomePageState extends State<WelcomePage> {
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).primaryColor),
             ),
+            // --- ✅ إضافة "جمل أكثر" ---
             Text(
               "بوابتك الذكية لمتابعة الأداء الأكاديمي والسلوكي",
               textAlign: TextAlign.center,
@@ -1196,6 +1192,7 @@ class _WelcomePageState extends State<WelcomePage> {
   Widget _buildNotificationButton() {
     switch (_notificationPermission) {
       case 'granted':
+      // --- ✅ تحسين: إضافة أيقونة أوضح ---
         return OutlinedButton.icon(
           icon: const Icon(Icons.check_circle, color: Colors.green, size: 20),
           label: const Text('الإشعارات مفعلة بنجاح', style: TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.normal)),
@@ -1205,6 +1202,7 @@ class _WelcomePageState extends State<WelcomePage> {
           ),
         );
       case 'denied':
+      // --- ✅ تحسين: إضافة أيقونة أوضح ---
         return OutlinedButton.icon(
           icon: const Icon(Icons.notifications_off_outlined, color: Colors.red, size: 20),
           label: const Text('الإشعارات محظورة (يرجى تفعيلها من إعدادات المتصفح)', style: TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.normal)),
@@ -1215,6 +1213,7 @@ class _WelcomePageState extends State<WelcomePage> {
         );
       case 'default':
       default:
+      // --- ✅ تحسين: جعل الزر أكثر جاذبية ---
         return ElevatedButton.icon(
           icon: const Icon(Icons.notifications_active, size: 20),
           label: const Text('تفعيل الإشعارات الهامة'),
@@ -1224,10 +1223,10 @@ class _WelcomePageState extends State<WelcomePage> {
             foregroundColor: Colors.white,
             textStyle: const TextStyle(
               fontFamily: 'Cairo',
-              fontSize: 14, // Smaller size
+              fontSize: 14, // حجم أصغر
               fontWeight: FontWeight.bold,
             ),
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20), // Smaller padding
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20), // padding أصغر
           ),
         );
     }
@@ -1459,7 +1458,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-/// Animated Trophy Widget (copied here to work in WelcomePage)
+/// ويدجت الكأس المتحرك (تم نسخه هنا ليعمل في WelcomePage)
 class _AnimatedTrophy extends StatefulWidget {
   final int rank;
   const _AnimatedTrophy({required this.rank});
