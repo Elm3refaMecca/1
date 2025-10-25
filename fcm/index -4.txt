@@ -1,4 +1,4 @@
-// C:\appweb1\fcm\index.js (النسخة المعدلة v8 - إشعار دائم ومتكرر)
+// C:\appweb1\fcm\index.js (النسخة المعدلة v5 - أيقونة وشارة 2.png)
 
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
@@ -10,7 +10,7 @@ initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
 
-// --- (دالة getTestMaps تبقى كما هي - لا تغيير) ---
+// --- (دوال مساعدة مثل getTestMaps تبقى كما هي) ---
 function getTestMaps() {
     // ... (الكود الخاص بها كما في الملف السابق) ...
   const testKeyToName = {};
@@ -76,7 +76,6 @@ function getTestMaps() {
   return { testKeyToName, testKeyToSubject };
 }
 
-
 /**
  * دالة مساعدة موحدة لإرسال الإشعار وكتابته في قاعدة البيانات
  */
@@ -86,27 +85,28 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
     return;
   }
 
-  const prefixedTitle = `المعرفة: ${title}`;
-
   const payload = {
     notification: {
-      title: prefixedTitle,
+      title: title,
       body: body,
     },
     data: actionData,
     webpush: {
       notification: {
-        title: prefixedTitle,
+        title: title,
         body: body,
-        icon: "/icons/Icon-192.png", 
-        badge: "/2.png", // تذكر: هذه يجب أن تكون أيقونة أحادية اللون
-        sound: "/1.mp3", // <-- تم الإبقاء على الصوت كما طلبت
-        
-        // --- ✅✅✅ التعديل هنا: جعل الإشعار "دائم" ---
-        requireInteraction: true, // <-- هذا يجعل الإشعار "دائم"
-        // تم حذف الـ "tag" لضمان ظهور كل إشعار بشكل مستقل
+        // --- ✅✅✅ التعديل هنا: تحديد الأيقونة والشارة ---
+        icon: "/2.png",  // الأيقونة الرئيسية
+        badge: "/2.png", // الأيقونة الصغيرة (الشارة) لشريط الحالة
         // --- نهاية التعديل ---
+        sound: "/1.mp3", // سيُشغل فقط في onMessage (عندما يكون التطبيق مفتوحًا)
+        // tag: `student-update-${studentId}`, // لإلغاء الإشعارات القديمة بنفس الـ tag
+        // requireInteraction: false,
       },
+      // يمكنك إضافة رابط عند النقر هنا إذا أردت
+      // fcm_options: {
+      //   link: "https://your-app-url.com/"
+      // }
     },
   };
 
@@ -114,7 +114,6 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
     const response = await messaging.sendToDevice(fcmToken, payload);
     logger.info(`تم إرسال الإشعار بنجاح إلى الطالب: ${studentId}`, response);
 
-     // ... (باقي كود معالجة الأخطاء وحذف التوكن كما هو) ...
     response.results.forEach((result, index) => {
       const error = result.error;
       if (error) {
@@ -137,7 +136,6 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
     logger.error(`خطأ عام عند محاولة إرسال الإشعار إلى ${studentId}:`, error);
   }
 
-   // ... (باقي كود تسجيل الإشعار في Firestore كما هو) ...
   try {
     await db.collection("students").doc(studentId).collection("notifications").add({
       message: body,
@@ -152,28 +150,35 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
   }
 }
 
-// ... (دالة sendNotificationOnStudentUpdate تبقى كما هي تماماً) ...
+// الدالة الرئيسية التي تستمع لتحديثات الطلاب (تبقى كما هي)
 exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId}", async (event) => {
   // ... (الكود الخاص بها كما في الملف السابق بدون تغيير في المنطق) ...
     if (!event.data) {
     logger.warn("No data in event, exiting.");
-    return null; 
+    return null; // يجب أن تعيد الدالة شيئاً أو Promise
   }
 
   const studentDataBefore = event.data.before.data();
   const studentDataAfter = event.data.after.data();
   const studentId = event.params.studentId;
-  const fcmToken = studentDataAfter.fcmToken; 
+  const fcmToken = studentDataAfter.fcmToken; // التوكن الخاص بالطالب
+
+  // إذا لم يكن هناك توكن، لا تفعل شيئاً (تمت معالجته داخل sendNotification)
+  // if (!fcmToken) {
+  //   logger.info(`Student ${studentId} does not have an FCM token.`);
+  //   return null;
+  // }
 
   const { testKeyToName, testKeyToSubject } = getTestMaps();
 
   let notificationTitle = "";
   let notificationBody = "";
+  // بيانات لفتح صفحة الطالب عند النقر (إذا كان التطبيق يدعم ذلك)
   const actionData = {
-    action: "OPEN_STUDENT_VIEW", 
-    studentId: studentId,        
+    action: "OPEN_STUDENT_VIEW", // اسم الإجراء
+    studentId: studentId,        // معرف الطالب
   };
-  let shouldSend = false; 
+  let shouldSend = false; // متغير لتحديد ما إذا كان يجب إرسال إشعار
 
   // ----- التحقق من تغييرات السلوك -----
   const likesBefore = studentDataBefore.totalLikes ?? 0;
@@ -183,17 +188,18 @@ exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId
 
   if (likesAfter > likesBefore) {
     notificationTitle = "تهنئة من المعلم!";
-    notificationBody = `أهلاً ${studentDataAfter.name || 'بالطالب'}، لقد حصلت على إعجاب جديد! رائع! 🎉`;
+    notificationBody = `أهلاً ${studentDataAfter.name || 'بالطالب'}، لقد حصلت على إعجاب جديد! رائع! 🎉`; // استخدام اسم الطالب
     shouldSend = true;
   } else if (dislikesAfter > dislikesBefore) {
     notificationTitle = "ملاحظة سلوكية";
-    notificationBody = `أهلاً ${studentDataAfter.name || 'بالطالب'}، تم تسجيل ملاحظة سلوك. يرجى المراجعة. ⚠️`;
+    notificationBody = `أهلاً ${studentDataAfter.name || 'بالطالب'}، تم تسجيل ملاحظة سلوك. يرجى المراجعة. ⚠️`; // استخدام اسم الطالب
     shouldSend = true;
   }
 
+  // إذا كان هناك تغيير في السلوك، أرسل الإشعار فوراً واخرج
   if (shouldSend) {
     await sendNotification(fcmToken, studentId, notificationTitle, notificationBody, actionData);
-    return null; 
+    return null; // انتهت المهمة
   }
 
   // ----- التحقق من تغييرات الدرجات (فقط إذا لم يتغير السلوك) -----
@@ -201,11 +207,12 @@ exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId
     const gradeBefore = studentDataBefore[testKey];
     const gradeAfter = studentDataAfter[testKey];
 
+    // تحقق مما إذا كانت الدرجة تغيرت (أُضيفت، عُدلت، حُذفت) ولم تكن مجرد undefined -> undefined
     if (gradeBefore !== gradeAfter && (gradeBefore !== undefined || gradeAfter !== undefined)) {
       const testName = testKeyToName[testKey] || "اختبار";
       const subjectName = testKeyToSubject[testKey] || "مادة";
-      shouldSend = true; 
-      const studentName = studentDataAfter.name || 'أيها الطالب'; 
+      shouldSend = true; // وجدنا تغييراً في درجة
+      const studentName = studentDataAfter.name || 'أيها الطالب'; // استخدام اسم الطالب
 
       if (gradeBefore === undefined && gradeAfter !== undefined) { // رصد جديد
         notificationTitle = `تم رصد درجة: ${subjectName}`;
@@ -221,18 +228,20 @@ exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId
         notificationTitle = `تم حذف درجة: ${subjectName}`;
         notificationBody = `مرحباً ${studentName}، تم حذف درجتك التي كانت مسجلة في: ${testName}.`;
       } else {
-        shouldSend = false; 
+        shouldSend = false; // حالة غير متوقعة، لا ترسل
       }
 
+      // إذا وجدنا تغيير يستدعي الإرسال، أرسل واخرج من الحلقة والدالة
       if (shouldSend) {
         await sendNotification(fcmToken, studentId, notificationTitle, notificationBody, actionData);
-        return null; 
+        return null; // يكفي إشعار واحد لكل تحديث
       }
     }
   }
-  
+
+  // إذا وصلنا هنا، لا يوجد تغيير يستدعي إشعاراً
   if (!shouldSend) {
     logger.info(`تحديث لا يتطلب إشعاراً للطالب ${studentId}.`);
   }
-  return null; 
+  return null; // يجب أن تعيد الدالة شيئاً
 });
