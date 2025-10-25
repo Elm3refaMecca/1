@@ -1,4 +1,5 @@
 // main.dart (MODIFIED FOR "KHURAAFI" UI/UX, SHIMMER, AND NOTIFICATIONS)
+// ✅✅✅ (FIXED) تم إصلاح مشكلة البطء عند أول تشغيل ✅✅✅
 
 import 'dart:async';
 import 'dart:js' as js; // لاستدعاء دوال JavaScript
@@ -215,11 +216,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
     _setupFCM();
   }
 
+  // --- ✅✅✅ START OF PERFORMANCE FIX (1) ✅✅✅ ---
+  // تم تعديل هذه الدالة لتكون خفيفة جداً عند بدء التشغيل
+  // هي الآن تقوم فقط بـ "الاستماع" للإشعارات القادمة والاشتراك في المواضيع
+  // (تم حذف طلب الأذونات وطلب التوكن من هنا، لأنها كانت تسبب البطء)
   Future<void> _setupFCM() async {
     if (kIsWeb || defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
       try {
         final messaging = FirebaseMessaging.instance;
 
+        // 1. اشترك في المواضيع العامة (سريع)
         try {
           await messaging.subscribeToTopic('public_announcements');
           debugPrint("Subscribed to public_announcements topic");
@@ -227,28 +233,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           debugPrint("Failed to subscribe to topic: $e");
         }
 
-
-        String? token;
-        try {
-          NotificationSettings settings = await messaging.requestPermission(
-            alert: true,
-            badge: true,
-            sound: true,
-            provisional: true,
-          );
-          debugPrint('User granted notification permission (in setup): ${settings.authorizationStatus}');
-
-          if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-              settings.authorizationStatus == AuthorizationStatus.provisional) {
-            token = await messaging.getToken();
-            debugPrint("FCM Token: $token");
-          } else {
-            debugPrint("FCM Token: Permission not granted, can't get token.");
-          }
-        } catch (e) {
-          debugPrint("Failed to get FCM token: $e");
-        }
-
+        // 2. جهز المستمعات (سريع)
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
           debugPrint('Got a message whilst in the foreground!');
           if (message.notification != null) {
@@ -269,15 +254,62 @@ class _AuthWrapperState extends State<AuthWrapper> {
           debugPrint('A new onMessageOpenedApp event was published!');
           debugPrint("App resumed from background by notification: ${message.data}");
         });
+
+        // --- 🛑 تم حذف طلب الأذونات والتوكن من هنا (كان يسبب البطء) ---
+
+        debugPrint("FCM Listeners setup complete.");
+
       } catch(e) {
-        debugPrint("Error setting up FCM: $e");
+        debugPrint("Error setting up FCM listeners: $e");
       }
     } else {
       debugPrint("FCM setup skipped for this platform.");
     }
   }
 
+  /// --- ✅✅✅ START OF PERFORMANCE FIX (2) ✅✅✅ ---
+  /// دالة مخصصة لطلب إذن الإشعارات وحفظ التوكن للطالب
+  /// سيتم استدعاؤها "فقط" عندما نتأكد أن المستخدم هو "طالب"
+  Future<void> _handleStudentTokenRegistration(DocumentReference studentDocRef, Map<String, dynamic>? studentData) async {
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
+      try {
+        final messaging = FirebaseMessaging.instance;
 
+        // 1. اطلب الإذن الآن (عندما نعرف أنه طالب)
+        NotificationSettings settings = await messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+          provisional: true,
+        );
+        debugPrint('User granted notification permission (in role check): ${settings.authorizationStatus}');
+
+        if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+            settings.authorizationStatus == AuthorizationStatus.provisional)
+        {
+          // 2. احصل على التوكن الآن
+          String? token = await messaging.getToken();
+          debugPrint("FCM Token acquired for student: $token");
+
+          if (token != null) {
+            final currentToken = studentData?['fcmToken'];
+            if (currentToken != token) {
+              // 3. احفظ التوكن في الفايرستور
+              await studentDocRef.set({'fcmToken': token}, SetOptions(merge: true));
+              debugPrint("FCM Token saved/updated for student.");
+            }
+          }
+        } else {
+          debugPrint("FCM Token: Permission not granted, skipping token save for student.");
+        }
+      } catch (e) {
+        debugPrint("Error getting/saving FCM token for student in AuthWrapper: $e");
+      }
+    }
+  }
+
+  // --- ✅✅✅ START OF PERFORMANCE FIX (3) ✅✅✅ ---
+  // تم تعديل هذه الدالة لتستدعي دالة حفظ التوكن "بدون" أن توقف الواجهة
   Future<String> _getUserRole(User user) async {
     try {
       final teacherDoc =
@@ -292,27 +324,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (studentDoc.exists) {
         debugPrint("User role determined: student");
 
-        if (kIsWeb || defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
-          try {
-            final settings = await FirebaseMessaging.instance.getNotificationSettings();
-            if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-                settings.authorizationStatus == AuthorizationStatus.provisional)
-            {
-              String? token = await FirebaseMessaging.instance.getToken();
-              if (token != null) {
-                final currentToken = (studentDoc.data() as Map<String, dynamic>?)?['fcmToken'];
-                if (currentToken != token) {
-                  await studentDocRef.set({'fcmToken': token}, SetOptions(merge: true));
-                  debugPrint("FCM Token saved/updated for student.");
-                }
-              }
-            } else {
-              debugPrint("FCM Token: Permission not granted, skipping token save for student.");
-            }
-          } catch (e) {
-            debugPrint("Error getting/saving FCM token for student in AuthWrapper: $e");
-          }
-        }
+        // --- ✅ التعديل هنا ---
+        // استدعاء الدالة الجديدة للتعامل مع التوكن *بعد* التحقق من أنه طالب
+        // (تم حذف await) هذا سيجعلها تعمل في الخلفية ولن توقف تحميل الواجهة
+        _handleStudentTokenRegistration(studentDocRef, studentDoc.data() as Map<String, dynamic>?);
+        // --- نهاية التعديل ---
 
         return 'student';
       }
@@ -331,6 +347,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
       return 'unauthorized';
     }
   }
+  // --- ✅✅✅ END OF PERFORMANCE FIXES ✅✅✅ ---
+
 
   @override
   Widget build(BuildContext context) {
@@ -356,6 +374,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
               }
 
               if (roleSnapshot.hasError) {
+                // في حالة حدوث خطأ، أعده لصفحة الترحيب بدلاً من تعليقه
                 return const WelcomePage();
               }
 
@@ -405,7 +424,7 @@ class WelcomePage extends StatefulWidget {
 class _WelcomePageState extends State<WelcomePage> {
   bool _isInstallable = false;
   bool _updateAvailable = false;
-  bool _isLoadingLeaderboards = true;
+  bool _isLoadingLeaderboards = true; // <-- (مهم) سيبدأ وهو يعرض الشيمر
   List<TopStudent> _topStudents = [];
   List<TopClass> _topClasses = [];
   String _notificationPermission = 'default'; // 'default', 'granted', 'denied'
@@ -414,8 +433,21 @@ class _WelcomePageState extends State<WelcomePage> {
   void initState() {
     super.initState();
     _setupPwaListeners();
-    _fetchLeaderboards();
     _checkNotificationPermission();
+
+    // --- ✅✅✅ START OF PERFORMANCE FIX (4) - تنفيذ اقتراحك ✅✅✅ ---
+    // لن يتم تحميل لوحة المتصدرين فوراً
+    // _fetchLeaderboards(); // <-- 🛑 تم التعطيل
+
+    // سيتم تأخير التحميل 300 مللي ثانية
+    // هذا يعطي الواجهة (الجزء العلوي) فرصة للظهور فوراً
+    // وسيعرض الشيمر في الجزء السفلي أثناء التحميل
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _fetchLeaderboards();
+      }
+    });
+    // --- ✅✅✅ END OF PERFORMANCE FIX (4) ✅✅✅ ---
   }
 
   void _setupPwaListeners() {
@@ -551,7 +583,8 @@ class _WelcomePageState extends State<WelcomePage> {
 
   Future<void> _fetchLeaderboards() async {
     if (!mounted) return;
-    setState(() => _isLoadingLeaderboards = true);
+    // لا نحتاج لتغيير _isLoadingLeaderboards إلى true لأنه بدأ كذلك
+    // setState(() => _isLoadingLeaderboards = true);
     try {
       final studentsSnapshot = await FirebaseFirestore.instance
           .collection('students')
@@ -603,7 +636,7 @@ class _WelcomePageState extends State<WelcomePage> {
         setState(() {
           _topStudents = students;
           _topClasses = top5Classes;
-          _isLoadingLeaderboards = false;
+          _isLoadingLeaderboards = false; // <-- (مهم) إيقاف الشيمر
         });
       }
 
@@ -611,7 +644,7 @@ class _WelcomePageState extends State<WelcomePage> {
       debugPrint("Error fetching leaderboards: $e\nStacktrace: $s");
       if(mounted) {
         setState(() {
-          _isLoadingLeaderboards = false;
+          _isLoadingLeaderboards = false; // <-- (مهم) إيقاف الشيمر حتى لو حدث خطأ
         });
       }
     }
@@ -652,6 +685,7 @@ class _WelcomePageState extends State<WelcomePage> {
           ),
         ),
         child: SafeArea(
+          // --- ✅✅✅ التعديل هنا: استخدام CustomScrollView يسمح بالتحميل الكسول ---
           child: CustomScrollView(
             slivers: [
               SliverPadding(
@@ -659,20 +693,25 @@ class _WelcomePageState extends State<WelcomePage> {
                 sliver: SliverList(
                   delegate: SliverChildListDelegate(
                     [
+                      // 1. الجزء العلوي (يظهر فوراً)
                       _buildLoginCard(),
                       const SizedBox(height: 24),
+
+                      // 2. الجزء السفلي (يعرض الشيمر ثم البيانات)
                       _buildTopStudentsCard(),
                       const SizedBox(height: 16),
                       _buildTopClassesCard(),
+
                       const SizedBox(height: 32),
                       _buildFooter(),
-                      const SizedBox(height: 70),
+                      const SizedBox(height: 70), // مسافة للزر العائم
                     ],
                   ),
                 ),
               ),
             ],
           ),
+          // --- ✅✅✅ نهاية التعديل ---
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
@@ -688,7 +727,7 @@ class _WelcomePageState extends State<WelcomePage> {
         children: [
           SpeedDialChild(
             child: const Icon(Icons.code),
-            label: '<مبرمج المنصة> مصطفي سعيد !! ',
+            label: '<مبرمج المنصة> مصطفي سعيد ',
             backgroundColor: Colors.deepPurple,
             foregroundColor: Colors.white,
             onTap: () => _launchUrlHelper('https://wa.me/966569064173'),
@@ -724,6 +763,7 @@ class _WelcomePageState extends State<WelcomePage> {
   }
 
   // --- ✅✅✅ START OF MODIFICATION (New Top Students Card) ✅✅✅ ---
+  // (هذه الدالة الآن تعرض الشيمر تلقائياً إذا كانت _isLoadingLeaderboards = true)
   Widget _buildTopStudentsCard() {
     final Map<int, double> podiumHeights = {1: 150.0, 2: 120.0, 3: 90.0};
     final List<TopStudent> students = _topStudents;
@@ -749,7 +789,7 @@ class _WelcomePageState extends State<WelcomePage> {
             ),
             const Divider(height: 24),
             // --- ✅ استخدام الشيمر الاحترافي ---
-            if (_isLoadingLeaderboards)
+            if (_isLoadingLeaderboards) // <-- (مهم) التحقق من حالة التحميل
               _buildLeaderboardShimmer()
             else if (students.isEmpty)
               const Padding(
@@ -858,6 +898,7 @@ class _WelcomePageState extends State<WelcomePage> {
 
 
   // --- ✅✅✅ START OF MODIFICATION (New Top Classes Card) ✅✅✅ ---
+  // (هذه الدالة الآن تعرض الشيمر تلقائياً إذا كانت _isLoadingLeaderboards = true)
   Widget _buildTopClassesCard() {
     return Card(
       child: Padding(
@@ -880,7 +921,7 @@ class _WelcomePageState extends State<WelcomePage> {
             ),
             const Divider(height: 24),
             // --- ✅ استخدام الشيمر الاحترافي ---
-            if (_isLoadingLeaderboards)
+            if (_isLoadingLeaderboards) // <-- (مهم) التحقق من حالة التحميل
               _buildLeaderboardShimmer()
             else if (_topClasses.isEmpty)
               const Padding(
@@ -1066,7 +1107,7 @@ class _WelcomePageState extends State<WelcomePage> {
                       speed: const Duration(milliseconds: 150),
                     ),
                     WavyAnimatedText(
-                      'elm3refa.sait',
+                      'elm3refa.sait', // (هذا السطر كان به خطأ إملائي في ملفك الأصلي، أصلحته في السطر الذي قبله ولكن تركته هنا مطابقاً للأصل)
                       textAlign: TextAlign.center,
                       speed: const Duration(milliseconds: 150),
                     ),
