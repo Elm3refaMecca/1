@@ -101,8 +101,8 @@
       }
     }
 
-    // --- ✅✅✅ (هذا هو التعديل المطلوب) ✅✅✅ ---
-    // تسجيل ملف Firebase Service Worker
+    // --- تسجيل ملف Firebase Service Worker ---
+    // (هذا الكود صحيح لتسجيل الملف المسؤول عن إشعارات الخلفية)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('firebase-messaging-sw.js').then(function (registration) {
@@ -112,7 +112,47 @@
         });
       });
     }
-    // --- ✅✅✅ (نهاية التعديل) ✅✅✅ ---
+    // --- نهاية التسجيل ---
+
+    // -- (هذا الجزء يخص تحديثات PWA - لا علاقة له مباشرة بالإشعارات) --
+    window.isUpdateAvailable = false;
+    let newWorker;
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        console.log('Service Worker is ready');
+        reg.addEventListener('updatefound', () => {
+          console.log('Update found');
+          newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+               console.log('New worker installed');
+               window.isUpdateAvailable = true;
+               window.dispatchEvent(new CustomEvent('pwa-update-available'));
+            }
+          });
+        });
+      });
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+         console.log('Controller changed, reloading');
+         if (!window.isUpdateTriggeredManually) { // لتجنب إعادة التحميل المزدوجة
+             window.location.reload();
+         }
+      });
+    }
+
+    window.isUpdateTriggeredManually = false;
+    function triggerPwaUpdate() {
+      if (newWorker) {
+          console.log('Skipping wait and activating new worker');
+          window.isUpdateTriggeredManually = true; // تعيين العلم قبل التفعيل
+          newWorker.postMessage({ action: 'skipWaiting' });
+          // سيتم إعادة التحميل بواسطة مستمع 'controllerchange'
+      } else {
+          console.log('No new worker found to activate');
+      }
+    }
+    // -- (نهاية جزء تحديثات PWA) --
 
   </script>
   <script src="flutter_bootstrap.js" async></script>
