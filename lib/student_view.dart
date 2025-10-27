@@ -2,7 +2,7 @@
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'dart:async'; // <-- ✅ إضافة جديدة للاستماع
 import 'dart:math';
-import 'dart:typed_data'; // <-- ✅ (مطلوب للطباعة)
+import 'dart:typed_data'; // <-- ✅ (مطلوب للطباعة/الحفظ كـ PDF)
 
 import 'package:almarefamecca/student_profile_page.dart';
 import 'package:almarefamecca/teacher_profile_view_page.dart';
@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:percent_indicator/percent_indicator.dart';
-// --- ✅✅✅ (مطلوب للطباعة) ---
+// --- ✅✅✅ (مطلوب للطباعة/الحفظ كـ PDF) ---
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -155,7 +155,7 @@ class _StudentViewPageState extends State<StudentViewPage>
   // Map to hold all possible test info (key -> TestInfo)
   late final Map<String, TestInfo> _allTestsMap;
 
-  // --- ✅ (تعديل) تم الإبقاء عليه لخاصية الطباعة ---
+  // --- ✅ (تعديل) تم الإبقاء عليه لخاصية الطباعة / الحفظ كـ PDF ---
   final ScreenshotController _screenshotController = ScreenshotController();
 
   // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
@@ -491,7 +491,9 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
-  // --- ✅ (جديد) دالة لطباعة التقرير طبق الأصل ---
+  // --- ✅ (جديد) دالة لطباعة التقرير (التي تفتح خيار الحفظ كـ PDF) ---
+  /// هذه الدالة تلتقط صورة للشاشة الحالية
+  /// وتفتح نافذة الطباعة الخاصة بالنظام (التي تحتوي على خيار "حفظ كـ PDF")
   Future<void> _printResultsPage() async {
     try {
       final imageBytes = await _screenshotController.capture(
@@ -523,6 +525,7 @@ class _StudentViewPageState extends State<StudentViewPage>
       final fileName = 'report_card_$safeStudentName.pdf';
 
       // استخدام layoutPdf لفتح نافذة الطباعة مباشرة
+      // هذه النافذة ستسمح للمستخدم باختيار "حفظ كـ PDF"
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async => pdfDoc.save(),
         name: fileName,
@@ -532,20 +535,22 @@ class _StudentViewPageState extends State<StudentViewPage>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('فشل إعداد الطباعة: $e'),
+            content: Text('فشل إعداد الطباعة/الحفظ: $e'),
             backgroundColor: Colors.red,
           ),
         );
       }
     }
   }
+  // --- ✅ (نهاية) دالة الطباعة ---
 
   // --- ✅ (جديد) دالة لإنشاء الزر العائم ---
   Widget? _buildFloatingActionButton() {
     if (_currentView == StudentView.results) {
+      // يظهر هذا الزر فقط في شاشة "النتائج والتحليل"
       return FloatingActionButton(
-        onPressed: _printResultsPage, // استدعاء دالة الطباعة الجديدة
-        tooltip: 'طباعة التقرير',
+        onPressed: _printResultsPage, // استدعاء دالة الطباعة/الحفظ كـ PDF
+        tooltip: 'طباعة أو حفظ التقرير كـ PDF',
         child: const Icon(Icons.print),
       );
     }
@@ -590,10 +595,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     if (isDashboard && !isTeacherView) {
       appBarActions.addAll(_buildDashboardActions());
     }
-    // --- 🛑 (حذف) تم حذف زر التحميل القديم ---
-    // else if (_currentView == StudentView.results) {
-    //   appBarActions.add(...);
-    // }
+    // --- 🛑 (حذف) تم حذف زر التحميل القديم من شريط الأوامر ---
 
     appBarActions.add(
       Tooltip(
@@ -1349,16 +1351,8 @@ class _StudentViewPageState extends State<StudentViewPage>
   // --- ✅✅✅ END OF (MAJOR REFACTOR) ✅✅✅ ---
 
 
-  // --- 🛑 (حذف) تم حذف _showReportOptions ---
-  // --- 🛑 (حذف) تم حذف _generateAndSharePdf ---
-  // --- 🛑 (حذف) تم حذف _buildStudentDataPdf ---
-  // --- 🛑 (حذف) تم حذف _buildTableReportPdf ---
-  // --- 🛑 (حذف) تم حذف _buildPdfTableRow ---
-  // --- 🛑 (حذف) تم حذف _buildPdfTableHeader ---
-  // --- 🛑 (حذف) تم حذف _buildPdfTableCell ---
-  // --- 🛑 (حذف) تم حذف _buildOverallAnalysisPdf ---
-  // --- 🛑 (حذف) تم حذف _buildSubjectPdf ---
-  // --- 🛑 (حذف) تم حذف _buildPdfInfoRow ---
+  // --- 🛑 (حذف) تم حذف جميع دوال إنشاء PDF القديمة ---
+
 
   Widget _buildNobleStudentView() {
     return SingleChildScrollView(
@@ -2069,17 +2063,17 @@ class _SubjectResultCard extends StatelessWidget {
 
     switch (assessment) {
       case 'متفوق ورائع!':
-        explanation = 'أداء استثنائي! هذا يعني أن الطالب يتقن المهارات بشكل كامل ومتميز في هذا المقرر .';
+        explanation = 'أداء استثنائي! هذا يعني أن الطالب يتقن المهارات بشكل كامل ومتميز في هذه المجموعة.';
         icon = Icons.auto_awesome;
         color = Colors.amber.shade700;
         break;
       case 'ممتاز':
-        explanation = 'أداء ممتاز! الطالب يظهر فهماً قوياً للمادة ويتجاوز التوقعات في هذا المقرر  .';
+        explanation = 'أداء ممتاز! الطالب يظهر فهماً قوياً للمادة ويتجاوز التوقعات في هذه المجموعة.';
         icon = Icons.check_circle;
         color = Colors.green.shade700;
         break;
       case 'جيد جداً':
-        explanation = 'أداء جيد جداً! الطالب يظهر فهماً جيداً لمعظم المهارات في هذا المقرر  .';
+        explanation = 'أداء جيد جداً! الطالب يظهر فهماً جيداً لمعظم المهارات في هذه المجموعة.';
         icon = Icons.thumb_up_alt;
         color = Colors.blue.shade700;
         break;
@@ -2089,13 +2083,13 @@ class _SubjectResultCard extends StatelessWidget {
         color = Colors.lightGreen.shade800;
         break;
       case 'مقبول':
-        explanation = 'أداء مقبول. الطالب يحقق الحد الأدنى من المهارات المطلوبة في هذا المقرر  .';
+        explanation = 'أداء مقبول. الطالب يحقق الحد الأدنى من المهارات المطلوبة في هذه المجموعة.';
         icon = Icons.thumbs_up_down;
         color = Colors.orange.shade800;
         break;
       case 'يحتاج لمتابعة':
       default:
-        explanation = 'يحتاج لمتابعة. الطالب يواجه بعض الصعوبات ويحتاج إلى دعم إضافي في هذا المقرر  .';
+        explanation = 'يحتاج لمتابعة. الطالب يواجه بعض الصعوبات ويحتاج إلى دعم إضافي في هذه المجموعة.';
         icon = Icons.warning_amber_rounded;
         color = Colors.red.shade700;
         break;
@@ -2331,38 +2325,46 @@ class _SubjectResultCard extends StatelessWidget {
               child: Text('لا توجد درجات مسجلة لهذه المجموعة.', style: TextStyle(color: Colors.grey)),
             )
           else
-            Column(
-              children: analysis.testResults.map((entry) {
-                final testInfo = allTestsMap[entry.key];
-                final testNameDisplay = testInfo?.name ?? entry.key;
-                final double maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13'))
-                    ? 10.0
-                    : 20.0;
-                // --- ✅ (تعديل) تلوين الدرجة المنخفضة ---
-                final bool isBelowPassing = entry.value >= 0 && entry.value < (maxGradeForThisTest / 2);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 6.0, horizontal: 8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(testNameDisplay, style: const TextStyle(fontSize: 15)),
-                      Text(
-                        entry.value == -1
-                            ? 'غائب'
-                            : '${entry.value} / ${maxGradeForThisTest.toInt()}',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: entry.value == -1
-                              ? Colors.grey.shade600
-                              : (isBelowPassing ? Colors.red.shade700 : Colors.black87),
+            Container(
+              decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200)
+              ),
+              padding: const EdgeInsets.all(8.0),
+              child: Column(
+                children: analysis.testResults.map((entry) {
+                  final testInfo = allTestsMap[entry.key];
+                  final testNameDisplay = testInfo?.name ?? entry.key;
+                  final double maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13'))
+                      ? 10.0
+                      : 20.0;
+                  // --- ✅ (تعديل) تلوين الدرجة المنخفضة ---
+                  final bool isBelowPassing = entry.value >= 0 && entry.value < (maxGradeForThisTest / 2);
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 6.0, horizontal: 8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(testNameDisplay, style: const TextStyle(fontSize: 15)),
+                        Text(
+                          entry.value == -1
+                              ? 'غائب'
+                              : '${entry.value} / ${maxGradeForThisTest.toInt()}',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: entry.value == -1
+                                ? Colors.grey.shade600
+                                : (isBelowPassing ? Colors.red.shade700 : Colors.black87),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
             ),
           // --- 🛑 (حذف) تم حذف ExpansionTile ---
         ],
