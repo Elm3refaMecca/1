@@ -2,7 +2,7 @@
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'dart:async'; // <-- ✅ إضافة جديدة للاستماع
 import 'dart:math';
-import 'dart:typed_data';
+import 'dart:typed_data'; // <-- ✅ (مطلوب للطباعة)
 
 import 'package:almarefamecca/student_profile_page.dart';
 import 'package:almarefamecca/teacher_profile_view_page.dart';
@@ -14,10 +14,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:percent_indicator/percent_indicator.dart';
+// --- ✅✅✅ (مطلوب للطباعة) ---
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:screenshot/screenshot.dart';
+// --- ✅✅✅ (نهاية) ---
 import 'package:url_launcher/url_launcher.dart';
 
 // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
@@ -35,7 +37,6 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 // مع إضافة مكتبات تجميلية ورسائل تحفيزية وإيجابية
 
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:almarefamecca/student_profile_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -45,10 +46,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:percent_indicator/percent_indicator.dart'; // (لا يزال مستخدماً في التحليل الشامل)
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
-import 'package:screenshot/screenshot.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
@@ -64,7 +61,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 enum StudentView { dashboard, results, noble, teacherComplaints }
 
-enum ReportType { graphical, table, studentData }
+// --- 🛑 (حذف) تم حذف ReportType ---
 
 class TestInfo {
   final String key;
@@ -158,6 +155,7 @@ class _StudentViewPageState extends State<StudentViewPage>
   // Map to hold all possible test info (key -> TestInfo)
   late final Map<String, TestInfo> _allTestsMap;
 
+  // --- ✅ (تعديل) تم الإبقاء عليه لخاصية الطباعة ---
   final ScreenshotController _screenshotController = ScreenshotController();
 
   // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
@@ -493,6 +491,68 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
+  // --- ✅ (جديد) دالة لطباعة التقرير طبق الأصل ---
+  Future<void> _printResultsPage() async {
+    try {
+      final imageBytes = await _screenshotController.capture(
+        delay: const Duration(milliseconds: 300), // إعطاء فرصة للواجهة للرسم
+        pixelRatio: 1.5, // جودة أعلى قليلاً
+      );
+      if (imageBytes == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('فشل التقاط صورة للتقرير.')),
+          );
+        }
+        return;
+      }
+
+      final pdfDoc = pw.Document();
+      pdfDoc.addPage(pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          orientation: pw.PageOrientation.portrait,
+          build: (pw.Context context) {
+            return pw.Center(
+              child: pw.Image(pw.MemoryImage(imageBytes)),
+            );
+          }
+      ));
+
+      final String studentName = _studentData?['name'] ?? 'student';
+      final safeStudentName = studentName.replaceAll(' ', '_');
+      final fileName = 'report_card_$safeStudentName.pdf';
+
+      // استخدام layoutPdf لفتح نافذة الطباعة مباشرة
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdfDoc.save(),
+        name: fileName,
+      );
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('فشل إعداد الطباعة: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // --- ✅ (جديد) دالة لإنشاء الزر العائم ---
+  Widget? _buildFloatingActionButton() {
+    if (_currentView == StudentView.results) {
+      return FloatingActionButton(
+        onPressed: _printResultsPage, // استدعاء دالة الطباعة الجديدة
+        tooltip: 'طباعة التقرير',
+        child: const Icon(Icons.print),
+      );
+    }
+    return null; // لا يظهر في الشاشات الأخرى
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -500,9 +560,10 @@ class _StudentViewPageState extends State<StudentViewPage>
       body: Stack(
         children: [
           _buildBody(),
-
         ],
       ),
+      // --- ✅ (جديد) إضافة الزر العائم ---
+      floatingActionButton: _buildFloatingActionButton(),
     );
   }
 
@@ -528,15 +589,11 @@ class _StudentViewPageState extends State<StudentViewPage>
     List<Widget> appBarActions = [];
     if (isDashboard && !isTeacherView) {
       appBarActions.addAll(_buildDashboardActions());
-    } else if (_currentView == StudentView.results) {
-      appBarActions.add(
-        IconButton(
-          icon: const Icon(Icons.download),
-          tooltip: 'تحميل التقارير (PDF)',
-          onPressed: _showReportOptions,
-        ),
-      );
     }
+    // --- 🛑 (حذف) تم حذف زر التحميل القديم ---
+    // else if (_currentView == StudentView.results) {
+    //   appBarActions.add(...);
+    // }
 
     appBarActions.add(
       Tooltip(
@@ -1292,483 +1349,17 @@ class _StudentViewPageState extends State<StudentViewPage>
   // --- ✅✅✅ END OF (MAJOR REFACTOR) ✅✅✅ ---
 
 
-  void _showReportOptions() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return Wrap(
-          children: <Widget>[
-            ListTile(
-              leading: const Icon(Icons.bar_chart),
-              title: const Text('تقرير التحليل البياني'),
-              subtitle: const Text('عرض شامل مع رسوم بيانية وتوقعات'),
-              onTap: () {
-                Navigator.pop(context);
-                _generateAndSharePdf(ReportType.graphical);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.table_chart),
-              title: const Text('تقرير جدولي للدرجات'),
-              subtitle: const Text('عرض الدرجات في جدول منظم مع التقييم'),
-              onTap: () {
-                Navigator.pop(context);
-                _generateAndSharePdf(ReportType.table);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text('ملف بيانات الطالب'),
-              subtitle: const Text('عرض البيانات الأساسية للطالب فقط'),
-              onTap: () {
-                Navigator.pop(context);
-                _generateAndSharePdf(ReportType.studentData);
-              },
-            ),
-            const Divider(),
-            ListTile(
-              leading: const Icon(Icons.fullscreen_exit, color: Colors.deepPurple),
-              title: const Text('تحميل تقرير شامل (صورة للصفحة)'),
-              subtitle: const Text('يتم تصدير نسخة PDF من العرض الحالي للشاشة'),
-              onTap: () async {
-                Navigator.pop(context);
-                try {
-                  final imageBytes = await _screenshotController.capture();
-                  if(imageBytes != null) {
-                    final pdfDoc = pw.Document();
-                    pdfDoc.addPage(pw.Page(
-                        pageFormat: PdfPageFormat.a4.landscape, // Use landscape if content is wide
-                        build: (pw.Context context) {
-                          return pw.Center(
-                            child: pw.Image(pw.MemoryImage(imageBytes)),
-                          );
-                        }
-                    ));
-                    final String studentName = _studentData?['name'] ?? 'student';
-                    final safeStudentName = studentName.replaceAll(' ', '_');
-                    final fileName = 'full_page_report_$safeStudentName.pdf';
-                    await Printing.sharePdf(bytes: await pdfDoc.save(), filename: fileName);
-                  } else {
-                    throw Exception("Failed to capture screenshot.");
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('فشل التقاط أو مشاركة الصورة: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
+  // --- 🛑 (حذف) تم حذف _showReportOptions ---
+  // --- 🛑 (حذف) تم حذف _generateAndSharePdf ---
+  // --- 🛑 (حذف) تم حذف _buildStudentDataPdf ---
+  // --- 🛑 (حذف) تم حذف _buildTableReportPdf ---
+  // --- 🛑 (حذف) تم حذف _buildPdfTableRow ---
+  // --- 🛑 (حذف) تم حذف _buildPdfTableHeader ---
+  // --- 🛑 (حذف) تم حذف _buildPdfTableCell ---
+  // --- 🛑 (حذف) تم حذف _buildOverallAnalysisPdf ---
+  // --- 🛑 (حذف) تم حذف _buildSubjectPdf ---
+  // --- 🛑 (حذف) تم حذف _buildPdfInfoRow ---
 
-
-  Future<void> _generateAndSharePdf(ReportType reportType) async {
-    final image1 = pw.MemoryImage(
-      (await rootBundle.load('assets/1.png')).buffer.asUint8List(),
-    );
-    final image2 = pw.MemoryImage(
-      (await rootBundle.load('assets/2.png')).buffer.asUint8List(),
-    );
-    final image3 = pw.MemoryImage(
-      (await rootBundle.load('assets/3.png')).buffer.asUint8List(),
-    );
-    final image4 = pw.MemoryImage(
-      (await rootBundle.load('assets/4.png')).buffer.asUint8List(),
-    );
-
-    // ✅ (تعديل) استخدام الدوال الجديدة
-    final allSubjectAnalyses = _buildSubjectAnalyses();
-    final overallMetrics = _calculateOverallMetrics(allSubjectAnalyses);
-
-    final doc = pw.Document();
-    final String studentName = _studentData?['name'] ?? 'student';
-    final safeStudentName = studentName.replaceAll(' ', '_');
-
-    String fileName = 'report_$safeStudentName.pdf';
-    List<pw.Widget> content = [];
-
-    pw.ThemeData arabicTheme;
-    try {
-      final fontData = await rootBundle.load("assets/Cairo-Regular.ttf");
-      final ttf = pw.Font.ttf(fontData);
-      arabicTheme = pw.ThemeData.withFont(base: ttf, bold: ttf);
-    } catch (e) {
-      arabicTheme = pw.ThemeData();
-    }
-
-    switch (reportType) {
-      case ReportType.graphical:
-        fileName = 'graphical_report_$safeStudentName.pdf';
-        content = [
-          pw.Header(
-            level: 0,
-            child: pw.Text('تحليل الأداء الدراسي للطالب: $studentName',
-                textDirection: pw.TextDirection.rtl,
-                textAlign: pw.TextAlign.center),
-          ),
-          // ✅ (تعديل) إرسال المقاييس الإجمالية
-          _buildOverallAnalysisPdf(overallMetrics),
-          pw.Divider(height: 30),
-          pw.Text('التحليل التفصيلي للمواد',
-              textDirection: pw.TextDirection.rtl,
-              style:
-              pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-          // ✅ (تعديل) المرور على الخريطة الجديدة
-          ...allSubjectAnalyses.entries.map((entry) {
-            final subjectName = entry.key;
-            final analysesList = entry.value;
-            return pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    subjectName,
-                    textDirection: pw.TextDirection.rtl,
-                    style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey800),
-                  ),
-                  pw.Divider(height: 8, thickness: 2),
-                  ...analysesList.map((analysis) => _buildSubjectPdf(analysis)),
-                  pw.SizedBox(height: 15),
-                ]
-            );
-          }),
-        ];
-        break;
-      case ReportType.table:
-        fileName = 'grades_report_$safeStudentName.pdf';
-        content = [
-          pw.Header(
-            level: 0,
-            child: pw.Text('تقرير الدرجات للطالب: $studentName',
-                textDirection: pw.TextDirection.rtl,
-                textAlign: pw.TextAlign.center),
-          ),
-          _buildTableReportPdf(allSubjectAnalyses),
-        ];
-        break;
-      case ReportType.studentData:
-        fileName = 'student_data_$safeStudentName.pdf';
-        content = [
-          pw.Header(
-            level: 0,
-            child: pw.Text('بيانات الطالب: $studentName',
-                textDirection: pw.TextDirection.rtl,
-                textAlign: pw.TextAlign.center),
-          ),
-          _buildStudentDataPdf(),
-        ];
-        break;
-    }
-
-    doc.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        theme: arabicTheme,
-        header: (pw.Context context) {
-          return pw.Container(
-            alignment: pw.Alignment.center,
-            margin: const pw.EdgeInsets.only(bottom: 20.0),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Image(image1, width: 120, height: 120),
-                pw.Image(image2, width: 120, height: 120),
-              ],
-            ),
-          );
-        },
-        footer: (pw.Context context) {
-          return pw.Container(
-            alignment: pw.Alignment.center,
-            margin: const pw.EdgeInsets.only(top: 20.0),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Image(image3, width: 60, height: 60),
-                pw.Image(image4, width: 60, height: 60),
-              ],
-            ),
-          );
-        },
-        build: (pw.Context context) => content,
-      ),
-    );
-
-    try {
-      await Printing.sharePdf(bytes: await doc.save(), filename: fileName);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم تجهيز التقرير بنجاح!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('فشل فتح التقرير: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
-
-  pw.Widget _buildStudentDataPdf() {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.all(20),
-      child: pw.Table(
-        border: pw.TableBorder.all(),
-        columnWidths: {
-          0: const pw.FlexColumnWidth(2),
-          1: const pw.FlexColumnWidth(1),
-        },
-        children: [
-          _buildPdfTableRow('الاسم', _studentData?['name'] ?? 'غير متوفر'),
-          _buildPdfTableRow('المرحلة', _studentData?['stages'] ?? 'غير متوفر'),
-          _buildPdfTableRow('الصف', _studentData?['grades'] ?? 'غير متوفر'),
-          _buildPdfTableRow('الفصل', _studentData?['classes'] ?? 'غير متوفر'),
-          _buildPdfTableRow('هاتف ولي الأمر', _studentData?['guardian_phone'] ?? 'غير متوفر'),
-        ],
-      ),
-    );
-  }
-
-  // ✅ (تعديل) بناء الجدول بناءً على الهيكلة الجديدة
-  pw.Widget _buildTableReportPdf(Map<String, List<_AnalysisResult>> allSubjectAnalyses) {
-    final List<pw.TableRow> rows = [];
-    rows.add(
-      pw.TableRow(
-        children: [
-          _buildPdfTableHeader('التقييم'),
-          _buildPdfTableHeader('النسبة'),
-          _buildPdfTableHeader('المتوسط'),
-          _buildPdfTableHeader('نوع الاختبار'),
-          _buildPdfTableHeader('المادة'),
-        ],
-      ),
-    );
-
-    allSubjectAnalyses.forEach((subjectName, analysesList) {
-      for (final analysis in analysesList) {
-        rows.add(
-          pw.TableRow(
-            children: [
-              _buildPdfTableCell(analysis.assessment),
-              _buildPdfTableCell('${(analysis.percentage * 100).toStringAsFixed(1)}%'),
-              _buildPdfTableCell('${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}'),
-              _buildPdfTableCell(analysis.groupName), // اسم المجموعة (دوري، نافس)
-              _buildPdfTableCell(subjectName),
-            ],
-          ),
-        );
-      }
-    });
-
-
-    return pw.Table(
-      border: pw.TableBorder.all(),
-      columnWidths: {
-        0: const pw.FlexColumnWidth(2),
-        1: const pw.FlexColumnWidth(1.5),
-        2: const pw.FlexColumnWidth(1.5),
-        3: const pw.FlexColumnWidth(2.5),
-        4: const pw.FlexColumnWidth(2),
-      },
-      children: rows,
-    );
-  }
-
-  pw.TableRow _buildPdfTableRow(String label, String value) {
-    return pw.TableRow(children: [
-      pw.Padding(
-          padding: const pw.EdgeInsets.all(5),
-          child: pw.Text(value, textDirection: pw.TextDirection.rtl)),
-      pw.Padding(
-          padding: const pw.EdgeInsets.all(5),
-          child: pw.Text(label,
-              textDirection: pw.TextDirection.rtl,
-              style: pw.TextStyle(fontWeight: pw.FontWeight.bold))),
-    ]);
-  }
-
-  pw.Widget _buildPdfTableHeader(String text) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.all(5),
-      child: pw.Text(text,
-          textAlign: pw.TextAlign.center,
-          textDirection: pw.TextDirection.rtl,
-          style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-    );
-  }
-
-  pw.Widget _buildPdfTableCell(String text) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.all(5),
-      child: pw.Text(text,
-          textAlign: pw.TextAlign.center,
-          textDirection: pw.TextDirection.rtl),
-    );
-  }
-
-  // ✅ (تعديل) بناء التحليل الشامل بناءً على المقاييس الإجمالية
-  pw.Widget _buildOverallAnalysisPdf(List<_OverallSubjectMetric> overallMetrics) {
-    if (overallMetrics.isEmpty) return pw.SizedBox.shrink();
-
-    final double overallAveragePercentage =
-        overallMetrics.map((a) => a.overallPercentage).reduce((a, b) => a + b) /
-            overallMetrics.length;
-
-    overallMetrics.sort((a, b) => b.overallAverage.compareTo(a.overallAverage));
-    final strengths = overallMetrics.take(3).toList();
-    final weaknesses = overallMetrics.reversed.take(3).toList();
-
-    return pw.Container(
-      padding: const pw.EdgeInsets.all(10),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey),
-        borderRadius: pw.BorderRadius.circular(5),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            'المحصلة النهائية والتقييم الشامل',
-            textDirection: pw.TextDirection.rtl,
-            style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.Divider(),
-          pw.Text(
-            'متوسط الأداء العام: ${(overallAveragePercentage * 100).toStringAsFixed(1)}%',
-            textDirection: pw.TextDirection.rtl,
-            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 10),
-          pw.Text('نقاط القوة:', textDirection: pw.TextDirection.rtl, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          ...strengths.map((s) => pw.Text('- ${s.subjectName} (نسبة: ${(s.overallPercentage * 100).toStringAsFixed(1)}%)', textDirection: pw.TextDirection.rtl)),
-          pw.SizedBox(height: 10),
-          pw.Text('مواد تحتاج إلى تركيز:', textDirection: pw.TextDirection.rtl, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          ...weaknesses.map((w) => pw.Text('- ${w.subjectName} (نسبة: ${(w.overallPercentage * 100).toStringAsFixed(1)}%)', textDirection: pw.TextDirection.rtl)),
-        ],
-      ),
-    );
-  }
-
-  // --- ✅✅✅ START OF MODIFICATION (PDF Subject Logic) ✅✅✅ ---
-  // (تعديل) هذا الويدجت الآن يعرض "مجموعة اختبار" واحدة
-  pw.Widget _buildSubjectPdf(_AnalysisResult analysis) {
-    PdfColor riskColor;
-    switch (analysis.riskAssessment) {
-      case 'يحتاج دعم فوري': // (رسالة جديدة)
-        riskColor = PdfColors.red;
-        break;
-      case 'يحتاج لبعض التركيز': // (رسالة جديدة)
-        riskColor = PdfColors.orange;
-        break;
-      default:
-        riskColor = PdfColors.green;
-        break;
-    }
-
-    return pw.Container(
-        margin: const pw.EdgeInsets.symmetric(vertical: 10),
-        // (جديد) إضافة إطار للتمييز بين المجموعات
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: PdfColors.grey300),
-          borderRadius: pw.BorderRadius.circular(5),
-        ),
-        padding: const pw.EdgeInsets.all(8),
-        child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                analysis.groupName, // (جديد) استخدام اسم المجموعة
-                textDirection: pw.TextDirection.rtl,
-                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800),
-              ),
-              pw.Divider(height: 8),
-              pw.Table(
-                  border: pw.TableBorder.all(color: PdfColors.grey300),
-                  columnWidths: {
-                    0: const pw.FlexColumnWidth(2),
-                    1: const pw.FlexColumnWidth(3),
-                  },
-                  children: [
-                    _buildPdfInfoRow('المتوسط', '${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}'), // Use max grade from analysis
-                    _buildPdfInfoRow('النسبة المئوية', '${(analysis.percentage * 100).toStringAsFixed(1)}%'),
-                    _buildPdfInfoRow('التقييم العام', analysis.assessment),
-                    _buildPdfInfoRow('أعلى درجة', analysis.highestGrade.toString()),
-                    _buildPdfInfoRow('أدنى درجة', analysis.lowestGrade.toString()),
-                    _buildPdfInfoRow('مستوى الأداء', analysis.consistency),
-                    _buildPdfInfoRow('اتجاه الأداء', analysis.performanceTrend),
-                    if (analysis.predictedNextGrade != null)
-                      _buildPdfInfoRow('الدرجة التالية المتوقعة', '~${analysis.predictedNextGrade!.toStringAsFixed(1)}'),
-                    _buildPdfInfoRow('تقييم المسار', analysis.riskAssessment, valueColor: riskColor),
-                  ]
-              ),
-              if (analysis.testResults.isNotEmpty) ...[
-                pw.SizedBox(height: 10),
-                pw.Text('تفاصيل الدرجات:', textDirection: pw.TextDirection.rtl, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.Table.fromTextArray(
-                  border: pw.TableBorder.all(),
-                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                  headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
-                  cellAlignment: pw.Alignment.center,
-                  cellStyle: const pw.TextStyle(),
-                  data: <List<String>>[
-                    <String>['الدرجة', 'الاختبار'], // Headers (RTL order)
-                    ...analysis.testResults.map((e) { // e.key is test KEY, e.value is grade
-                      final testInfo = _allTestsMap[e.key];
-                      // Determine max grade for *this specific test*
-                      final double maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13'))
-                          ? 10.0
-                          : 20.0;
-                      final gradeDisplay = e.value == -1 ? 'غائب' : '${e.value} / ${maxGradeForThisTest.toInt()}';
-                      final testNameDisplay = testInfo?.name ?? e.key;
-                      // Ensure correct order for RTL table
-                      return [gradeDisplay, testNameDisplay];
-                    }).toList(),
-                  ],
-                )
-              ]
-            ]
-        )
-    );
-  }
-  // --- ✅✅✅ END OF MODIFICATION (PDF Subject Logic) ✅✅✅ ---
-
-  pw.TableRow _buildPdfInfoRow(String label, String value, {PdfColor? valueColor}) {
-    // Ensure correct order for RTL
-    return pw.TableRow(children: [
-      pw.Padding(
-        padding: const pw.EdgeInsets.all(4),
-        child: pw.Text(
-          value,
-          textDirection: pw.TextDirection.rtl,
-          textAlign: pw.TextAlign.right,
-          style: pw.TextStyle(color: valueColor),
-        ),
-      ),
-      pw.Padding(
-        padding: const pw.EdgeInsets.all(4),
-        child: pw.Text(
-          label,
-          textDirection: pw.TextDirection.rtl,
-          textAlign: pw.TextAlign.right,
-          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-        ),
-      ),
-    ]);
-  }
   Widget _buildNobleStudentView() {
     return SingleChildScrollView(
       child: Column(
@@ -2278,6 +1869,7 @@ class _DislikeCardState extends State<_DislikeCard> {
       default:
         statusText = 'مطلوب الرد';
         statusColor = Colors.red.shade300;
+        break;
     }
 
     return Card(
@@ -2468,6 +2060,82 @@ class _SubjectResultCard extends StatelessWidget {
   final Color color;
   final Map<String, TestInfo> allTestsMap;
 
+  // --- ✅ (جديد) دالة لشرح التقييم ---
+  /// ويدجت جديد لشرح التقييم
+  Widget _buildAssessmentExplanation(BuildContext context, String assessment) {
+    String explanation;
+    IconData icon;
+    Color color;
+
+    switch (assessment) {
+      case 'متفوق ورائع!':
+        explanation = 'أداء استثنائي! هذا يعني أن الطالب يتقن المهارات بشكل كامل ومتميز في هذا المقرر .';
+        icon = Icons.auto_awesome;
+        color = Colors.amber.shade700;
+        break;
+      case 'ممتاز':
+        explanation = 'أداء ممتاز! الطالب يظهر فهماً قوياً للمادة ويتجاوز التوقعات في هذا المقرر  .';
+        icon = Icons.check_circle;
+        color = Colors.green.shade700;
+        break;
+      case 'جيد جداً':
+        explanation = 'أداء جيد جداً! الطالب يظهر فهماً جيداً لمعظم المهارات في هذا المقرر  .';
+        icon = Icons.thumb_up_alt;
+        color = Colors.blue.shade700;
+        break;
+      case 'جيد':
+        explanation = 'أداء جيد. الطالب يسير في المسار الصحيح ويظهر فهماً للمهارات الأساسية.';
+        icon = Icons.trending_up;
+        color = Colors.lightGreen.shade800;
+        break;
+      case 'مقبول':
+        explanation = 'أداء مقبول. الطالب يحقق الحد الأدنى من المهارات المطلوبة في هذا المقرر  .';
+        icon = Icons.thumbs_up_down;
+        color = Colors.orange.shade800;
+        break;
+      case 'يحتاج لمتابعة':
+      default:
+        explanation = 'يحتاج لمتابعة. الطالب يواجه بعض الصعوبات ويحتاج إلى دعم إضافي في هذا المقرر  .';
+        icon = Icons.warning_amber_rounded;
+        color = Colors.red.shade700;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12.0),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'شرح التقييم: ($assessment)',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  explanation,
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade800, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  // --- ✅ (نهاية) دالة شرح التقييم ---
+
+
   // (جديد) دالة لإنشاء ويدجت التحليل للمجموعة الواحدة
   Widget _buildAnalysisGroup(BuildContext context, _AnalysisResult analysis) {
     // تحديد لون العداد بناءً على التقييم
@@ -2602,6 +2270,10 @@ class _SubjectResultCard extends StatelessWidget {
               ),
             ],
           ),
+          // --- ✅ (جديد) إضافة شرح التقييم ---
+          const SizedBox(height: 16),
+          _buildAssessmentExplanation(context, analysis.assessment),
+          // --- ✅ (نهاية) ---
           const Divider(height: 32),
           // 4. التحليل التنبؤي
           Text('التحليل التنبؤي للمسار',
@@ -2644,21 +2316,30 @@ class _SubjectResultCard extends StatelessWidget {
               color: color,
               maxGrade: analysis.maxPossibleGrade),
           const Divider(height: 32),
-          // 6. تفاصيل الدرجات (للمجموعة الحالية فقط)
-          ExpansionTile(
-            title: Text('عرض تفاصيل الدرجات (${analysis.groupName})',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
-            tilePadding: EdgeInsets.zero,
-            children: [
-              ...analysis.testResults.map((entry) {
+          // --- ✅ (تعديل) إظهار الدرجات مباشرة ---
+          Text(
+            'تفاصيل الدرجات (${analysis.groupName})',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          if (analysis.testResults.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.0),
+              child: Text('لا توجد درجات مسجلة لهذه المجموعة.', style: TextStyle(color: Colors.grey)),
+            )
+          else
+            Column(
+              children: analysis.testResults.map((entry) {
                 final testInfo = allTestsMap[entry.key];
                 final testNameDisplay = testInfo?.name ?? entry.key;
                 final double maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13'))
                     ? 10.0
                     : 20.0;
+                // --- ✅ (تعديل) تلوين الدرجة المنخفضة ---
+                final bool isBelowPassing = entry.value >= 0 && entry.value < (maxGradeForThisTest / 2);
                 return Padding(
                   padding: const EdgeInsets.symmetric(
                       vertical: 6.0, horizontal: 8.0),
@@ -2673,15 +2354,17 @@ class _SubjectResultCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: entry.value == -1 ? Colors.grey.shade600 : Colors.black87,
+                          color: entry.value == -1
+                              ? Colors.grey.shade600
+                              : (isBelowPassing ? Colors.red.shade700 : Colors.black87),
                         ),
                       ),
                     ],
                   ),
                 );
-              }),
-            ],
-          ),
+              }).toList(),
+            ),
+          // --- 🛑 (حذف) تم حذف ExpansionTile ---
         ],
       ),
     ).animate().fade(duration: 300.ms).slideY(begin: 0.1);
