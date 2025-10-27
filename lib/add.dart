@@ -407,7 +407,7 @@ class _AddPageState extends State<AddPage> {
                     ),
                   ),
                   RotateAnimatedText(
-                    'معلم الرقمية بمدارس المعرفة',
+                    'باشراف ابتدائية المعرفة الاهلية بمكة المكرمة ',
                     textAlign: TextAlign.center,
                     textStyle: const TextStyle(
                       fontSize: 14.0,

@@ -1,5 +1,5 @@
 // student_view.dart (MODIFIED FOR NAFES KEYS AND NOTIFICATIONS)
-
+import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'dart:async'; // <-- ✅ إضافة جديدة للاستماع
 import 'dart:math';
 import 'dart:typed_data';
@@ -29,6 +29,38 @@ import 'package:universal_html/html.dart' as html;
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+// student_view.dart (MODIFIED FOR NAFES KEYS AND NOTIFICATIONS)
+// ✅✅✅ (MAJOR REFACTOR)
+// تم إعادة هيكلة الصفحة بالكامل لعرض تحليلات مفصلة لكل مجموعة اختبارات (دوري، نافس، إضافي)
+// مع إضافة مكتبات تجميلية ورسائل تحفيزية وإيجابية
+
+import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:almarefamecca/student_profile_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart' as intl;
+import 'package:percent_indicator/percent_indicator.dart'; // (لا يزال مستخدماً في التحليل الشامل)
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:screenshot/screenshot.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+// --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:universal_html/html.dart' as html;
+import 'package:animated_text_kit/animated_text_kit.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+
+// --- ✅✅✅ مكتبات الواجهة العصرية الجديدة ✅✅✅ ---
+import 'package:flutter_animate/flutter_animate.dart';
+// --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+
 
 enum StudentView { dashboard, results, noble, teacherComplaints }
 
@@ -38,8 +70,15 @@ class TestInfo {
   final String key;
   final String name;
   final String subject; // Stores the actual subject name (e.g., رياضيات)
+  // ✅ (إضافة جديدة) لتصنيف الاختبارات
+  final String testGroup; // e.g., "periodic", "nafes", "additional"
 
-  TestInfo({required this.key, required this.name, required this.subject});
+  TestInfo({
+    required this.key,
+    required this.name,
+    required this.subject,
+    required this.testGroup,
+  });
 }
 
 class Subject {
@@ -48,7 +87,9 @@ class Subject {
   Subject({required this.name, required this.icon});
 }
 
+// ✅ (تعديل) تم إضافة اسم لمجموعة التحليل
 class _AnalysisResult {
+  final String groupName; // e.g., "الاختبارات الدورية", "اختبارات نافس"
   final String subjectName;
   final double average;
   final double percentage;
@@ -63,8 +104,11 @@ class _AnalysisResult {
   final String performanceTrend;
   final double? predictedNextGrade;
   final String riskAssessment;
+  // ✅ (إضافة جديدة) لحساب النسبة الإجمالية
+  final int testCount; // عدد الاختبارات في هذا التحليل
 
   _AnalysisResult({
+    required this.groupName,
     required this.subjectName,
     required this.average,
     required this.percentage,
@@ -79,8 +123,18 @@ class _AnalysisResult {
     required this.performanceTrend,
     this.predictedNextGrade,
     required this.riskAssessment,
+    required this.testCount,
   });
 }
+
+// ✅ (إضافة جديدة) ويدجت لحمل النسبة الإجمالية للمادة
+class _OverallSubjectMetric {
+  final String subjectName;
+  final double overallPercentage;
+  final double overallAverage; // متوسط جميع الاختبارات
+  _OverallSubjectMetric({required this.subjectName, required this.overallPercentage, required this.overallAverage});
+}
+
 
 class StudentViewPage extends StatefulWidget {
   final String? studentId;
@@ -152,7 +206,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     super.dispose();
   }
 
-  // Generates keys like 'eXprofession1', 'eXprofession13_math', etc.
+  // ✅ (تعديل) تم إضافة testGroup
   List<TestInfo> _getAllPossibleTests() {
     final List<TestInfo> tests = [];
     final Map<String, String> standardSubjects = {
@@ -172,12 +226,12 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     // Generate standard test keys
     standardSubjects.forEach((profKey, subjName) {
-      tests.add(TestInfo(key: 'e1$profKey', name: 'الاختبار الأول (دوري)', subject: subjName));
-      tests.add(TestInfo(key: 'e2$profKey', name: 'الاختبار الثاني (دوري)', subject: subjName));
-      tests.add(TestInfo(key: 'e3$profKey', name: 'الاختبار الثالث (دوري)', subject: subjName));
-      tests.add(TestInfo(key: 'e14$profKey', name: 'اختبار قبلي', subject: subjName));
-      tests.add(TestInfo(key: 'e15$profKey', name: 'اختبار بعدي', subject: subjName));
-      tests.add(TestInfo(key: 'e16$profKey', name: 'اختبار احتياطي', subject: subjName));
+      tests.add(TestInfo(key: 'e1$profKey', name: 'الاختبار الأول (دوري)', subject: subjName, testGroup: 'periodic'));
+      tests.add(TestInfo(key: 'e2$profKey', name: 'الاختبار الثاني (دوري)', subject: subjName, testGroup: 'periodic'));
+      tests.add(TestInfo(key: 'e3$profKey', name: 'الاختبار الثالث (دوري)', subject: subjName, testGroup: 'periodic'));
+      tests.add(TestInfo(key: 'e14$profKey', name: 'اختبار قبلي', subject: subjName, testGroup: 'additional'));
+      tests.add(TestInfo(key: 'e15$profKey', name: 'اختبار بعدي', subject: subjName, testGroup: 'additional'));
+      tests.add(TestInfo(key: 'e16$profKey', name: 'اختبار احتياطي', subject: subjName, testGroup: 'additional'));
     });
 
     // Generate Nafes test keys for relevant subjects
@@ -191,18 +245,18 @@ class _StudentViewPageState extends State<StudentViewPage>
     nafesSubjectShortcodes.forEach((subjectName, shortcode) {
       // Nafes tests are associated with their *actual* subject name
       tests.addAll([
-        TestInfo(key: 'e1${nafesBaseKey}_$shortcode', name: 'الأول أساسي', subject: subjectName),
-        TestInfo(key: 'e2${nafesBaseKey}_$shortcode', name: 'الثاني أساسي', subject: subjectName),
-        TestInfo(key: 'e3${nafesBaseKey}_$shortcode', name: 'الاول ف نافس', subject: subjectName),
-        TestInfo(key: 'e4${nafesBaseKey}_$shortcode', name: 'الثاني ف نافس', subject: subjectName),
-        TestInfo(key: 'e5${nafesBaseKey}_$shortcode', name: 'الثالث ف نافس', subject: subjectName),
-        TestInfo(key: 'e6${nafesBaseKey}_$shortcode', name: 'الرابع ف نافس', subject: subjectName),
-        TestInfo(key: 'e7${nafesBaseKey}_$shortcode', name: 'الخامس ف نافس', subject: subjectName),
-        TestInfo(key: 'e8${nafesBaseKey}_$shortcode', name: 'السادس ف نافس', subject: subjectName),
-        TestInfo(key: 'e9${nafesBaseKey}_$shortcode', name: 'السابع ف نافس', subject: subjectName),
-        TestInfo(key: 'e10${nafesBaseKey}_$shortcode', name: 'الثامن ف نافس', subject: subjectName),
-        TestInfo(key: 'e11${nafesBaseKey}_$shortcode', name: 'التاسع ف نافس', subject: subjectName),
-        TestInfo(key: 'e12${nafesBaseKey}_$shortcode', name: 'العاشر ف نافس', subject: subjectName),
+        TestInfo(key: 'e1${nafesBaseKey}_$shortcode', name: 'الأول أساسي', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e2${nafesBaseKey}_$shortcode', name: 'الثاني أساسي', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e3${nafesBaseKey}_$shortcode', name: 'الاول ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e4${nafesBaseKey}_$shortcode', name: 'الثاني ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e5${nafesBaseKey}_$shortcode', name: 'الثالث ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e6${nafesBaseKey}_$shortcode', name: 'الرابع ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e7${nafesBaseKey}_$shortcode', name: 'الخامس ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e8${nafesBaseKey}_$shortcode', name: 'السادس ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e9${nafesBaseKey}_$shortcode', name: 'السابع ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e10${nafesBaseKey}_$shortcode', name: 'الثامن ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e11${nafesBaseKey}_$shortcode', name: 'التاسع ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 'e12${nafesBaseKey}_$shortcode', name: 'العاشر ف نافس', subject: subjectName, testGroup: 'nafes'),
       ]);
     });
 
@@ -446,21 +500,7 @@ class _StudentViewPageState extends State<StudentViewPage>
       body: Stack(
         children: [
           _buildBody(),
-          Positioned(
-            bottom: 16,
-            left: 16,
-            child: GestureDetector(
-              onTap: _launchWhatsApp,
-              child: Tooltip(
-                message: 'مبرمج المنصة: أ/ مصطفي سعيد (للدعم الفني)', // Update tooltip
-                child: Image.asset( // Use WhatsApp icon asset
-                  'assets/whatsapp_icon.png', // Make sure you have this asset
-                  width: 60,
-                  height: 60,
-                ),
-              ),
-            ),
-          ),
+
         ],
       ),
     );
@@ -556,7 +596,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                 ),
               ),
               RotateAnimatedText(
-                'معلم الرقمية بمدارس المعرفة',
+                'باشراف ابتدائية المعرفة الاهلية بمكة ',
                 textAlign: TextAlign.center,
                 textStyle: const TextStyle(
                   fontSize: 14.0,
@@ -566,7 +606,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                 ),
               ),
               RotateAnimatedText(
-                'للدعم الفني (اضغط أيقونة الواتساب)',
+                'هذا الاصدار تجريبي ونتمني لكم يوما سعيدا',
                 textAlign: TextAlign.center,
                 textStyle: const TextStyle(
                   fontSize: 14.0,
@@ -833,38 +873,115 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // --- ✅✅✅ START OF MODIFICATION (Grade Grouping Logic) ✅✅✅ ---
-  // Updated to correctly group grades based on the NEW _allTestsMap keys
-  List<_AnalysisResult> _getAllAnalyses() {
-    // Map to group scores by the ACTUAL subject name (Math, Lughati, Science for Nafes)
-    // Key: Subject Name (e.g., "رياضيات"), Value: Map<Test Key, Grade>
-    final Map<String, Map<String, num>> subjectGrades = {};
+
+  // --- ✅✅✅ START OF (MAJOR REFACTOR) ✅✅✅ ---
+  // (دالة جديدة) تقوم بتجميع الاختبارات حسب النوع (دوري، نافس، إضافي)
+  // وتعيد خريطة تحتوي على اسم المادة وقائمة بالتحليلات الخاصة بها
+  Map<String, List<_AnalysisResult>> _buildSubjectAnalyses() {
+    // 1. تجميع الدرجات حسب المادة، ثم حسب نوع الاختبار
+    // Map<SubjectName, Map<TestGroup, Map<TestKey, Grade>>>
+    final Map<String, Map<String, Map<String, num>>> subjectGroupedGrades = {};
 
     _studentData?.forEach((key, value) {
-      // Check if the key exists in our comprehensive test map and the value is a number
       if (value is num && _allTestsMap.containsKey(key)) {
         final testInfo = _allTestsMap[key]!;
-        // Use testInfo.subject which now correctly holds Math/Lughati/Science even for Nafes
-        subjectGrades
-            .putIfAbsent(testInfo.subject, () => {})[testInfo.key] = value; // Use test KEY here
+        // testInfo.subject = "رياضيات"
+        // testInfo.testGroup = "periodic"
+        // key = "e1profession1"
+        // value = 18
+        subjectGroupedGrades
+            .putIfAbsent(testInfo.subject, () => {})
+            .putIfAbsent(testInfo.testGroup, () => {})[testInfo.key] = value;
       }
     });
 
-    // Sort subjects alphabetically for consistent display order
-    final sortedSubjects = subjectGrades.keys.toList()..sort();
+    // 2. تحليل كل مجموعة فرعية على حدة
+    // Map<SubjectName, List<_AnalysisResult>>
+    final Map<String, List<_AnalysisResult>> finalAnalyses = {};
 
-    // Analyze grades for each subject
-    return sortedSubjects
-        .map((subjectName) =>
-        _analyzeSubjectGrades(subjectName, subjectGrades[subjectName]!))
-        .toList();
+    subjectGroupedGrades.forEach((subjectName, groups) {
+      final List<_AnalysisResult> subjectAnalyses = [];
+
+      // 3. تحليل مجموعة "الاختبارات الدورية" (إن وجدت)
+      if (groups.containsKey('periodic') && groups['periodic']!.isNotEmpty) {
+        subjectAnalyses.add(_analyzeSubjectGrades(
+          subjectName: subjectName,
+          groupName: "الاختبارات الدورية",
+          testResults: groups['periodic']!,
+          maxGrade: 20.0, // الدوري دائماً من 20
+        ));
+      }
+
+      // 4. تحليل مجموعة "اختبارات نافس" (إن وجدت)
+      if (groups.containsKey('nafes') && groups['nafes']!.isNotEmpty) {
+        subjectAnalyses.add(_analyzeSubjectGrades(
+          subjectName: subjectName,
+          groupName: "اختبارات نافس",
+          testResults: groups['nafes']!,
+          maxGrade: 10.0, // نافس دائماً من 10
+        ));
+      }
+
+      // 5. تحليل مجموعة "الاختبارات الإضافية" (إن وجدت)
+      if (groups.containsKey('additional') && groups['additional']!.isNotEmpty) {
+        subjectAnalyses.add(_analyzeSubjectGrades(
+          subjectName: subjectName,
+          groupName: "اختبارات قياس المستوي (قبلي , بعدي )",
+          testResults: groups['additional']!,
+          maxGrade: 20.0, // الإضافي غالباً من 20 (افتراضي)
+        ));
+      }
+
+      if (subjectAnalyses.isNotEmpty) {
+        finalAnalyses[subjectName] = subjectAnalyses;
+      }
+    });
+
+    return finalAnalyses;
   }
-  // --- ✅✅✅ END OF MODIFICATION (Grade Grouping Logic) ✅✅✅ ---
+  // --- ✅✅✅ END OF (MAJOR REFACTOR) ✅✅✅ ---
+
+  // ✅ (دالة جديدة) لحساب المقاييس الإجمالية للمادة
+  // تأخذ مخرجات الدالة السابقة
+  List<_OverallSubjectMetric> _calculateOverallMetrics(Map<String, List<_AnalysisResult>> subjectAnalyses) {
+    final List<_OverallSubjectMetric> metrics = [];
+
+    subjectAnalyses.forEach((subjectName, analyses) {
+      double totalWeightedSum = 0;
+      int totalTests = 0;
+      double totalAverageSum = 0;
+
+      for (var analysis in analyses) {
+        // (متوسط المجموعة * عدد اختباراتها)
+        totalWeightedSum += (analysis.average * analysis.testCount);
+        totalTests += analysis.testCount;
+        // (نسبة المجموعة * عدد اختباراتها) - لحساب النسبة الإجمالية
+        totalAverageSum += (analysis.percentage * analysis.testCount);
+      }
+
+      if (totalTests > 0) {
+        metrics.add(_OverallSubjectMetric(
+          subjectName: subjectName,
+          // النسبة الإجمالية = مجموع (النسبة * العدد) / العدد الإجمالي
+          overallPercentage: totalAverageSum / totalTests,
+          // المتوسط الإجمالي = مجموع (المتوسط * العدد) / العدد الإجمالي
+          overallAverage: totalWeightedSum / totalTests,
+        ));
+      }
+    });
+
+    return metrics;
+  }
+
 
   Widget _buildResultsView() {
-    final allAnalyses = _getAllAnalyses();
+    // 1. (جديد) قم ببناء التحليلات المفصلة (دوري، نافس، ...)
+    final allSubjectAnalyses = _buildSubjectAnalyses();
 
-    if (allAnalyses.isEmpty) {
+    // 2. (جديد) قم بحساب المقاييس الإجمالية لكل مادة
+    final overallMetrics = _calculateOverallMetrics(allSubjectAnalyses);
+
+    if (allSubjectAnalyses.isEmpty) {
       return const Center(
         child: Text('لا توجد نتائج دراسية لعرضها حالياً.',
             style: TextStyle(fontSize: 18, color: Colors.grey)),
@@ -878,22 +995,28 @@ class _StudentViewPageState extends State<StudentViewPage>
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              ...allAnalyses.map((analysis) {
+              // 3. (تعديل) إرسال المقاييس الإجمالية للويدجت الشامل
+              _buildOverallAnalysisWidget(overallMetrics),
+              const SizedBox(height: 24),
+              // 4. (تعديل) بناء كروت المواد باستخدام التحليلات المفصلة
+              ...allSubjectAnalyses.entries.map((entry) {
+                final subjectName = entry.key;
+                final analysesList = entry.value; // List<_AnalysisResult>
                 final subjectIcon = subjects
-                    .firstWhere((s) => s.name == analysis.subjectName,
-                    orElse: () => Subject(name: '', icon: Icons.book)) // Fallback icon
+                    .firstWhere((s) => s.name == subjectName,
+                    orElse: () => Subject(name: '', icon: Icons.book))
                     .icon;
-                final subjectColor = _subjectColors[analysis.subjectName] ?? Colors.blue;
+                final subjectColor = _subjectColors[subjectName] ?? Colors.blue;
 
                 return _SubjectResultCard(
-                  analysis: analysis,
+                  subjectName: subjectName,
+                  analyses: analysesList, // إرسال القائمة
                   subjectIcon: subjectIcon,
                   color: subjectColor,
-                  allTestsMap: _allTestsMap, // Pass the map here
+                  allTestsMap: _allTestsMap,
                 );
               }).toList(),
-              _buildOverallAnalysisWidget(allAnalyses),
-              const SizedBox(height: 24),
+
             ],
           ),
         ),
@@ -901,31 +1024,37 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  Widget _buildOverallAnalysisWidget(List<_AnalysisResult> allAnalyses) {
-    if (allAnalyses.isEmpty) return const SizedBox.shrink();
+  // ✅ (تعديل) هذا الويدجت الآن يأخذ المقاييس الإجمالية
+  Widget _buildOverallAnalysisWidget(List<_OverallSubjectMetric> overallMetrics) {
+    if (overallMetrics.isEmpty) return const SizedBox.shrink();
 
     final double overallAveragePercentage =
-        allAnalyses.map((a) => a.percentage).reduce((a, b) => a + b) /
-            allAnalyses.length;
+        overallMetrics.map((m) => m.overallPercentage).reduce((a, b) => a + b) /
+            overallMetrics.length;
 
-    allAnalyses.sort((a, b) => b.average.compareTo(a.average));
-    final strengths = allAnalyses.take(3).toList();
-    final weaknesses = allAnalyses.reversed.take(3).toList();
+    overallMetrics.sort((a, b) => b.overallAverage.compareTo(a.overallAverage));
+    final strengths = overallMetrics.take(3).toList();
+    final weaknesses = overallMetrics.reversed.take(3).toList();
 
+    // ✅ (تعديل) تحسين الرسائل الإيجابية
     String overallAssessment;
     if (overallAveragePercentage >= 0.9) {
       overallAssessment =
-      'أداء استثنائي وممتاز في جميع المواد. استمر في هذا التفوق!';
+      'أداء استثنائي ورائع! أنت تسير على طريق التفوق. حافظ على هذا المستوى المتميز.';
     } else if (overallAveragePercentage >= 0.75) {
       overallAssessment =
-      'أداء عام جيد جداً، مع وجود نقاط قوة واضحة. عمل رائع!';
+      'أداء عام ممتاز. لديك نقاط قوة واضحة ومستوى يبعث على الفخر. عمل رائع!';
     } else if (overallAveragePercentage >= 0.60) {
       overallAssessment =
-      'أداء عام جيد ومستقر. يمكن تحقيق المزيد من التقدم بالتركيز على بعض المواد.';
+      'أداء عام جيد جداً ومستقر. بالتركيز على بعض النقاط ستصل إلى الامتياز بسهولة.';
+    } else if (overallAveragePercentage >= 0.50) {
+      overallAssessment =
+      'أداء جيد وهناك إمكانيات كبيرة للتحسن. بالجهد والمتابعة ستحقق نتائج أفضل بكثير.';
     } else {
       overallAssessment =
-      'الأداء العام يحتاج إلى متابعة وجهد إضافي لتحقيق نتائج أفضل.';
+      'الأداء العام يحتاج إلى متابعة وجهد إضافي. لديك القدرة على تحقيق نتائج أفضل، ثق بنفسك.';
     }
+
 
     return Card(
       margin: const EdgeInsets.only(top: 16),
@@ -980,7 +1109,7 @@ class _StudentViewPageState extends State<StudentViewPage>
               leading: Icon(Icons.check_circle, color: Colors.green[700]),
               title: Text(s.subjectName),
               trailing: Text(
-                  '${(s.percentage * 100).toStringAsFixed(1)}%',
+                  '${(s.overallPercentage * 100).toStringAsFixed(1)}%',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
             )),
             const Divider(height: 24),
@@ -993,7 +1122,7 @@ class _StudentViewPageState extends State<StudentViewPage>
               Icon(Icons.warning_amber_rounded, color: Colors.orange[800]),
               title: Text(w.subjectName),
               trailing: Text(
-                  '${(w.percentage * 100).toStringAsFixed(1)}%',
+                  '${(w.overallPercentage * 100).toStringAsFixed(1)}%',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
             )),
           ],
@@ -1002,10 +1131,14 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // --- ✅✅✅ START OF MODIFICATION (Analyze Logic) ✅✅✅ ---
-  // Updated to correctly determine maxGrade based on whether ANY test in the group is Nafes
-  _AnalysisResult _analyzeSubjectGrades(
-      String subjectName, Map<String, num> testResults) { // testResults key is test KEY
+  // --- ✅✅✅ START OF (MAJOR REFACTOR) ✅✅✅ ---
+  // (تعديل) الدالة الآن تأخذ اسم المجموعة والحد الأقصى للدرجة
+  _AnalysisResult _analyzeSubjectGrades({
+    required String subjectName,
+    required String groupName, // "الاختبارات الدورية", "اختبارات نافس", ...
+    required Map<String, num> testResults, // testResults key is test KEY
+    required double maxGrade, // 20.0 or 10.0
+  }) {
     // Sort tests by key for consistent trend analysis
     final sortedTests = testResults.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
@@ -1013,16 +1146,14 @@ class _StudentViewPageState extends State<StudentViewPage>
     // Filter out absent marks (-1) before calculations
     final validGrades = sortedTests.map((e) => e.value).where((g) => g >= 0).toList();
 
-    // Check if *any* test key in this subject's results indicates it's a Nafes test
-    final bool containsNafesTests = sortedTests.any((test) => test.key.contains('profession13'));
-
-    // Determine max grade and passing grade based on whether Nafes tests are present
-    final double maxGradeForThisAnalysis = containsNafesTests ? 10.0 : 20.0;
+    // Use the passed maxGrade
+    final double maxGradeForThisAnalysis = maxGrade;
     final double passingGradeForThisAnalysis = maxGradeForThisAnalysis / 2.0;
 
     // Handle case where there are no valid grades
     if (validGrades.isEmpty) {
       return _AnalysisResult(
+        groupName: groupName,
         subjectName: subjectName,
         average: 0,
         percentage: 0,
@@ -1037,6 +1168,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         performanceTrend: 'لا يوجد بيانات كافية',
         predictedNextGrade: null,
         riskAssessment: 'غير محدد',
+        testCount: sortedTests.length, // (جديد)
       );
     }
 
@@ -1050,9 +1182,10 @@ class _StudentViewPageState extends State<StudentViewPage>
     // --- Consistency (Standard Deviation) ---
     final double variance = validGrades.map((g) => pow(g - average, 2)).reduce((a, b) => a + b) / validGrades.length;
     final double stdDev = sqrt(variance);
+    // ✅ (تعديل) رسائل تحفيزية
     String consistency;
     if (stdDev > (maxGradeForThisAnalysis * 0.15)) { // Use correct max grade
-      consistency = 'غير مستقر';
+      consistency = 'يحتاج إلى ثبات'; // (رسالة أفضل)
     } else if (stdDev < (maxGradeForThisAnalysis * 0.05)) { // Use correct max grade
       consistency = 'مستقر جداً';
     } else {
@@ -1060,17 +1193,20 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
 
     // --- Assessment ---
+    // ✅ (تعديل) رسائل تحفيزية وإيجابية
     String assessment;
-    if (percentage >= 0.9)
+    if (percentage >= 0.95)
+      assessment = 'متفوق ورائع!';
+    else if (percentage >= 0.85)
       assessment = 'ممتاز';
-    else if (percentage >= 0.8)
+    else if (percentage >= 0.75)
       assessment = 'جيد جداً';
-    else if (percentage >= 0.7)
+    else if (percentage >= 0.60)
       assessment = 'جيد';
-    else if (percentage >= 0.5)
+    else if (percentage >= 0.50)
       assessment = 'مقبول';
     else
-      assessment = 'يحتاج لمتابعة';
+      assessment = 'يحتاج لمتابعة'; // (تم إزالة "بسيطة" للوضوح)
 
     // --- Trend Analysis ---
     final trendSpots = <FlSpot>[];
@@ -1083,9 +1219,10 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
 
     // --- Performance Trend & Prediction ---
+    // ✅ (تعديل) رسائل تحفيزية
     String performanceTrend = 'مستقر';
     double? predictedNextGrade;
-    String riskAssessment = 'مسار آمن';
+    String riskAssessment = 'في المسار الصحيح'; // (رسالة أفضل)
 
     if (validGrades.length >= 2) {
       double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
@@ -1101,10 +1238,11 @@ class _StudentViewPageState extends State<StudentViewPage>
       if (denominator != 0) {
         final double slope = (n * sumXY - sumX * sumY) / denominator;
 
+        // ✅ (تعديل) التعامل مع الإشارات السالبة (Rule #8)
         if (slope > (maxGradeForThisAnalysis * 0.05)) { // Use correct max grade
           performanceTrend = 'تحسن ملحوظ';
         } else if (slope < -(maxGradeForThisAnalysis * 0.05)) { // Use correct max grade
-          performanceTrend = 'تراجع ملحوظ';
+          performanceTrend = 'تراجع يحتاج انتباه'; // (رسالة أفضل)
         }
 
         final double intercept = (sumY - slope * sumX) / n;
@@ -1114,24 +1252,26 @@ class _StudentViewPageState extends State<StudentViewPage>
       }
 
       // Risk Assessment
+      // ✅ (تعديل) رسائل تحفيزية
       if (isBelowPassing && (performanceTrend.contains('تراجع'))) {
-        riskAssessment = 'مسار حرج';
+        riskAssessment = 'يحتاج دعم فوري'; // (رسالة أفضل)
       } else if (isBelowPassing || (predictedNextGrade != null && predictedNextGrade < passingGradeForThisAnalysis)) {
-        riskAssessment = 'يحتاج لمتابعة';
+        riskAssessment = 'يحتاج لبعض التركيز'; // (رسالة أفضل)
       } else if (performanceTrend.contains('تراجع')){
-        riskAssessment = 'يحتاج لمتابعة';
+        riskAssessment = 'يحتاج لبعض التركيز'; // (رسالة أفضل)
       }
 
     } else {
       performanceTrend = 'يتطلب اختبارين للتحليل';
       if(isBelowPassing && validGrades.isNotEmpty) {
-        riskAssessment = 'يحتاج لمتابعة';
+        riskAssessment = 'يحتاج لبعض التركيز'; // (رسالة أفضل)
       } else if (validGrades.isEmpty) {
         riskAssessment = 'غير محدد';
       }
     }
 
     return _AnalysisResult(
+      groupName: groupName, // (جديد)
       subjectName: subjectName,
       average: average,
       percentage: percentage,
@@ -1146,9 +1286,10 @@ class _StudentViewPageState extends State<StudentViewPage>
       performanceTrend: performanceTrend,
       predictedNextGrade: predictedNextGrade,
       riskAssessment: riskAssessment,
+      testCount: sortedTests.length, // (جديد)
     );
   }
-  // --- ✅✅✅ END OF MODIFICATION (Analyze Logic) ✅✅✅ ---
+  // --- ✅✅✅ END OF (MAJOR REFACTOR) ✅✅✅ ---
 
 
   void _showReportOptions() {
@@ -1243,7 +1384,10 @@ class _StudentViewPageState extends State<StudentViewPage>
       (await rootBundle.load('assets/4.png')).buffer.asUint8List(),
     );
 
-    final allAnalyses = _getAllAnalyses();
+    // ✅ (تعديل) استخدام الدوال الجديدة
+    final allSubjectAnalyses = _buildSubjectAnalyses();
+    final overallMetrics = _calculateOverallMetrics(allSubjectAnalyses);
+
     final doc = pw.Document();
     final String studentName = _studentData?['name'] ?? 'student';
     final safeStudentName = studentName.replaceAll(' ', '_');
@@ -1270,13 +1414,31 @@ class _StudentViewPageState extends State<StudentViewPage>
                 textDirection: pw.TextDirection.rtl,
                 textAlign: pw.TextAlign.center),
           ),
-          _buildOverallAnalysisPdf(allAnalyses),
+          // ✅ (تعديل) إرسال المقاييس الإجمالية
+          _buildOverallAnalysisPdf(overallMetrics),
           pw.Divider(height: 30),
           pw.Text('التحليل التفصيلي للمواد',
               textDirection: pw.TextDirection.rtl,
               style:
               pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-          ...allAnalyses.map((analysis) => _buildSubjectPdf(analysis)), // Pass _allTestsMap here
+          // ✅ (تعديل) المرور على الخريطة الجديدة
+          ...allSubjectAnalyses.entries.map((entry) {
+            final subjectName = entry.key;
+            final analysesList = entry.value;
+            return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    subjectName,
+                    textDirection: pw.TextDirection.rtl,
+                    style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.blueGrey800),
+                  ),
+                  pw.Divider(height: 8, thickness: 2),
+                  ...analysesList.map((analysis) => _buildSubjectPdf(analysis)),
+                  pw.SizedBox(height: 15),
+                ]
+            );
+          }),
         ];
         break;
       case ReportType.table:
@@ -1288,7 +1450,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                 textDirection: pw.TextDirection.rtl,
                 textAlign: pw.TextAlign.center),
           ),
-          _buildTableReportPdf(allAnalyses),
+          _buildTableReportPdf(allSubjectAnalyses),
         ];
         break;
       case ReportType.studentData:
@@ -1381,7 +1543,8 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  pw.Widget _buildTableReportPdf(List<_AnalysisResult> allAnalyses) {
+  // ✅ (تعديل) بناء الجدول بناءً على الهيكلة الجديدة
+  pw.Widget _buildTableReportPdf(Map<String, List<_AnalysisResult>> allSubjectAnalyses) {
     final List<pw.TableRow> rows = [];
     rows.add(
       pw.TableRow(
@@ -1389,23 +1552,28 @@ class _StudentViewPageState extends State<StudentViewPage>
           _buildPdfTableHeader('التقييم'),
           _buildPdfTableHeader('النسبة'),
           _buildPdfTableHeader('المتوسط'),
+          _buildPdfTableHeader('نوع الاختبار'),
           _buildPdfTableHeader('المادة'),
         ],
       ),
     );
 
-    for (final analysis in allAnalyses) {
-      rows.add(
-        pw.TableRow(
-          children: [
-            _buildPdfTableCell(analysis.assessment),
-            _buildPdfTableCell('${(analysis.percentage * 100).toStringAsFixed(1)}%'),
-            _buildPdfTableCell('${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}'), // Use max grade from analysis
-            _buildPdfTableCell(analysis.subjectName),
-          ],
-        ),
-      );
-    }
+    allSubjectAnalyses.forEach((subjectName, analysesList) {
+      for (final analysis in analysesList) {
+        rows.add(
+          pw.TableRow(
+            children: [
+              _buildPdfTableCell(analysis.assessment),
+              _buildPdfTableCell('${(analysis.percentage * 100).toStringAsFixed(1)}%'),
+              _buildPdfTableCell('${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}'),
+              _buildPdfTableCell(analysis.groupName), // اسم المجموعة (دوري، نافس)
+              _buildPdfTableCell(subjectName),
+            ],
+          ),
+        );
+      }
+    });
+
 
     return pw.Table(
       border: pw.TableBorder.all(),
@@ -1413,7 +1581,8 @@ class _StudentViewPageState extends State<StudentViewPage>
         0: const pw.FlexColumnWidth(2),
         1: const pw.FlexColumnWidth(1.5),
         2: const pw.FlexColumnWidth(1.5),
-        3: const pw.FlexColumnWidth(2),
+        3: const pw.FlexColumnWidth(2.5),
+        4: const pw.FlexColumnWidth(2),
       },
       children: rows,
     );
@@ -1451,16 +1620,17 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  pw.Widget _buildOverallAnalysisPdf(List<_AnalysisResult> allAnalyses) {
-    if (allAnalyses.isEmpty) return pw.SizedBox.shrink();
+  // ✅ (تعديل) بناء التحليل الشامل بناءً على المقاييس الإجمالية
+  pw.Widget _buildOverallAnalysisPdf(List<_OverallSubjectMetric> overallMetrics) {
+    if (overallMetrics.isEmpty) return pw.SizedBox.shrink();
 
     final double overallAveragePercentage =
-        allAnalyses.map((a) => a.percentage).reduce((a, b) => a + b) /
-            allAnalyses.length;
+        overallMetrics.map((a) => a.overallPercentage).reduce((a, b) => a + b) /
+            overallMetrics.length;
 
-    allAnalyses.sort((a, b) => b.average.compareTo(a.average));
-    final strengths = allAnalyses.take(3).toList();
-    final weaknesses = allAnalyses.reversed.take(3).toList();
+    overallMetrics.sort((a, b) => b.overallAverage.compareTo(a.overallAverage));
+    final strengths = overallMetrics.take(3).toList();
+    final weaknesses = overallMetrics.reversed.take(3).toList();
 
     return pw.Container(
       padding: const pw.EdgeInsets.all(10),
@@ -1484,23 +1654,24 @@ class _StudentViewPageState extends State<StudentViewPage>
           ),
           pw.SizedBox(height: 10),
           pw.Text('نقاط القوة:', textDirection: pw.TextDirection.rtl, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          ...strengths.map((s) => pw.Text('- ${s.subjectName} (متوسط: ${s.average.toStringAsFixed(1)})', textDirection: pw.TextDirection.rtl)),
+          ...strengths.map((s) => pw.Text('- ${s.subjectName} (نسبة: ${(s.overallPercentage * 100).toStringAsFixed(1)}%)', textDirection: pw.TextDirection.rtl)),
           pw.SizedBox(height: 10),
           pw.Text('مواد تحتاج إلى تركيز:', textDirection: pw.TextDirection.rtl, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-          ...weaknesses.map((w) => pw.Text('- ${w.subjectName} (متوسط: ${w.average.toStringAsFixed(1)})', textDirection: pw.TextDirection.rtl)),
+          ...weaknesses.map((w) => pw.Text('- ${w.subjectName} (نسبة: ${(w.overallPercentage * 100).toStringAsFixed(1)}%)', textDirection: pw.TextDirection.rtl)),
         ],
       ),
     );
   }
 
   // --- ✅✅✅ START OF MODIFICATION (PDF Subject Logic) ✅✅✅ ---
+  // (تعديل) هذا الويدجت الآن يعرض "مجموعة اختبار" واحدة
   pw.Widget _buildSubjectPdf(_AnalysisResult analysis) {
     PdfColor riskColor;
     switch (analysis.riskAssessment) {
-      case 'مسار حرج':
+      case 'يحتاج دعم فوري': // (رسالة جديدة)
         riskColor = PdfColors.red;
         break;
-      case 'يحتاج لمتابعة':
+      case 'يحتاج لبعض التركيز': // (رسالة جديدة)
         riskColor = PdfColors.orange;
         break;
       default:
@@ -1510,11 +1681,17 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     return pw.Container(
         margin: const pw.EdgeInsets.symmetric(vertical: 10),
+        // (جديد) إضافة إطار للتمييز بين المجموعات
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.grey300),
+          borderRadius: pw.BorderRadius.circular(5),
+        ),
+        padding: const pw.EdgeInsets.all(8),
         child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                analysis.subjectName,
+                analysis.groupName, // (جديد) استخدام اسم المجموعة
                 textDirection: pw.TextDirection.rtl,
                 style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.blue800),
               ),
@@ -2274,28 +2451,260 @@ class __AnimatedTrophyState extends State<_AnimatedTrophy>
   }
 }
 
+// --- ✅✅✅ START OF (MAJOR REFACTOR) ✅✅✅ ---
+// (تعديل) هذا الويدجت أصبح يعرض "قائمة" من التحليلات للمادة الواحدة
 class _SubjectResultCard extends StatelessWidget {
   const _SubjectResultCard({
-    required this.analysis,
+    required this.subjectName,
+    required this.analyses, // (جديد) قائمة بالتحليلات (دوري، نافس، ...)
     required this.subjectIcon,
     required this.color,
-    required this.allTestsMap, // Add this
+    required this.allTestsMap,
   });
 
-  final _AnalysisResult analysis;
+  final String subjectName;
+  final List<_AnalysisResult> analyses; // (جديد)
   final IconData subjectIcon;
   final Color color;
-  final Map<String, TestInfo> allTestsMap; // Receive the map
+  final Map<String, TestInfo> allTestsMap;
 
-  Widget _getRiskAssessmentWidget() {
+  // (جديد) دالة لإنشاء ويدجت التحليل للمجموعة الواحدة
+  Widget _buildAnalysisGroup(BuildContext context, _AnalysisResult analysis) {
+    // تحديد لون العداد بناءً على التقييم
+    Color gaugeColor;
+    if (analysis.percentage >= 0.85)
+      gaugeColor = Colors.green;
+    else if (analysis.percentage >= 0.70)
+      gaugeColor = Colors.blue;
+    else if (analysis.percentage >= 0.50)
+      gaugeColor = Colors.orange;
+    else
+      gaugeColor = Colors.red;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.05),
+            spreadRadius: 1,
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. اسم مجموعة التحليل (دوري، نافس، ...)
+          Text(
+            analysis.groupName, // "الاختبارات الدورية"
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              // 2. العداد الاحترافي (جديد)
+              SizedBox(
+                width: 130,
+                height: 130,
+                child: SfRadialGauge(
+                  axes: <RadialAxis>[
+                    RadialAxis(
+                      minimum: 0,
+                      maximum: 100,
+                      showLabels: false,
+                      showTicks: false,
+                      axisLineStyle: AxisLineStyle(
+                        thickness: 0.15,
+                        cornerStyle: CornerStyle.bothCurve,
+                        color: gaugeColor.withOpacity(0.2),
+                        thicknessUnit: GaugeSizeUnit.factor,
+                      ),
+                      pointers: <GaugePointer>[
+                        RangePointer(
+                          value: analysis.percentage * 100,
+                          cornerStyle: CornerStyle.bothCurve,
+                          width: 0.15,
+                          sizeUnit: GaugeSizeUnit.factor,
+                          color: gaugeColor,
+                        ),
+                      ],
+                      annotations: <GaugeAnnotation>[
+                        GaugeAnnotation(
+                          positionFactor: 0.1,
+                          angle: 90,
+                          widget: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                "${(analysis.percentage * 100).toStringAsFixed(1)}%",
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: gaugeColor,
+                                ),
+                              ),
+                              Text(
+                                analysis.assessment, // "ممتاز", "جيد", ...
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                  ],
+                ),
+              ).animate().fade(duration: 500.ms).scale(delay: 200.ms),
+              const SizedBox(width: 16),
+              // 3. المعلومات الأساسية (أعلى، أدنى، ...)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _InfoChip(
+                        label: 'المتوسط',
+                        value: '${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}',
+                        icon: Icons.functions,
+                        color: color),
+                    const SizedBox(height: 8),
+                    _InfoChip(
+                        label: 'مستوى الأداء',
+                        value: analysis.consistency,
+                        icon: Icons.show_chart_outlined,
+                        color: color),
+                    const SizedBox(height: 8),
+                    _InfoChip(
+                        label: 'أعلى درجة',
+                        value: '${analysis.highestGrade} / ${analysis.maxPossibleGrade.toInt()}',
+                        icon: Icons.arrow_upward_outlined,
+                        color: Colors.green),
+                    const SizedBox(height: 8),
+                    _InfoChip(
+                        label: 'أدنى درجة',
+                        value: '${analysis.lowestGrade} / ${analysis.maxPossibleGrade.toInt()}',
+                        icon: Icons.arrow_downward_outlined,
+                        color: Colors.redAccent),
+                  ],
+                ).animate().fade(delay: 300.ms).slideX(begin: 0.2),
+              ),
+            ],
+          ),
+          const Divider(height: 32),
+          // 4. التحليل التنبؤي
+          Text('التحليل التنبؤي للمسار',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          _buildPredictiveInfo(
+            context,
+            icon: Icons.trending_up,
+            color: analysis.performanceTrend.contains('تحسن')
+                ? Colors.green
+                : (analysis.performanceTrend.contains('تراجع')
+                ? Colors.red
+                : Colors.grey),
+            label: 'اتجاه الأداء',
+            value: analysis.performanceTrend,
+          ),
+          const SizedBox(height: 12),
+          if (analysis.predictedNextGrade != null)
+            _buildPredictiveInfo(
+              context,
+              icon: Icons.track_changes,
+              color: Theme.of(context).primaryColor,
+              label: 'الدرجة التالية المتوقعة',
+              value:
+              '~${analysis.predictedNextGrade!.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}',
+            ),
+          const Divider(height: 32),
+          // 5. الرسم البياني للمجموعة
+          Text('تتبع الأداء الزمني',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          _PerformanceTrendChart(
+              spots: analysis.trendSpots,
+              color: color,
+              maxGrade: analysis.maxPossibleGrade),
+          const Divider(height: 32),
+          // 6. تفاصيل الدرجات (للمجموعة الحالية فقط)
+          ExpansionTile(
+            title: Text('عرض تفاصيل الدرجات (${analysis.groupName})',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            tilePadding: EdgeInsets.zero,
+            children: [
+              ...analysis.testResults.map((entry) {
+                final testInfo = allTestsMap[entry.key];
+                final testNameDisplay = testInfo?.name ?? entry.key;
+                final double maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13'))
+                    ? 10.0
+                    : 20.0;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 6.0, horizontal: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(testNameDisplay, style: const TextStyle(fontSize: 15)),
+                      Text(
+                        entry.value == -1
+                            ? 'غائب'
+                            : '${entry.value} / ${maxGradeForThisTest.toInt()}',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: entry.value == -1 ? Colors.grey.shade600 : Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ],
+      ),
+    ).animate().fade(duration: 300.ms).slideY(begin: 0.1);
+  }
+
+  // (جديد) دالة للحصول على ويدجت تقييم المسار الكلي
+  Widget _getOverallRiskAssessmentWidget() {
+    // تحديد المسار الأخطر بين جميع التحليلات
+    String overallRisk = 'في المسار الصحيح';
+    if (analyses.any((a) => a.riskAssessment == 'يحتاج دعم فوري')) {
+      overallRisk = 'يحتاج دعم فوري';
+    } else if (analyses.any((a) => a.riskAssessment == 'يحتاج لبعض التركيز')) {
+      overallRisk = 'يحتاج لبعض التركيز';
+    }
+
     IconData icon;
     Color color;
-    switch (analysis.riskAssessment) {
-      case 'مسار حرج':
+    switch (overallRisk) {
+      case 'يحتاج دعم فوري':
         icon = Icons.dangerous;
         color = Colors.red.shade700;
         break;
-      case 'يحتاج لمتابعة':
+      case 'يحتاج لبعض التركيز':
         icon = Icons.warning_amber_rounded;
         color = Colors.amber.shade800;
         break;
@@ -2308,12 +2717,13 @@ class _SubjectResultCard extends StatelessWidget {
       children: [
         Icon(icon, color: color, size: 16),
         const SizedBox(width: 4),
-        Text(analysis.riskAssessment,
+        Text(overallRisk,
             style: TextStyle(
                 color: color, fontWeight: FontWeight.bold, fontSize: 12)),
       ],
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -2325,159 +2735,26 @@ class _SubjectResultCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 1. رأس الكارت (اسم المادة والتقييم الإجمالي)
             Row(
               children: [
                 Icon(subjectIcon, size: 28, color: color),
                 const SizedBox(width: 12),
-                Text(analysis.subjectName,
+                Text(subjectName,
                     style: Theme.of(context).textTheme.headlineSmall),
                 const Spacer(),
-                _getRiskAssessmentWidget(),
+                _getOverallRiskAssessmentWidget(), // (جديد)
               ],
             ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                CircularPercentIndicator(
-                  radius: 55.0,
-                  lineWidth: 10.0,
-                  animation: true,
-                  percent: analysis.percentage,
-                  center: Text(
-                      "${(analysis.percentage * 100).toStringAsFixed(1)}%",
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 20.0)),
-                  footer: Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                        "المتوسط: ${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}", // Use max grade from analysis
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 15.0)),
-                  ),
-                  circularStrokeCap: CircularStrokeCap.round,
-                  progressColor: color,
-                  backgroundColor: color.withOpacity(0.2),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _InfoChip(
-                          label: 'التقييم العام',
-                          value: analysis.assessment,
-                          icon: Icons.military_tech_outlined,
-                          color: color),
-                      const SizedBox(height: 8),
-                      _InfoChip(
-                          label: 'مستوى الأداء',
-                          value: analysis.consistency,
-                          icon: Icons.show_chart_outlined,
-                          color: color),
-                      const SizedBox(height: 8),
-                      _InfoChip(
-                          label: 'أعلى درجة',
-                          value: '${analysis.highestGrade} / ${analysis.maxPossibleGrade.toInt()}', // Use max grade from analysis
-                          icon: Icons.arrow_upward_outlined,
-                          color: Colors.green),
-                      const SizedBox(height: 8),
-                      _InfoChip(
-                          label: 'أدنى درجة',
-                          value: '${analysis.lowestGrade} / ${analysis.maxPossibleGrade.toInt()}', // Use max grade from analysis
-                          icon: Icons.arrow_downward_outlined,
-                          color: Colors.redAccent),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const Divider(height: 32),
-            Text('التحليل التنبؤي للمسار',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            _buildPredictiveInfo(
-              context,
-              icon: Icons.trending_up,
-              color: analysis.performanceTrend.contains('تحسن')
-                  ? Colors.green
-                  : (analysis.performanceTrend.contains('تراجع')
-                  ? Colors.red
-                  : Colors.grey),
-              label: 'اتجاه الأداء',
-              value: analysis.performanceTrend,
-            ),
-            const SizedBox(height: 12),
-            if (analysis.predictedNextGrade != null)
-              _buildPredictiveInfo(
-                context,
-                icon: Icons.track_changes,
-                color: Theme.of(context).primaryColor,
-                label: 'الدرجة التالية المتوقعة',
-                value:
-                '~${analysis.predictedNextGrade!.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}', // Use max grade from analysis
-              ),
-            const Divider(height: 32),
-            Text('تتبع الأداء الزمني',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            _PerformanceTrendChart(
-                spots: analysis.trendSpots,
-                color: color,
-                maxGrade: analysis.maxPossibleGrade), // Use max grade from analysis
-            const Divider(height: 32),
-            ExpansionTile(
-              title: Text('عرض تفاصيل الدرجات',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold)),
-              tilePadding: EdgeInsets.zero,
-              children: [
-                // --- ✅✅✅ START OF MODIFICATION (Individual Grade Display) ✅✅✅ ---
-                ...analysis.testResults.map((entry) { // entry.key is test KEY, entry.value is grade
-                  final testInfo = allTestsMap[entry.key];
-                  final testNameDisplay = testInfo?.name ?? entry.key; // Use real test name
-
-                  // Determine max grade for *this specific test*
-                  final double maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13'))
-                      ? 10.0
-                      : 20.0;
-
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 6.0, horizontal: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(testNameDisplay, style: const TextStyle(fontSize: 15)), // Show actual test name
-                        Text(
-                          entry.value == -1
-                              ? 'غائب'
-                              : '${entry.value} / ${maxGradeForThisTest.toInt()}', // Show correct max grade
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: entry.value == -1 ? Colors.grey.shade600 : Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-                // --- ✅✅✅ END OF MODIFICATION (Individual Grade Display) ✅✅✅ ---
-              ],
-            ),
+            // 2. (جديد) المرور على قائمة التحليلات وبناء ويدجت لكل واحد
+            ...analyses.map((analysis) => _buildAnalysisGroup(context, analysis)),
           ],
         ),
       ),
-    );
+    ).animate().fade(duration: 200.ms);
   }
+  // --- ✅✅✅ END OF (MAJOR REFACTOR) ✅✅✅ ---
+
 
   Widget _buildPredictiveInfo(BuildContext context,
       {required IconData icon,
@@ -2633,7 +2910,7 @@ class _PerformanceTrendChart extends StatelessWidget {
             handleBuiltInTouches: true,
           ),
         ),
-      ),
+      ).animate().fade(duration: 500.ms), // (جديد) إضافة أنيميشن
     );
   }
 
