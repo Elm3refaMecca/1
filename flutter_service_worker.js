@@ -48,7 +48,7 @@ const RESOURCES = {"flutter.js": "888483df48293866f9f41d3d9274a779",
 "assets/assets/Cairo-Bold.ttf": "ad486798eb3ea4fda12b90464dd0cfcd",
 "assets/assets/Cairo-Medium.ttf": "2b76c14c6934874d64ab85d92c4949e1",
 "assets/assets/Cairo-Black.ttf": "d5cfdef0ee5e1b9765295e3b58f43233",
-"assets/fonts/MaterialIcons-Regular.otf": "50bd124b3d772885403670584e763262",
+"assets/fonts/MaterialIcons-Regular.otf": "cd666ecf0d4c8b3540f6d0f495cd489a",
 "assets/NOTICES": "aab3accb9519e23fc707e1632aa3c3d9",
 "assets/packages/cupertino_icons/assets/CupertinoIcons.ttf": "33b7d9392238c04c131b6ce224e13711",
 "assets/FontManifest.json": "116a11a286753ab3cbfb548f3e76ab09",
@@ -70,11 +70,11 @@ const RESOURCES = {"flutter.js": "888483df48293866f9f41d3d9274a779",
 "favicon.png": "ac6f68dbb131429dba1256a802fb3407",
 "1.tesx": "ecd3a1e645078ee8ed1884a5816801db",
 "firebase-messaging-sw%20-%20Copy.txt": "5ff42257bbc4783ac3a16293c7eea017",
-"flutter_bootstrap.js": "14b4db426f80881f0babd56381b0c685",
+"flutter_bootstrap.js": "cff44dfb0781ab29552831dca8245768",
 "firebase-messaging-sw%20-3.txr": "81a263f5ed95c3c3e1d3451181244841",
 "version.json": "d3826aa4d2b204320d5224c7d918c663",
 "index%20-%20.tex": "ecd3a1e645078ee8ed1884a5816801db",
-"main.dart.js": "1c3a65bb1e6477d8553ca93e3ee2a166"};
+"main.dart.js": "9dd9786c76f0683d9b335b86ea33a145"};
 // The application shell files that are downloaded before a service worker can
 // start.
 const CORE = ["main.dart.js",
