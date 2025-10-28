@@ -79,6 +79,8 @@ dev_dependencies:
   confetti: ^0.8.0
   flutter_animate: ^4.5.2
   syncfusion_flutter_gauges: ^31.2.3
+  iconsax: ^0.0.8
+
 
 
 
@@ -106,6 +108,20 @@ flutter:
     - assets/whatsapp-button.json
     - assets/m1.png
     - assets/1.mp3
+    - assets/a1.png
+    - assets/a2.png
+    - assets/a3.png
+    - assets/a4.png
+    - assets/a5.png
+    - assets/a6.png
+    - assets/a7.png
+    - assets/a8.png
+    - assets/a9.png
+    - assets/a10.png
+    - assets/a11.png
+    - assets/a12.png
+    - assets/a13.png
+
 
 
   fonts:

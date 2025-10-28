@@ -1,8 +1,15 @@
-// student_view.dart (MODIFIED FOR NAFES KEYS AND NOTIFICATIONS)
+// student_view.dart (MODIFIED FOR PDF EXPORT DEBUGGING AND OPTIMIZATION)
+
 import 'package:syncfusion_flutter_gauges/gauges.dart';
-import 'dart:async'; // <-- ✅ إضافة جديدة للاستماع
+import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data'; // <-- ✅ (مطلوب للطباعة/الحفظ كـ PDF)
+// --- ✅✅✅ START OF PDF/PRINTING IMPORTS ✅✅✅ ---
+import 'dart:typed_data';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:screenshot/screenshot.dart';
+// --- ✅✅✅ END OF PDF/PRINTING IMPORTS ✅✅✅ ---
 
 import 'package:almarefamecca/student_profile_page.dart';
 import 'package:almarefamecca/teacher_profile_view_page.dart';
@@ -14,60 +21,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:percent_indicator/percent_indicator.dart';
-// --- ✅✅✅ (مطلوب للطباعة/الحفظ كـ PDF) ---
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
-import 'package:screenshot/screenshot.dart';
-// --- ✅✅✅ (نهاية) ---
 import 'package:url_launcher/url_launcher.dart';
 
-// --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-// تم إضافة المكتبات المطلوبة لتشغيل ميزة إعادة التحميل على الويب
-import 'package:flutter/foundation.dart' show kIsWeb;
-// --- ✅ إضافة html للتحكم بالصوت والإشعارات ---
-import 'package:universal_html/html.dart' as html;
-// --- ✅✅✅  إضافة المكتبات المطلوبة للتكريم والأيقونات الجمالية  ✅✅✅ ---
-import 'package:animated_text_kit/animated_text_kit.dart';
-import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-// --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
-// student_view.dart (MODIFIED FOR NAFES KEYS AND NOTIFICATIONS)
-// ✅✅✅ (MAJOR REFACTOR)
-// تم إعادة هيكلة الصفحة بالكامل لعرض تحليلات مفصلة لكل مجموعة اختبارات (دوري، نافس، إضافي)
-// مع إضافة مكتبات تجميلية ورسائل تحفيزية وإيجابية
-
-import 'dart:math';
-
-import 'package:almarefamecca/student_profile_page.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:intl/intl.dart' as intl;
-import 'package:percent_indicator/percent_indicator.dart'; // (لا يزال مستخدماً في التحليل الشامل)
-import 'package:url_launcher/url_launcher.dart';
-
-// --- ✅✅✅ START OF MODIFICATION ✅✅✅ ---
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint; // Added debugPrint
 import 'package:universal_html/html.dart' as html;
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
-// --- ✅✅✅ مكتبات الواجهة العصرية الجديدة ✅✅✅ ---
 import 'package:flutter_animate/flutter_animate.dart';
-// --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
 
 enum StudentView { dashboard, results, noble, teacherComplaints }
-
-// --- 🛑 (حذف) تم حذف ReportType ---
 
 class TestInfo {
   final String key;
   final String name;
   final String subject; // Stores the actual subject name (e.g., رياضيات)
-  // ✅ (إضافة جديدة) لتصنيف الاختبارات
   final String testGroup; // e.g., "periodic", "nafes", "additional"
 
   TestInfo({
@@ -84,7 +53,6 @@ class Subject {
   Subject({required this.name, required this.icon});
 }
 
-// ✅ (تعديل) تم إضافة اسم لمجموعة التحليل
 class _AnalysisResult {
   final String groupName; // e.g., "الاختبارات الدورية", "اختبارات نافس"
   final String subjectName;
@@ -101,7 +69,6 @@ class _AnalysisResult {
   final String performanceTrend;
   final double? predictedNextGrade;
   final String riskAssessment;
-  // ✅ (إضافة جديدة) لحساب النسبة الإجمالية
   final int testCount; // عدد الاختبارات في هذا التحليل
 
   _AnalysisResult({
@@ -124,7 +91,6 @@ class _AnalysisResult {
   });
 }
 
-// ✅ (إضافة جديدة) ويدجت لحمل النسبة الإجمالية للمادة
 class _OverallSubjectMetric {
   final String subjectName;
   final double overallPercentage;
@@ -142,6 +108,27 @@ class StudentViewPage extends StatefulWidget {
   _StudentViewPageState createState() => _StudentViewPageState();
 }
 
+// --- ✅✅✅ START OF MODIFICATION (Helper Class) ✅✅✅ ---
+// تم إضافة هذا الكلاس لتنظيم البيانات قبل عرضها في الشبكة
+class _DashboardButtonData {
+  final String title;
+  final IconData icon;
+  final String? assetPath;
+  final Color color;
+  final VoidCallback onTap;
+  final int count;
+
+  _DashboardButtonData({
+    required this.title,
+    required this.icon,
+    this.assetPath,
+    required this.color,
+    required this.onTap,
+    this.count = 0,
+  });
+}
+// --- ✅✅✅ END OF MODIFICATION (Helper Class) ✅✅✅ ---
+
 class _StudentViewPageState extends State<StudentViewPage>
     with SingleTickerProviderStateMixin {
   bool _isLoading = true;
@@ -155,13 +142,13 @@ class _StudentViewPageState extends State<StudentViewPage>
   // Map to hold all possible test info (key -> TestInfo)
   late final Map<String, TestInfo> _allTestsMap;
 
-  // --- ✅ (تعديل) تم الإبقاء عليه لخاصية الطباعة / الحفظ كـ PDF ---
-  final ScreenshotController _screenshotController = ScreenshotController();
+  // --- ✅✅✅ START OF PDF MODIFICATION ✅✅✅ ---
+  final _screenshotController = ScreenshotController();
+  bool _isPrinting = false; // To show loading indicator
+  // --- ✅✅✅ END OF PDF MODIFICATION ✅✅✅ ---
 
-  // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
   StreamSubscription? _notificationSubscription;
   final Set<String> _processedNotificationIds = {};
-  // --- ✅✅✅ END OF NOTIFICATION MODIFICATION ✅✅✅ ---
 
 
   final List<Subject> subjects = [
@@ -198,13 +185,10 @@ class _StudentViewPageState extends State<StudentViewPage>
   @override
   void dispose() {
     _tabController.dispose();
-    // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
-    _notificationSubscription?.cancel(); // إلغاء المتابعة عند الخروج
-    // --- ✅✅✅ END OF NOTIFICATION MODIFICATION ✅✅✅ ---
+    _notificationSubscription?.cancel();
     super.dispose();
   }
 
-  // ✅ (تعديل) تم إضافة testGroup
   List<TestInfo> _getAllPossibleTests() {
     final List<TestInfo> tests = [];
     final Map<String, String> standardSubjects = {
@@ -307,13 +291,10 @@ class _StudentViewPageState extends State<StudentViewPage>
           _studentDocId = docSnapshot.id;
           _isLoading = false;
         });
-        // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
-        // بمجرد جلب بيانات الطالب، نبدأ الاستماع للإشعارات
         if (_studentDocId != null) {
           _listenForNewNotifications();
-          _requestNotificationPermission(); // طلب الإذن عند تحميل الصفحة
+          _requestNotificationPermission();
         }
-        // --- ✅✅✅ END OF NOTIFICATION MODIFICATION ✅✅✅ ---
       } else {
         if (mounted) setState(() => _isLoading = false);
       }
@@ -323,11 +304,8 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
-  // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
-  /// دالة لطلب إذن عرض الإشعارات من المتصفح
   void _requestNotificationPermission() {
     if (kIsWeb) {
-      // التأكد من أن المتصفح يدعم الإشعارات
       if (html.Notification.supported) {
         html.Notification.requestPermission().then((permission) {
           if (permission != 'granted') {
@@ -338,69 +316,57 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
-  /// دالة للاستماع المستمر للإشعارات الجديدة
   void _listenForNewNotifications() {
-    _notificationSubscription?.cancel(); // إلغاء أي متابعة سابقة
+    _notificationSubscription?.cancel();
     _notificationSubscription = FirebaseFirestore.instance
         .collection('students')
         .doc(_studentDocId)
         .collection('notifications')
-        .where('isRead', isEqualTo: false) // جلب الإشعارات غير المقروءة فقط
+        .where('isRead', isEqualTo: false)
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.docs.isEmpty) return; // لا يوجد شيء جديد
+      if (snapshot.docs.isEmpty) return;
 
       bool foundNew = false;
       String lastMessage = '';
 
       for (var doc in snapshot.docs) {
-        // التحقق إذا كان هذا الإشعار لم يتم عرضه مسبقاً
         if (!_processedNotificationIds.contains(doc.id)) {
-          _processedNotificationIds.add(doc.id); // تعليمه كـ "معالج"
+          _processedNotificationIds.add(doc.id);
           foundNew = true;
           lastMessage = doc.data()['message'] ?? 'لديك إشعار جديد';
         }
       }
 
-      // إذا وجدنا إشعارات جديدة (لم تُعرض من قبل)
       if (foundNew) {
-        _playNotificationSound(); // تشغيل الصوت
-        _showBrowserNotification(lastMessage); // عرض الإشعار
+        _playNotificationSound();
+        _showBrowserNotification(lastMessage);
       }
     }, onError: (error) {
       debugPrint("Error listening to notifications: $error");
     });
   }
 
-  /// دالة تشغيل ملف الصوت 1.mp3 من مجلد web
   void _playNotificationSound() {
     if (kIsWeb) {
       try {
-        // إنشاء عنصر صوتي بشكل برمجي
-        final html.AudioElement audio = html.AudioElement('1.mp3'); // يفترض وجود 1.mp3 في مجلد web
+        final html.AudioElement audio = html.AudioElement('1.mp3');
         audio.play();
       } catch (e) {
         debugPrint("Error playing notification sound: $e");
-        // قد يفشل التشغيل التلقائي بسبب سياسات المتصفح، يحتاج لتفاعل المستخدم أولاً
       }
     }
   }
 
-  /// دالة عرض الإشعار في المتصفح (مثل إشعارات جوجل كروم)
   void _showBrowserNotification(String message) {
     if (kIsWeb && html.Notification.supported) {
-      // نتأكد أن لدينا الإذن أولاً
       if (html.Notification.permission == 'granted') {
-        // إنشاء الإشعار
         html.Notification('إشعار جديد من مدارس المعرفة',
             body: message,
-            icon: 'icons/Icon-192.png'); // تأكد من وجود هذه الأيقونة في web/icons
+            icon: 'icons/Icon-192.png');
       }
-      // إذا لم يكن الإذن ممنوحاً، فإن دالة _requestNotificationPermission
-      // التي استدعيت عند تحميل الصفحة تكون قد طلبت الإذن بالفعل.
     }
   }
-  // --- ✅✅✅ END OF NOTIFICATION MODIFICATION ✅✅✅ ---
 
 
   Future<void> _promptForParentPassword() async {
@@ -491,71 +457,78 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
-  // --- ✅ (جديد) دالة لطباعة التقرير (التي تفتح خيار الحفظ كـ PDF) ---
-  /// هذه الدالة تلتقط صورة للشاشة الحالية
-  /// وتفتح نافذة الطباعة الخاصة بالنظام (التي تحتوي على خيار "حفظ كـ PDF")
-  Future<void> _printResultsPage() async {
+  // --- ✅✅✅ START OF PDF MODIFICATION (DEBUGGING & OPTIMIZATION) ✅✅✅ ---
+  /// Generates a PDF of the results view and opens the save dialog.
+  Future<void> _generateAndSavePdf() async {
+    if (_isPrinting) return; // Prevent multiple clicks
+    setState(() => _isPrinting = true);
+    debugPrint("PDF Generation: Starting..."); // Debug log
+
     try {
+      debugPrint("PDF Generation: Capturing screenshot..."); // Debug log
+      // Capture the widget
       final imageBytes = await _screenshotController.capture(
-        delay: const Duration(milliseconds: 300), // إعطاء فرصة للواجهة للرسم
-        pixelRatio: 1.5, // جودة أعلى قليلاً
+          delay: const Duration(milliseconds: 300), // Wait for renders
+          // --- Reduced pixelRatio to optimize image size ---
+          pixelRatio: 1.0 // Lower quality but smaller size
       );
+
+      // --- Check if imageBytes is null ---
       if (imageBytes == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('فشل التقاط صورة للتقرير.')),
-          );
-        }
-        return;
+        debugPrint("PDF Generation Error: Screenshot capture returned null."); // Debug log
+        throw Exception('فشل التقاط صورة التقرير.');
       }
+      debugPrint("PDF Generation: Screenshot captured (${(imageBytes.lengthInBytes / 1024 / 1024).toStringAsFixed(2)} MB)."); // Debug log
 
-      final pdfDoc = pw.Document();
-      pdfDoc.addPage(pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          orientation: pw.PageOrientation.portrait,
+      // Create PDF document
+      debugPrint("PDF Generation: Creating PDF document..."); // Debug log
+      final pdf = pw.Document();
+      final image = pw.MemoryImage(imageBytes);
+
+      // Add image to PDF page
+      debugPrint("PDF Generation: Adding image to PDF page..."); // Debug log
+      pdf.addPage(
+        pw.Page(
+          pageTheme: const pw.PageTheme(
+            pageFormat: PdfPageFormat.a4,
+            orientation: pw.PageOrientation.portrait,
+            margin: pw.EdgeInsets.all(16), // Add some margin
+          ),
           build: (pw.Context context) {
+            // Use pw.Image and let it fit within the page boundaries
             return pw.Center(
-              child: pw.Image(pw.MemoryImage(imageBytes)),
+              child: pw.Image(image, fit: pw.BoxFit.contain),
             );
-          }
-      ));
-
-      final String studentName = _studentData?['name'] ?? 'student';
-      final safeStudentName = studentName.replaceAll(' ', '_');
-      final fileName = 'report_card_$safeStudentName.pdf';
-
-      // استخدام layoutPdf لفتح نافذة الطباعة مباشرة
-      // هذه النافذة ستسمح للمستخدم باختيار "حفظ كـ PDF"
-      await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => pdfDoc.save(),
-        name: fileName,
+          },
+        ),
       );
 
-    } catch (e) {
+      // Save or print the PDF using the 'printing' library
+      debugPrint("PDF Generation: Calling Printing.layoutPdf..."); // Debug log
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async {
+          debugPrint("PDF Generation: Saving PDF bytes..."); // Debug log
+          return pdf.save();
+        },
+        name: 'report_${_studentData?['name'] ?? _studentDocId}.pdf',
+      );
+      debugPrint("PDF Generation: Printing.layoutPdf completed."); // Debug log
+
+    } catch (e, s) { // --- Added stack trace (s) ---
+      debugPrint("PDF Generation Error: $e\nStack Trace: $s"); // --- Print error and stack trace ---
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('فشل إعداد الطباعة/الحفظ: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('فشل إنشاء PDF: $e'), backgroundColor: Colors.red),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isPrinting = false);
+        debugPrint("PDF Generation: Finished."); // Debug log
       }
     }
   }
-  // --- ✅ (نهاية) دالة الطباعة ---
-
-  // --- ✅ (جديد) دالة لإنشاء الزر العائم ---
-  Widget? _buildFloatingActionButton() {
-    if (_currentView == StudentView.results) {
-      // يظهر هذا الزر فقط في شاشة "النتائج والتحليل"
-      return FloatingActionButton(
-        onPressed: _printResultsPage, // استدعاء دالة الطباعة/الحفظ كـ PDF
-        tooltip: 'طباعة أو حفظ التقرير كـ PDF',
-        child: const Icon(Icons.print),
-      );
-    }
-    return null; // لا يظهر في الشاشات الأخرى
-  }
+  // --- ✅✅✅ END OF PDF MODIFICATION (DEBUGGING & OPTIMIZATION) ✅✅✅ ---
 
 
   @override
@@ -565,10 +538,28 @@ class _StudentViewPageState extends State<StudentViewPage>
       body: Stack(
         children: [
           _buildBody(),
+          // --- ✅✅✅ START OF PDF MODIFICATION ✅✅✅ ---
+          // Add a loading overlay while printing
+          if (_isPrinting)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                    SizedBox(height: 20),
+                    Text(
+                      'جاري إعداد التقرير بصيغة PDF...',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          // --- ✅✅✅ END OF PDF MODIFICATION ✅✅✅ ---
         ],
       ),
-      // --- ✅ (جديد) إضافة الزر العائم ---
-      floatingActionButton: _buildFloatingActionButton(),
     );
   }
 
@@ -595,7 +586,19 @@ class _StudentViewPageState extends State<StudentViewPage>
     if (isDashboard && !isTeacherView) {
       appBarActions.addAll(_buildDashboardActions());
     }
-    // --- 🛑 (حذف) تم حذف زر التحميل القديم من شريط الأوامر ---
+
+    // --- ✅✅✅ START OF PDF MODIFICATION ✅✅✅ ---
+    // Add PDF button only on the results page and if not already printing
+    if (_currentView == StudentView.results && !_isPrinting) {
+      appBarActions.add(
+        IconButton(
+          icon: const Icon(Icons.picture_as_pdf_outlined),
+          tooltip: 'حفظ التقرير كـ PDF',
+          onPressed: _generateAndSavePdf,
+        ),
+      );
+    }
+    // --- ✅✅✅ END OF PDF MODIFICATION ✅✅✅ ---
 
     appBarActions.add(
       Tooltip(
@@ -635,13 +638,13 @@ class _StudentViewPageState extends State<StudentViewPage>
           : null,
       actions: appBarActions,
       automaticallyImplyLeading: !isDashboard || isTeacherView,
-      bottom: (isDashboard && !isTeacherView) // يظهر فقط في الواجهة الرئيسية للطالب
+      bottom: (isDashboard && !isTeacherView)
           ? PreferredSize(
-        preferredSize: const Size.fromHeight(30.0), // ارتفاع مناسب
+        preferredSize: const Size.fromHeight(30.0),
         child: Container(
           height: 30.0,
           alignment: Alignment.center,
-          color: Colors.deepPurple.shade700, // لون مميز للتكريم
+          color: Colors.deepPurple.shade700,
           child: AnimatedTextKit(
             animatedTexts: [
               RotateAnimatedText(
@@ -680,7 +683,7 @@ class _StudentViewPageState extends State<StudentViewPage>
           ),
         ),
       )
-          : null, // لا يظهر في الصفحات الداخلية
+          : null,
     );
   }
 
@@ -722,94 +725,128 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
+  // --- ✅✅✅ START OF MODIFICATION (Dashboard Build Logic) ✅✅✅ ---
   Widget _buildDashboard() {
     final int totalLikes = _studentData?['totalLikes'] ?? 0;
     final int totalDislikes = _studentData?['totalDislikes'] ?? 0;
 
-    final List<Widget> dashboardButtons = [
-      _buildDashboardButton(
+    // خريطة لربط العنوان بمسار الصورة
+    final Map<String, String> imageMap = {
+      'النتائج والتحليل': 'assets/a13.png',
+      'الطالب المنضبط': 'assets/a1.png',
+      'الملاحظات السلوكية': 'assets/a9.png',
+      'فيزا الطلاب': 'assets/a2.png',
+      'الكتاب المدرسي': 'assets/a3.png',
+      'الاحتفالات': 'assets/a5.png',
+      'استديو الطالب': 'assets/a11.png',
+      'التوكاتسو ': 'assets/a4.png',
+      'المسابقات': 'assets/a10.png',
+      'المؤذن': 'assets/a6.png',
+      'كرة القدم': 'assets/a7.png',
+      'السباحة': 'assets/a12.png',
+      'المسابقات الرقمية': 'assets/a8.png',
+      // 'الكاراتيه' سيستخدم الأيقونة الافتراضية
+    };
+
+    // إنشاء قائمة بيانات منظمة
+    final List<_DashboardButtonData> buttonDataList = [
+      _DashboardButtonData(
         title: 'النتائج والتحليل',
         icon: Icons.bar_chart_rounded,
+        assetPath: imageMap['النتائج والتحليل'],
         color: Colors.green.shade700,
         onTap: () => setState(() => _currentView = StudentView.results),
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'الطالب المنضبط',
         icon: Icons.thumb_up,
+        assetPath: imageMap['الطالب المنضبط'],
         color: Colors.blue.shade700,
         count: totalLikes,
         onTap: () => setState(() => _currentView = StudentView.noble),
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'الملاحظات السلوكية',
         icon: Icons.report_problem_outlined,
+        assetPath: imageMap['الملاحظات السلوكية'],
         color: Colors.red.shade700,
         count: totalDislikes,
         onTap: _promptForParentPassword,
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'فيزا الطلاب',
         icon: Icons.credit_card,
+        assetPath: imageMap['فيزا الطلاب'],
         color: Colors.deepPurple.shade500,
         onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا جدا'),
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'الكتاب المدرسي',
         icon: Icons.menu_book,
+        assetPath: imageMap['الكتاب المدرسي'],
         color: Colors.brown.shade500,
         onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'الاحتفالات',
         icon: Icons.celebration,
+        assetPath: imageMap['الاحتفالات'],
         color: Colors.pink.shade500,
         onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'استديو الطالب',
         icon: Icons.photo_library,
+        assetPath: imageMap['استديو الطالب'],
         color: Colors.orange.shade700,
         onTap: () => _showPlaceholderSnackBar('لا يوجد صور لك متوفرة حالياً.'),
       ),
-      _buildDashboardButton(
-        title: 'الانجازات',
+      _DashboardButtonData(
+        title: 'التوكاتسو ',
         icon: Icons.emoji_events,
+        assetPath: imageMap['التوكاتسو '],
         color: Colors.amber.shade800,
         onTap: () => _showPlaceholderSnackBar('لا يوجد لديك أي إنجازات مسجلة حالياً.'),
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'المسابقات',
         icon: Icons.military_tech,
+        assetPath: imageMap['المسابقات'],
         color: Colors.lightGreen.shade700,
         onTap: () => _showPlaceholderSnackBar('لا توجد مسابقات حالية الآن.'),
       ),
-      _buildDashboardButton(
-        title: 'الإذاعة المدرسية',
+      _DashboardButtonData(
+        title: 'المؤذن',
         icon: Icons.mic,
+        assetPath: imageMap['المؤذن'],
         color: Colors.cyan.shade600,
         onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'كرة القدم',
         icon: Icons.sports_soccer,
+        assetPath: imageMap['كرة القدم'],
         color: Colors.black,
         onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'الكاراتيه',
         icon: Icons.sports_kabaddi,
+        assetPath: imageMap['الكاراتيه'],
         color: Colors.red.shade900,
         onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'السباحة',
         icon: Icons.pool,
+        assetPath: imageMap['السباحة'],
         color: Colors.blue.shade900,
         onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
       ),
-      _buildDashboardButton(
+      _DashboardButtonData(
         title: 'المسابقات الرقمية',
         icon: Icons.laptop_chromebook,
+        assetPath: imageMap['المسابقات الرقمية'],
         color: Colors.grey.shade700,
         onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
       ),
@@ -817,21 +854,53 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     return AnimationLimiter(
       child: GridView.extent(
-        maxCrossAxisExtent: 150,
+        maxCrossAxisExtent: 150, // عرض كل عنصر
         padding: const EdgeInsets.all(16.0),
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 0.9,
+        // تعديل نسبة العرض إلى الارتفاع لتناسب (صندوق + نص)
+        childAspectRatio: 150 / (130 + 40), // العرض / (ارتفاع الصندوق + ارتفاع النص)
         children: List.generate(
-          dashboardButtons.length,
+          buttonDataList.length,
               (index) {
+            final data = buttonDataList[index];
             return AnimationConfiguration.staggeredGrid(
               position: index,
               duration: const Duration(milliseconds: 375),
               columnCount: (MediaQuery.of(context).size.width / 166).floor(),
               child: ScaleAnimation(
                 child: FadeInAnimation(
-                  child: dashboardButtons[index],
+                  // كل عنصر عبارة عن عمود (صندوق ثم نص)
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      // 1. الصندوق (الصورة/الأيقونة)
+                      SizedBox(
+                        height: 130, // ارتفاع ثابت للصندوق
+                        width: 150, // عرض يطابق maxCrossAxisExtent
+                        child: _buildDashboardButton(
+                          icon: data.icon,
+                          assetPath: data.assetPath,
+                          color: data.color,
+                          onTap: data.onTap,
+                          count: data.count,
+                        ),
+                      ),
+                      const SizedBox(height: 8), // مسافة بين الصندوق والنص
+                      // 2. النص (العنوان)
+                      Text(
+                        data.title,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -840,10 +909,15 @@ class _StudentViewPageState extends State<StudentViewPage>
       ),
     );
   }
+  // --- ✅✅✅ END OF MODIFICATION (Dashboard Build Logic) ✅✅✅ ---
 
+
+  // --- ✅✅✅ START OF MODIFICATION (Button Build Logic) ✅✅✅ ---
+  // تم تعديل هذه الدالة لتصبح مسؤولة عن الصندوق فقط (بدون النص)
+  // وتستخدم الصورة كخلفية
   Widget _buildDashboardButton({
-    required String title,
-    required IconData icon,
+    required IconData icon, // أيقونة احتياطية
+    String? assetPath, // مسار الصورة (اختياري)
     required Color color,
     required VoidCallback onTap,
     int count = 0,
@@ -857,7 +931,7 @@ class _StudentViewPageState extends State<StudentViewPage>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20), // الحواف الدائرية
           boxShadow: [
             BoxShadow(
               color: color.withOpacity(0.4),
@@ -869,48 +943,35 @@ class _StudentViewPageState extends State<StudentViewPage>
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 40, color: Colors.white),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      const style = TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      );
-                      final painter = TextPainter(
-                        text: TextSpan(text: title, style: style),
-                        maxLines: 1,
-                        textDirection: TextDirection.rtl,
-                      )..layout();
-
-                      if (painter.width > constraints.maxWidth) {
-                        return _MarqueeText(text: title, style: style);
-                      } else {
-                        return Text(
-                          title,
-                          textAlign: TextAlign.center,
-                          style: style,
-                          overflow: TextOverflow.ellipsis,
-                        );
-                      }
-                    },
-                  ),
-                ),
-              ],
+            // هذا الودجت يضمن أن الصورة تملأ المربع وتحترم الحواف الدائرية
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: (assetPath != null && assetPath.isNotEmpty)
+                  ? Image.asset(
+                assetPath,
+                width: double.infinity,  // املأ العرض
+                height: double.infinity, // املأ الارتفاع
+                fit: BoxFit.cover,       // اجعل الصورة تغطي المربع
+                errorBuilder: (context, error, stackTrace) {
+                  // في حال فشل تحميل الصورة، اعرض الأيقونة في المنتصف
+                  return Center(
+                    child: Icon(icon, size: 40, color: Colors.white),
+                  );
+                },
+              )
+                  : Center(
+                // في حال عدم وجود مسار للصورة، اعرض الأيقونة في المنتصف
+                child: Icon(icon, size: 40, color: Colors.white),
+              ),
             ),
+            // كود شارة الإشعار (يبقى كما هو)
             if (count > 0)
               Positioned(
                 top: -5,
                 right: -5,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(15),
@@ -931,63 +992,50 @@ class _StudentViewPageState extends State<StudentViewPage>
       ),
     );
   }
+  // --- ✅✅✅ END OF MODIFICATION (Button Build Logic) ✅✅✅ ---
 
 
-  // --- ✅✅✅ START OF (MAJOR REFACTOR) ✅✅✅ ---
-  // (دالة جديدة) تقوم بتجميع الاختبارات حسب النوع (دوري، نافس، إضافي)
-  // وتعيد خريطة تحتوي على اسم المادة وقائمة بالتحليلات الخاصة بها
   Map<String, List<_AnalysisResult>> _buildSubjectAnalyses() {
-    // 1. تجميع الدرجات حسب المادة، ثم حسب نوع الاختبار
-    // Map<SubjectName, Map<TestGroup, Map<TestKey, Grade>>>
     final Map<String, Map<String, Map<String, num>>> subjectGroupedGrades = {};
 
     _studentData?.forEach((key, value) {
       if (value is num && _allTestsMap.containsKey(key)) {
         final testInfo = _allTestsMap[key]!;
-        // testInfo.subject = "رياضيات"
-        // testInfo.testGroup = "periodic"
-        // key = "e1profession1"
-        // value = 18
         subjectGroupedGrades
             .putIfAbsent(testInfo.subject, () => {})
             .putIfAbsent(testInfo.testGroup, () => {})[testInfo.key] = value;
       }
     });
 
-    // 2. تحليل كل مجموعة فرعية على حدة
-    // Map<SubjectName, List<_AnalysisResult>>
     final Map<String, List<_AnalysisResult>> finalAnalyses = {};
 
     subjectGroupedGrades.forEach((subjectName, groups) {
       final List<_AnalysisResult> subjectAnalyses = [];
 
-      // 3. تحليل مجموعة "الاختبارات الدورية" (إن وجدت)
       if (groups.containsKey('periodic') && groups['periodic']!.isNotEmpty) {
         subjectAnalyses.add(_analyzeSubjectGrades(
           subjectName: subjectName,
           groupName: "الاختبارات الدورية",
           testResults: groups['periodic']!,
-          maxGrade: 20.0, // الدوري دائماً من 20
+          maxGrade: 20.0,
         ));
       }
 
-      // 4. تحليل مجموعة "اختبارات نافس" (إن وجدت)
       if (groups.containsKey('nafes') && groups['nafes']!.isNotEmpty) {
         subjectAnalyses.add(_analyzeSubjectGrades(
           subjectName: subjectName,
           groupName: "اختبارات نافس",
           testResults: groups['nafes']!,
-          maxGrade: 10.0, // نافس دائماً من 10
+          maxGrade: 10.0,
         ));
       }
 
-      // 5. تحليل مجموعة "الاختبارات الإضافية" (إن وجدت)
       if (groups.containsKey('additional') && groups['additional']!.isNotEmpty) {
         subjectAnalyses.add(_analyzeSubjectGrades(
           subjectName: subjectName,
           groupName: "اختبارات قياس المستوي (قبلي , بعدي )",
           testResults: groups['additional']!,
-          maxGrade: 20.0, // الإضافي غالباً من 20 (افتراضي)
+          maxGrade: 20.0,
         ));
       }
 
@@ -998,10 +1046,7 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     return finalAnalyses;
   }
-  // --- ✅✅✅ END OF (MAJOR REFACTOR) ✅✅✅ ---
 
-  // ✅ (دالة جديدة) لحساب المقاييس الإجمالية للمادة
-  // تأخذ مخرجات الدالة السابقة
   List<_OverallSubjectMetric> _calculateOverallMetrics(Map<String, List<_AnalysisResult>> subjectAnalyses) {
     final List<_OverallSubjectMetric> metrics = [];
 
@@ -1011,19 +1056,15 @@ class _StudentViewPageState extends State<StudentViewPage>
       double totalAverageSum = 0;
 
       for (var analysis in analyses) {
-        // (متوسط المجموعة * عدد اختباراتها)
         totalWeightedSum += (analysis.average * analysis.testCount);
         totalTests += analysis.testCount;
-        // (نسبة المجموعة * عدد اختباراتها) - لحساب النسبة الإجمالية
         totalAverageSum += (analysis.percentage * analysis.testCount);
       }
 
       if (totalTests > 0) {
         metrics.add(_OverallSubjectMetric(
           subjectName: subjectName,
-          // النسبة الإجمالية = مجموع (النسبة * العدد) / العدد الإجمالي
           overallPercentage: totalAverageSum / totalTests,
-          // المتوسط الإجمالي = مجموع (المتوسط * العدد) / العدد الإجمالي
           overallAverage: totalWeightedSum / totalTests,
         ));
       }
@@ -1034,10 +1075,7 @@ class _StudentViewPageState extends State<StudentViewPage>
 
 
   Widget _buildResultsView() {
-    // 1. (جديد) قم ببناء التحليلات المفصلة (دوري، نافس، ...)
     final allSubjectAnalyses = _buildSubjectAnalyses();
-
-    // 2. (جديد) قم بحساب المقاييس الإجمالية لكل مادة
     final overallMetrics = _calculateOverallMetrics(allSubjectAnalyses);
 
     if (allSubjectAnalyses.isEmpty) {
@@ -1047,43 +1085,47 @@ class _StudentViewPageState extends State<StudentViewPage>
       );
     }
 
-    return Screenshot(
-      controller: _screenshotController,
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // 3. (تعديل) إرسال المقاييس الإجمالية للويدجت الشامل
-              _buildOverallAnalysisWidget(overallMetrics),
-              const SizedBox(height: 24),
-              // 4. (تعديل) بناء كروت المواد باستخدام التحليلات المفصلة
-              ...allSubjectAnalyses.entries.map((entry) {
-                final subjectName = entry.key;
-                final analysesList = entry.value; // List<_AnalysisResult>
-                final subjectIcon = subjects
-                    .firstWhere((s) => s.name == subjectName,
-                    orElse: () => Subject(name: '', icon: Icons.book))
-                    .icon;
-                final subjectColor = _subjectColors[subjectName] ?? Colors.blue;
+    // --- ✅✅✅ START OF PDF MODIFICATION ✅✅✅ ---
+    // Wrap the scrollable content with the Screenshot widget.
+    // We wrap the *child* of the SingleChildScrollView.
+    return SingleChildScrollView(
+      child: Screenshot(
+        controller: _screenshotController,
+        child: Container(
+          // Add a background color to the screenshot
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                _buildOverallAnalysisWidget(overallMetrics),
+                const SizedBox(height: 24),
+                ...allSubjectAnalyses.entries.map((entry) {
+                  final subjectName = entry.key;
+                  final analysesList = entry.value;
+                  final subjectIcon = subjects
+                      .firstWhere((s) => s.name == subjectName,
+                      orElse: () => Subject(name: '', icon: Icons.book))
+                      .icon;
+                  final subjectColor = _subjectColors[subjectName] ?? Colors.blue;
 
-                return _SubjectResultCard(
-                  subjectName: subjectName,
-                  analyses: analysesList, // إرسال القائمة
-                  subjectIcon: subjectIcon,
-                  color: subjectColor,
-                  allTestsMap: _allTestsMap,
-                );
-              }).toList(),
-
-            ],
+                  return _SubjectResultCard(
+                    subjectName: subjectName,
+                    analyses: analysesList,
+                    subjectIcon: subjectIcon,
+                    color: subjectColor,
+                    allTestsMap: _allTestsMap,
+                  );
+                }).toList(),
+              ],
+            ),
           ),
         ),
       ),
     );
+    // --- ✅✅✅ END OF PDF MODIFICATION ✅✅✅ ---
   }
 
-  // ✅ (تعديل) هذا الويدجت الآن يأخذ المقاييس الإجمالية
   Widget _buildOverallAnalysisWidget(List<_OverallSubjectMetric> overallMetrics) {
     if (overallMetrics.isEmpty) return const SizedBox.shrink();
 
@@ -1095,7 +1137,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     final strengths = overallMetrics.take(3).toList();
     final weaknesses = overallMetrics.reversed.take(3).toList();
 
-    // ✅ (تعديل) تحسين الرسائل الإيجابية
     String overallAssessment;
     if (overallAveragePercentage >= 0.9) {
       overallAssessment =
@@ -1190,69 +1231,58 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // --- ✅✅✅ START OF (MAJOR REFACTOR) ✅✅✅ ---
-  // (تعديل) الدالة الآن تأخذ اسم المجموعة والحد الأقصى للدرجة
   _AnalysisResult _analyzeSubjectGrades({
     required String subjectName,
-    required String groupName, // "الاختبارات الدورية", "اختبارات نافس", ...
-    required Map<String, num> testResults, // testResults key is test KEY
-    required double maxGrade, // 20.0 or 10.0
+    required String groupName,
+    required Map<String, num> testResults,
+    required double maxGrade,
   }) {
-    // Sort tests by key for consistent trend analysis
     final sortedTests = testResults.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
 
-    // Filter out absent marks (-1) before calculations
     final validGrades = sortedTests.map((e) => e.value).where((g) => g >= 0).toList();
 
-    // Use the passed maxGrade
     final double maxGradeForThisAnalysis = maxGrade;
     final double passingGradeForThisAnalysis = maxGradeForThisAnalysis / 2.0;
 
-    // Handle case where there are no valid grades
     if (validGrades.isEmpty) {
       return _AnalysisResult(
         groupName: groupName,
         subjectName: subjectName,
         average: 0,
         percentage: 0,
-        maxPossibleGrade: maxGradeForThisAnalysis, // Use determined max grade
+        maxPossibleGrade: maxGradeForThisAnalysis,
         highestGrade: 0,
         lowestGrade: 0,
         assessment: 'لا توجد درجات',
         consistency: 'N/A',
         isBelowPassing: false,
-        testResults: sortedTests, // Still show original results with 'غائب' (key -> grade)
+        testResults: sortedTests,
         trendSpots: [],
         performanceTrend: 'لا يوجد بيانات كافية',
         predictedNextGrade: null,
         riskAssessment: 'غير محدد',
-        testCount: sortedTests.length, // (جديد)
+        testCount: sortedTests.length,
       );
     }
 
-    // --- Calculations using valid grades ---
     final double average = validGrades.reduce((a, b) => a + b) / validGrades.length;
-    final double percentage = (average / maxGradeForThisAnalysis).clamp(0.0, 1.0); // Use correct max grade
+    final double percentage = (average / maxGradeForThisAnalysis).clamp(0.0, 1.0);
     final num highest = validGrades.reduce(max);
     final num lowest = validGrades.reduce(min);
-    final bool isBelowPassing = average < passingGradeForThisAnalysis; // Use correct passing grade
+    final bool isBelowPassing = average < passingGradeForThisAnalysis;
 
-    // --- Consistency (Standard Deviation) ---
     final double variance = validGrades.map((g) => pow(g - average, 2)).reduce((a, b) => a + b) / validGrades.length;
     final double stdDev = sqrt(variance);
-    // ✅ (تعديل) رسائل تحفيزية
     String consistency;
-    if (stdDev > (maxGradeForThisAnalysis * 0.15)) { // Use correct max grade
-      consistency = 'يحتاج إلى ثبات'; // (رسالة أفضل)
-    } else if (stdDev < (maxGradeForThisAnalysis * 0.05)) { // Use correct max grade
+    if (stdDev > (maxGradeForThisAnalysis * 0.15)) {
+      consistency = 'يحتاج إلى ثبات';
+    } else if (stdDev < (maxGradeForThisAnalysis * 0.05)) {
       consistency = 'مستقر جداً';
     } else {
       consistency = 'مستقر';
     }
 
-    // --- Assessment ---
-    // ✅ (تعديل) رسائل تحفيزية وإيجابية
     String assessment;
     if (percentage >= 0.95)
       assessment = 'متفوق ورائع!';
@@ -1265,9 +1295,8 @@ class _StudentViewPageState extends State<StudentViewPage>
     else if (percentage >= 0.50)
       assessment = 'مقبول';
     else
-      assessment = 'يحتاج لمتابعة'; // (تم إزالة "بسيطة" للوضوح)
+      assessment = 'يحتاج لمتابعة';
 
-    // --- Trend Analysis ---
     final trendSpots = <FlSpot>[];
     int validIndex = 0;
     for (int i = 0; i < sortedTests.length; i++) {
@@ -1277,11 +1306,9 @@ class _StudentViewPageState extends State<StudentViewPage>
       }
     }
 
-    // --- Performance Trend & Prediction ---
-    // ✅ (تعديل) رسائل تحفيزية
     String performanceTrend = 'مستقر';
     double? predictedNextGrade;
-    String riskAssessment = 'في المسار الصحيح'; // (رسالة أفضل)
+    String riskAssessment = 'في المسار الصحيح';
 
     if (validGrades.length >= 2) {
       double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
@@ -1297,61 +1324,54 @@ class _StudentViewPageState extends State<StudentViewPage>
       if (denominator != 0) {
         final double slope = (n * sumXY - sumX * sumY) / denominator;
 
-        // ✅ (تعديل) التعامل مع الإشارات السالبة (Rule #8)
-        if (slope > (maxGradeForThisAnalysis * 0.05)) { // Use correct max grade
+        if (slope > (maxGradeForThisAnalysis * 0.05)) {
           performanceTrend = 'تحسن ملحوظ';
-        } else if (slope < -(maxGradeForThisAnalysis * 0.05)) { // Use correct max grade
-          performanceTrend = 'تراجع يحتاج انتباه'; // (رسالة أفضل)
+        } else if (slope < -(maxGradeForThisAnalysis * 0.05)) {
+          performanceTrend = 'تراجع يحتاج انتباه';
         }
 
         final double intercept = (sumY - slope * sumX) / n;
-        predictedNextGrade = (slope * n + intercept).clamp(0.0, maxGradeForThisAnalysis); // Use correct max grade
+        predictedNextGrade = (slope * n + intercept).clamp(0.0, maxGradeForThisAnalysis);
       } else {
         performanceTrend = 'مستقر (نقاط بيانات غير كافية للاتجاه)';
       }
 
-      // Risk Assessment
-      // ✅ (تعديل) رسائل تحفيزية
       if (isBelowPassing && (performanceTrend.contains('تراجع'))) {
-        riskAssessment = 'يحتاج دعم فوري'; // (رسالة أفضل)
+        riskAssessment = 'يحتاج دعم فوري';
       } else if (isBelowPassing || (predictedNextGrade != null && predictedNextGrade < passingGradeForThisAnalysis)) {
-        riskAssessment = 'يحتاج لبعض التركيز'; // (رسالة أفضل)
+        riskAssessment = 'يحتاج لبعض التركيز';
       } else if (performanceTrend.contains('تراجع')){
-        riskAssessment = 'يحتاج لبعض التركيز'; // (رسالة أفضل)
+        riskAssessment = 'يحتاج لبعض التركيز';
       }
 
     } else {
       performanceTrend = 'يتطلب اختبارين للتحليل';
       if(isBelowPassing && validGrades.isNotEmpty) {
-        riskAssessment = 'يحتاج لبعض التركيز'; // (رسالة أفضل)
+        riskAssessment = 'يحتاج لبعض التركيز';
       } else if (validGrades.isEmpty) {
         riskAssessment = 'غير محدد';
       }
     }
 
     return _AnalysisResult(
-      groupName: groupName, // (جديد)
+      groupName: groupName,
       subjectName: subjectName,
       average: average,
       percentage: percentage,
-      maxPossibleGrade: maxGradeForThisAnalysis, // Store the determined max grade
+      maxPossibleGrade: maxGradeForThisAnalysis,
       highestGrade: highest,
       lowestGrade: lowest,
       assessment: assessment,
       consistency: consistency,
       isBelowPassing: isBelowPassing,
-      testResults: sortedTests, // Pass the original data (key -> grade)
+      testResults: sortedTests,
       trendSpots: trendSpots,
       performanceTrend: performanceTrend,
       predictedNextGrade: predictedNextGrade,
       riskAssessment: riskAssessment,
-      testCount: sortedTests.length, // (جديد)
+      testCount: sortedTests.length,
     );
   }
-  // --- ✅✅✅ END OF (MAJOR REFACTOR) ✅✅✅ ---
-
-
-  // --- 🛑 (حذف) تم حذف جميع دوال إنشاء PDF القديمة ---
 
 
   Widget _buildNobleStudentView() {
@@ -1706,11 +1726,7 @@ class _StudentViewPageState extends State<StudentViewPage>
       batch.update(doc.reference, {'isRead': true});
     }
     await batch.commit();
-    // --- ✅✅✅ START OF NOTIFICATION MODIFICATION ✅✅✅ ---
-    // بمجرد قراءة الإشعارات، نقوم بمسح قائمة الإشعارات "المُعالجة"
-    // للسماح بظهور إشعارات جديدة مرة أخرى
     _processedNotificationIds.clear();
-    // --- ✅✅✅ END OF NOTIFICATION MODIFICATION ✅✅✅ ---
   }
 
   Future<void> _signOutAndGoToLogin() async {
@@ -1754,7 +1770,6 @@ class _DislikeCardState extends State<_DislikeCard> {
     _replyController.dispose();
     super.dispose();
   }
-// student_view.dart
 
   Future<void> _submitReply() async {
     if (!_formKey.currentState!.validate()) return;
@@ -2037,25 +2052,21 @@ class __AnimatedTrophyState extends State<_AnimatedTrophy>
   }
 }
 
-// --- ✅✅✅ START OF (MAJOR REFACTOR) ✅✅✅ ---
-// (تعديل) هذا الويدجت أصبح يعرض "قائمة" من التحليلات للمادة الواحدة
 class _SubjectResultCard extends StatelessWidget {
   const _SubjectResultCard({
     required this.subjectName,
-    required this.analyses, // (جديد) قائمة بالتحليلات (دوري، نافس، ...)
+    required this.analyses,
     required this.subjectIcon,
     required this.color,
     required this.allTestsMap,
   });
 
   final String subjectName;
-  final List<_AnalysisResult> analyses; // (جديد)
+  final List<_AnalysisResult> analyses;
   final IconData subjectIcon;
   final Color color;
   final Map<String, TestInfo> allTestsMap;
 
-  // --- ✅ (جديد) دالة لشرح التقييم ---
-  /// ويدجت جديد لشرح التقييم
   Widget _buildAssessmentExplanation(BuildContext context, String assessment) {
     String explanation;
     IconData icon;
@@ -2127,12 +2138,9 @@ class _SubjectResultCard extends StatelessWidget {
       ),
     );
   }
-  // --- ✅ (نهاية) دالة شرح التقييم ---
 
 
-  // (جديد) دالة لإنشاء ويدجت التحليل للمجموعة الواحدة
   Widget _buildAnalysisGroup(BuildContext context, _AnalysisResult analysis) {
-    // تحديد لون العداد بناءً على التقييم
     Color gaugeColor;
     if (analysis.percentage >= 0.85)
       gaugeColor = Colors.green;
@@ -2162,9 +2170,8 @@ class _SubjectResultCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. اسم مجموعة التحليل (دوري، نافس، ...)
           Text(
-            analysis.groupName, // "الاختبارات الدورية"
+            analysis.groupName,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: color,
@@ -2173,7 +2180,6 @@ class _SubjectResultCard extends StatelessWidget {
           const SizedBox(height: 20),
           Row(
             children: [
-              // 2. العداد الاحترافي (جديد)
               SizedBox(
                 width: 130,
                 height: 130,
@@ -2215,7 +2221,7 @@ class _SubjectResultCard extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                analysis.assessment, // "ممتاز", "جيد", ...
+                                analysis.assessment,
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
@@ -2231,7 +2237,6 @@ class _SubjectResultCard extends StatelessWidget {
                 ),
               ).animate().fade(duration: 500.ms).scale(delay: 200.ms),
               const SizedBox(width: 16),
-              // 3. المعلومات الأساسية (أعلى، أدنى، ...)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -2264,41 +2269,41 @@ class _SubjectResultCard extends StatelessWidget {
               ),
             ],
           ),
-          // --- ✅ (جديد) إضافة شرح التقييم ---
           const SizedBox(height: 16),
           _buildAssessmentExplanation(context, analysis.assessment),
-          // --- ✅ (نهاية) ---
           const Divider(height: 32),
-          // 4. التحليل التنبؤي
           Text('التحليل التنبؤي للمسار',
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          _buildPredictiveInfo(
-            context,
+          // --- ✅✅✅ START OF ERROR FIX ✅✅✅ ---
+          _buildPredictiveInfo( // No longer a class, direct method call
+            context, // Pass context
             icon: Icons.trending_up,
             color: analysis.performanceTrend.contains('تحسن')
                 ? Colors.green
-                : (analysis.performanceTrend.contains('تراجع')
+                : (analysis.performanceTrend.contains('تراجع') // Fixed typo 'tراجع'
                 ? Colors.red
                 : Colors.grey),
             label: 'اتجاه الأداء',
             value: analysis.performanceTrend,
           ),
+          // --- ✅✅✅ END OF ERROR FIX ✅✅✅ ---
           const SizedBox(height: 12),
           if (analysis.predictedNextGrade != null)
-            _buildPredictiveInfo(
-              context,
+          // --- ✅✅✅ START OF ERROR FIX ✅✅✅ ---
+            _buildPredictiveInfo( // No longer a class, direct method call
+              context, // Pass context
               icon: Icons.track_changes,
               color: Theme.of(context).primaryColor,
               label: 'الدرجة التالية المتوقعة',
               value:
               '~${analysis.predictedNextGrade!.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}',
             ),
+          // --- ✅✅✅ END OF ERROR FIX ✅✅✅ ---
           const Divider(height: 32),
-          // 5. الرسم البياني للمجموعة
           Text('تتبع الأداء الزمني',
               style: Theme.of(context)
                   .textTheme
@@ -2310,7 +2315,6 @@ class _SubjectResultCard extends StatelessWidget {
               color: color,
               maxGrade: analysis.maxPossibleGrade),
           const Divider(height: 32),
-          // --- ✅ (تعديل) إظهار الدرجات مباشرة ---
           Text(
             'تفاصيل الدرجات (${analysis.groupName})',
             style: Theme.of(context)
@@ -2339,7 +2343,6 @@ class _SubjectResultCard extends StatelessWidget {
                   final double maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13'))
                       ? 10.0
                       : 20.0;
-                  // --- ✅ (تعديل) تلوين الدرجة المنخفضة ---
                   final bool isBelowPassing = entry.value >= 0 && entry.value < (maxGradeForThisTest / 2);
                   return Padding(
                     padding: const EdgeInsets.symmetric(
@@ -2366,15 +2369,12 @@ class _SubjectResultCard extends StatelessWidget {
                 }).toList(),
               ),
             ),
-          // --- 🛑 (حذف) تم حذف ExpansionTile ---
         ],
       ),
     ).animate().fade(duration: 300.ms).slideY(begin: 0.1);
   }
 
-  // (جديد) دالة للحصول على ويدجت تقييم المسار الكلي
   Widget _getOverallRiskAssessmentWidget() {
-    // تحديد المسار الأخطر بين جميع التحليلات
     String overallRisk = 'في المسار الصحيح';
     if (analyses.any((a) => a.riskAssessment == 'يحتاج دعم فوري')) {
       overallRisk = 'يحتاج دعم فوري';
@@ -2409,38 +2409,8 @@ class _SubjectResultCard extends StatelessWidget {
     );
   }
 
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. رأس الكارت (اسم المادة والتقييم الإجمالي)
-            Row(
-              children: [
-                Icon(subjectIcon, size: 28, color: color),
-                const SizedBox(width: 12),
-                Text(subjectName,
-                    style: Theme.of(context).textTheme.headlineSmall),
-                const Spacer(),
-                _getOverallRiskAssessmentWidget(), // (جديد)
-              ],
-            ),
-            // 2. (جديد) المرور على قائمة التحليلات وبناء ويدجت لكل واحد
-            ...analyses.map((analysis) => _buildAnalysisGroup(context, analysis)),
-          ],
-        ),
-      ),
-    ).animate().fade(duration: 200.ms);
-  }
-  // --- ✅✅✅ END OF (MAJOR REFACTOR) ✅✅✅ ---
-
-
+  // --- ✅✅✅ START OF ERROR FIX ✅✅✅ ---
+  // The helper method is now defined inside the class, before the build method.
   Widget _buildPredictiveInfo(BuildContext context,
       {required IconData icon,
         required Color color,
@@ -2460,7 +2430,37 @@ class _SubjectResultCard extends StatelessWidget {
       ],
     );
   }
+  // --- ✅✅✅ END OF ERROR FIX ✅✅✅ ---
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(subjectIcon, size: 28, color: color),
+                const SizedBox(width: 12),
+                Text(subjectName,
+                    style: Theme.of(context).textTheme.headlineSmall),
+                const Spacer(),
+                _getOverallRiskAssessmentWidget(),
+              ],
+            ),
+            ...analyses.map((analysis) => _buildAnalysisGroup(context, analysis)),
+          ],
+        ),
+      ),
+    ).animate().fade(duration: 200.ms);
+  }
 }
+
+// --- Removed _buildPredictiveInfo Class ---
 
 class _InfoChip extends StatelessWidget {
   final String label;
@@ -2595,7 +2595,7 @@ class _PerformanceTrendChart extends StatelessWidget {
             handleBuiltInTouches: true,
           ),
         ),
-      ).animate().fade(duration: 500.ms), // (جديد) إضافة أنيميشن
+      ).animate().fade(duration: 500.ms),
     );
   }
 
