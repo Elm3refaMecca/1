@@ -1,6 +1,8 @@
 // student_view.dart (MODIFIED - Overflow, AppBar Style, PDF Logging Fixed)
 // ✅ (FIX 1) تم إصلاح مشكلة تداخل النص في _InfoChip
 // ✅ (FIX 2) تم استبدال طريقة إنشاء PDF بالكامل لتصبح أكثر ثباتاً واحترافية (عبر تصوير الويدجت)
+// ✅ (FIX 3) [بناءً على طلبك] تم حذف أيقونة PDF من شريط التطبيق
+// ✅ (FIX 4) [بناءً على طلبك] تم تعديل واجهة "الاختبارات الدورية" لتصبح الدائرة "أعلى" التفاصيل بدلاً من "بجانبها" لحل مشكلة تداخل الكلمات
 
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'dart:async';
@@ -625,6 +627,9 @@ class _StudentViewPageState extends State<StudentViewPage>
       appBarActions.addAll(_buildDashboardActions());
     }
 
+    // --- ✅✅✅ [START OF MODIFICATION] ---
+    // تم حذف أيقونة الـ PDF من هنا
+    /*
     if (_currentView == StudentView.results && !_isPrinting) {
       appBarActions.add(
         IconButton(
@@ -634,6 +639,8 @@ class _StudentViewPageState extends State<StudentViewPage>
         ),
       );
     }
+    */
+    // --- ✅✅✅ [END OF MODIFICATION] ---
 
     appBarActions.add(
       Tooltip(
@@ -2203,97 +2210,104 @@ class _SubjectResultCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          Row(
+
+          // --- ✅✅✅ [START OF LAYOUT MODIFICATION] ---
+          // تم تغيير الـ Row إلى Column
+          // وتم توسيط الدائرة وإضافة مسافات عمودية
+          Column(
             children: [
-              SizedBox(
-                width: 130,
-                height: 130,
-                child: SfRadialGauge(
-                  axes: <RadialAxis>[
-                    RadialAxis(
-                      minimum: 0,
-                      maximum: 100,
-                      showLabels: false,
-                      showTicks: false,
-                      axisLineStyle: AxisLineStyle(
-                        thickness: 0.15,
-                        cornerStyle: CornerStyle.bothCurve,
-                        color: gaugeColor.withOpacity(0.2),
-                        thicknessUnit: GaugeSizeUnit.factor,
-                      ),
-                      pointers: <GaugePointer>[
-                        RangePointer(
-                          value: analysis.percentage * 100,
+              Center(
+                child: SizedBox(
+                  width: 130,
+                  height: 130,
+                  child: SfRadialGauge(
+                    axes: <RadialAxis>[
+                      RadialAxis(
+                        minimum: 0,
+                        maximum: 100,
+                        showLabels: false,
+                        showTicks: false,
+                        axisLineStyle: AxisLineStyle(
+                          thickness: 0.15,
                           cornerStyle: CornerStyle.bothCurve,
-                          width: 0.15,
-                          sizeUnit: GaugeSizeUnit.factor,
-                          color: gaugeColor,
+                          color: gaugeColor.withOpacity(0.2),
+                          thicknessUnit: GaugeSizeUnit.factor,
                         ),
-                      ],
-                      annotations: <GaugeAnnotation>[
-                        GaugeAnnotation(
-                          positionFactor: 0.1,
-                          angle: 90,
-                          widget: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                "${(analysis.percentage * 100).toStringAsFixed(1)}%",
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: gaugeColor,
-                                ),
-                              ),
-                              Text(
-                                analysis.assessment,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey.shade700,
-                                ),
-                              ),
-                            ],
+                        pointers: <GaugePointer>[
+                          RangePointer(
+                            value: analysis.percentage * 100,
+                            cornerStyle: CornerStyle.bothCurve,
+                            width: 0.15,
+                            sizeUnit: GaugeSizeUnit.factor,
+                            color: gaugeColor,
                           ),
-                        )
-                      ],
-                    ),
-                  ],
-                ),
-              ).animate().fade(duration: 500.ms).scale(delay: 200.ms),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _InfoChip(
-                        label: 'المتوسط',
-                        value: '${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}',
-                        icon: Icons.functions,
-                        color: color),
-                    const SizedBox(height: 8),
-                    _InfoChip(
-                        label: 'مستوى الأداء',
-                        value: analysis.consistency,
-                        icon: Icons.show_chart_outlined,
-                        color: color),
-                    const SizedBox(height: 8),
-                    _InfoChip(
-                        label: 'أعلى درجة',
-                        value: '${analysis.highestGrade} / ${analysis.maxPossibleGrade.toInt()}',
-                        icon: Icons.arrow_upward_outlined,
-                        color: Colors.green),
-                    const SizedBox(height: 8),
-                    _InfoChip(
-                        label: 'أدنى درجة',
-                        value: '${analysis.lowestGrade} / ${analysis.maxPossibleGrade.toInt()}',
-                        icon: Icons.arrow_downward_outlined,
-                        color: Colors.redAccent),
-                  ],
-                ).animate().fade(delay: 300.ms).slideX(begin: 0.2),
+                        ],
+                        annotations: <GaugeAnnotation>[
+                          GaugeAnnotation(
+                            positionFactor: 0.1,
+                            angle: 90,
+                            widget: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  "${(analysis.percentage * 100).toStringAsFixed(1)}%",
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: gaugeColor,
+                                  ),
+                                ),
+                                Text(
+                                  analysis.assessment,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
+                    ],
+                  ),
+                ).animate().fade(duration: 500.ms).scale(delay: 200.ms),
               ),
+              const SizedBox(height: 20), // <-- إضافة مسافة عمودية
+              Column(
+                // crossAxisAlignment: CrossAxisAlignment.start, // <-- الأصل
+                crossAxisAlignment: CrossAxisAlignment.stretch, // <-- جعل العناصر تمتد
+                children: [
+                  _InfoChip(
+                      label: 'المتوسط',
+                      value: '${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}',
+                      icon: Icons.functions,
+                      color: color),
+                  const SizedBox(height: 8),
+                  _InfoChip(
+                      label: 'مستوى الأداء',
+                      value: analysis.consistency,
+                      icon: Icons.show_chart_outlined,
+                      color: color),
+                  const SizedBox(height: 8),
+                  _InfoChip(
+                      label: 'أعلى درجة',
+                      value: '${analysis.highestGrade} / ${analysis.maxPossibleGrade.toInt()}',
+                      icon: Icons.arrow_upward_outlined,
+                      color: Colors.green),
+                  const SizedBox(height: 8),
+                  _InfoChip(
+                      label: 'أدنى درجة',
+                      value: '${analysis.lowestGrade} / ${analysis.maxPossibleGrade.toInt()}',
+                      icon: Icons.arrow_downward_outlined,
+                      color: Colors.redAccent),
+                ],
+              ).animate().fade(delay: 300.ms).slideX(begin: 0.2),
             ],
           ),
+          // --- ✅✅✅ [END OF LAYOUT MODIFICATION] ---
+
           const SizedBox(height: 16),
           _buildAssessmentExplanation(context, analysis.assessment),
           const Divider(height: 32),
