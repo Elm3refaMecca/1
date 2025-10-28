@@ -1,15 +1,14 @@
-// student_view.dart (MODIFIED FOR PDF EXPORT DEBUGGING AND OPTIMIZATION)
+// student_view.dart (MODIFIED - Added Detailed PDF Error Logging)
 
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'dart:async';
 import 'dart:math';
-// --- ✅✅✅ START OF PDF/PRINTING IMPORTS ✅✅✅ ---
-import 'dart:typed_data';
+
+// --- ✅✅✅ PDF/PRINTING IMPORTS ADDED ✅✅✅ ---
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:screenshot/screenshot.dart';
-// --- ✅✅✅ END OF PDF/PRINTING IMPORTS ✅✅✅ ---
+// --- ✅✅✅ END OF PDF IMPORTS ✅✅✅ ---
 
 import 'package:almarefamecca/student_profile_page.dart';
 import 'package:almarefamecca/teacher_profile_view_page.dart';
@@ -18,12 +17,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // Required for PDF fonts/images
 import 'package:intl/intl.dart' as intl;
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:flutter/foundation.dart' show kIsWeb, debugPrint; // Added debugPrint
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:universal_html/html.dart' as html;
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -108,8 +107,6 @@ class StudentViewPage extends StatefulWidget {
   _StudentViewPageState createState() => _StudentViewPageState();
 }
 
-// --- ✅✅✅ START OF MODIFICATION (Helper Class) ✅✅✅ ---
-// تم إضافة هذا الكلاس لتنظيم البيانات قبل عرضها في الشبكة
 class _DashboardButtonData {
   final String title;
   final IconData icon;
@@ -127,7 +124,6 @@ class _DashboardButtonData {
     this.count = 0,
   });
 }
-// --- ✅✅✅ END OF MODIFICATION (Helper Class) ✅✅✅ ---
 
 class _StudentViewPageState extends State<StudentViewPage>
     with SingleTickerProviderStateMixin {
@@ -142,10 +138,8 @@ class _StudentViewPageState extends State<StudentViewPage>
   // Map to hold all possible test info (key -> TestInfo)
   late final Map<String, TestInfo> _allTestsMap;
 
-  // --- ✅✅✅ START OF PDF MODIFICATION ✅✅✅ ---
-  final _screenshotController = ScreenshotController();
-  bool _isPrinting = false; // To show loading indicator
-  // --- ✅✅✅ END OF PDF MODIFICATION ✅✅✅ ---
+  // --- ✅ PDF RELATED VARIABLE ADDED (for loading state) ✅ ---
+  bool _isPrinting = false;
 
   StreamSubscription? _notificationSubscription;
   final Set<String> _processedNotificationIds = {};
@@ -165,7 +159,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     Subject(name: 'نشاط', icon: Icons.star),
     Subject(name: 'حياتية', icon: Icons.eco),
     Subject(name: 'مصدر', icon: Icons.source),
-    // Nafes subjects are handled implicitly by _getAllPossibleTests associating keys with correct subject names
   ];
 
   @override
@@ -176,7 +169,6 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 
   void _initializeData() {
-    // Populate _allTestsMap first
     _allTestsMap = {for (var test in _getAllPossibleTests()) test.key: test};
     _fetchStudentData();
     _assignSubjectColors();
@@ -206,7 +198,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       'profession12': 'تفكير',
     };
 
-    // Generate standard test keys
     standardSubjects.forEach((profKey, subjName) {
       tests.add(TestInfo(key: 'e1$profKey', name: 'الاختبار الأول (دوري)', subject: subjName, testGroup: 'periodic'));
       tests.add(TestInfo(key: 'e2$profKey', name: 'الاختبار الثاني (دوري)', subject: subjName, testGroup: 'periodic'));
@@ -216,7 +207,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       tests.add(TestInfo(key: 'e16$profKey', name: 'اختبار احتياطي', subject: subjName, testGroup: 'additional'));
     });
 
-    // Generate Nafes test keys for relevant subjects
     const String nafesBaseKey = 'profession13';
     const Map<String, String> nafesSubjectShortcodes = {
       'رياضيات': 'math',
@@ -225,7 +215,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     };
 
     nafesSubjectShortcodes.forEach((subjectName, shortcode) {
-      // Nafes tests are associated with their *actual* subject name
       tests.addAll([
         TestInfo(key: 'e1${nafesBaseKey}_$shortcode', name: 'الأول أساسي', subject: subjectName, testGroup: 'nafes'),
         TestInfo(key: 'e2${nafesBaseKey}_$shortcode', name: 'الثاني أساسي', subject: subjectName, testGroup: 'nafes'),
@@ -253,7 +242,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       Colors.deepOrange, Colors.lightGreen, Colors.brown, Colors.blueGrey
     ];
 
-    // Assign colors based on the `subjects` list (which contains actual subject names)
     for (int i = 0; i < subjects.length; i++) {
       _subjectColors[subjects[i].name] = vibrantColors[i % vibrantColors.length];
     }
@@ -457,107 +445,364 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
-  // --- ✅✅✅ START OF PDF MODIFICATION (DEBUGGING & OPTIMIZATION) ✅✅✅ ---
-  /// Generates a PDF of the results view and opens the save dialog.
+  // --- START OF PDF GENERATION FUNCTION (WITH DETAILED ERROR LOGGING) ---
   Future<void> _generateAndSavePdf() async {
-    if (_isPrinting) return; // Prevent multiple clicks
+    if (_isPrinting) return;
     setState(() => _isPrinting = true);
-    debugPrint("PDF Generation: Starting..."); // Debug log
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('جاري تحضير ملف PDF...')),
+    );
 
     try {
-      debugPrint("PDF Generation: Capturing screenshot..."); // Debug log
-      // Capture the widget
-      final imageBytes = await _screenshotController.capture(
-          delay: const Duration(milliseconds: 300), // Wait for renders
-          // --- Reduced pixelRatio to optimize image size ---
-          pixelRatio: 1.0 // Lower quality but smaller size
+      // 1. Get data
+      final allSubjectAnalyses = _buildSubjectAnalyses();
+      final overallMetrics = _calculateOverallMetrics(allSubjectAnalyses);
+      final studentName = _studentData?['name'] ?? 'طالب';
+      final studentClass = "${_studentData?['stages'] ?? ''} / ${_studentData?['grades'] ?? ''} / ${_studentData?['classes'] ?? ''}";
+
+      // 2. Load fonts
+      final pw.Font regularFont;
+      final pw.Font boldFont;
+      try {
+        regularFont = await PdfGoogleFonts.cairoRegular();
+        boldFont = await PdfGoogleFonts.cairoBold();
+        debugPrint("PDF fonts loaded successfully.");
+      } catch (e, s) {
+        debugPrint("------- Error loading PDF fonts -------");
+        debugPrint("Error: $e");
+        debugPrint("Stacktrace: $s");
+        debugPrint("---------------------------------------");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('فشل تحميل خطوط PDF: $e'), backgroundColor: Colors.red),
+        );
+        setState(() => _isPrinting = false);
+        return;
+      }
+
+      // --- Load image asset *before* building the page ---
+      final logoImage = await imageFromAssetBundle('assets/m1.png');
+      debugPrint("Logo image loaded successfully.");
+
+      final pw.ThemeData theme = pw.ThemeData.withFont(
+        base: regularFont,
+        bold: boldFont,
       );
 
-      // --- Check if imageBytes is null ---
-      if (imageBytes == null) {
-        debugPrint("PDF Generation Error: Screenshot capture returned null."); // Debug log
-        throw Exception('فشل التقاط صورة التقرير.');
+      // 3. Create PDF doc
+      final doc = pw.Document(theme: theme);
+      debugPrint("PDF document initialized.");
+
+      // Helper to get assessment explanation
+      String getAssessmentExplanation(String assessment) {
+        switch (assessment) {
+          case 'متفوق ورائع!': return 'أداء استثنائي! الطالب يتقن المهارات بشكل كامل ومتميز.';
+          case 'ممتاز': return 'أداء ممتاز! الطالب يظهر فهماً قوياً للمادة ويتجاوز التوقعات.';
+          case 'جيد جداً': return 'أداء جيد جداً! الطالب يظهر فهماً جيداً لمعظم المهارات.';
+          case 'جيد': return 'أداء جيد. الطالب يسير في المسار الصحيح ويظهر فهماً للمهارات الأساسية.';
+          case 'مقبول': return 'أداء مقبول. الطالب يحقق الحد الأدنى من المهارات المطلوبة.';
+          case 'يحتاج لمتابعة':
+          default: return 'يحتاج لمتابعة. الطالب يواجه بعض الصعوبات ويحتاج إلى دعم إضافي.';
+        }
       }
-      debugPrint("PDF Generation: Screenshot captured (${(imageBytes.lengthInBytes / 1024 / 1024).toStringAsFixed(2)} MB)."); // Debug log
 
-      // Create PDF document
-      debugPrint("PDF Generation: Creating PDF document..."); // Debug log
-      final pdf = pw.Document();
-      final image = pw.MemoryImage(imageBytes);
-
-      // Add image to PDF page
-      debugPrint("PDF Generation: Adding image to PDF page..."); // Debug log
-      pdf.addPage(
-        pw.Page(
-          pageTheme: const pw.PageTheme(
+      // 4. Add pages
+      doc.addPage(
+        pw.MultiPage(
+          pageTheme: pw.PageTheme(
             pageFormat: PdfPageFormat.a4,
-            orientation: pw.PageOrientation.portrait,
-            margin: pw.EdgeInsets.all(16), // Add some margin
+            textDirection: pw.TextDirection.rtl, // Set global RTL
+            margin: const pw.EdgeInsets.all(32),
+            buildBackground: (context) => pw.FullPage(
+              ignoreMargins: true,
+              child: pw.Watermark(
+                angle: 45,
+                child: pw.Opacity(
+                  opacity: 0.05,
+                  child: pw.Image(
+                    logoImage, // Use the pre-loaded image variable (no await)
+                    fit: pw.BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
           ),
-          build: (pw.Context context) {
-            // Use pw.Image and let it fit within the page boundaries
-            return pw.Center(
-              child: pw.Image(image, fit: pw.BoxFit.contain),
-            );
-          },
+          header: (context) => _buildPdfHeader(studentName, studentClass),
+          footer: (context) => _buildPdfFooter(context),
+          build: (context) => [
+            // --- Page 1: Overall Analysis ---
+            _buildPdfOverallAnalysis(overallMetrics),
+            pw.NewPage(),
+            // --- Page 2+: Subject Details ---
+            _buildPdfSubjectDetails(allSubjectAnalyses, getAssessmentExplanation),
+          ],
         ),
       );
+      debugPrint("PDF pages added to document.");
 
-      // Save or print the PDF using the 'printing' library
-      debugPrint("PDF Generation: Calling Printing.layoutPdf..."); // Debug log
+      // 5. Save/Show PDF
+      debugPrint("Attempting to layout and save PDF...");
       await Printing.layoutPdf(
         onLayout: (PdfPageFormat format) async {
-          debugPrint("PDF Generation: Saving PDF bytes..."); // Debug log
-          return pdf.save();
+          debugPrint("onLayout started.");
+          final bytes = await doc.save();
+          debugPrint("doc.save() completed, ${bytes.length} bytes generated.");
+          return bytes;
         },
-        name: 'report_${_studentData?['name'] ?? _studentDocId}.pdf',
       );
-      debugPrint("PDF Generation: Printing.layoutPdf completed."); // Debug log
+      debugPrint("Printing.layoutPdf finished.");
 
-    } catch (e, s) { // --- Added stack trace (s) ---
-      debugPrint("PDF Generation Error: $e\nStack Trace: $s"); // --- Print error and stack trace ---
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل إنشاء PDF: $e'), backgroundColor: Colors.red),
-        );
-      }
+    } catch (e, s) { // --- Catch all errors including the specific one if it occurs ---
+      // --- DETAILED ERROR LOGGING ADDED ---
+      debugPrint("------- Error generating or saving PDF -------");
+      debugPrint("Error Type: ${e.runtimeType}");
+      debugPrint("Error Message: $e");
+      debugPrint("Stacktrace: $s");
+      debugPrint("---------------------------------------------");
+      ScaffoldMessenger.of(context).showSnackBar(
+        // Show a more informative message including the error type
+        SnackBar(content: Text('فشل إنشاء ملف PDF: ${e.runtimeType} - $e'), backgroundColor: Colors.red),
+      );
     } finally {
       if (mounted) {
         setState(() => _isPrinting = false);
-        debugPrint("PDF Generation: Finished."); // Debug log
       }
     }
   }
-  // --- ✅✅✅ END OF PDF MODIFICATION (DEBUGGING & OPTIMIZATION) ✅✅✅ ---
+
+  // PDF Header Helper
+  pw.Widget _buildPdfHeader(String studentName, String studentClass) {
+    return pw.Container(
+      alignment: pw.Alignment.center,
+      margin: const pw.EdgeInsets.only(bottom: 20.0),
+      child: pw.Column(
+          children: [
+            pw.Text('تقرير الأداء الأكاديمي', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 22)),
+            pw.Text('الطالب: $studentName', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+            pw.Text(studentClass, style: const pw.TextStyle(fontSize: 16)),
+            pw.Divider(color: PdfColors.grey)
+          ]
+      ),
+    );
+  }
+
+  // PDF Footer Helper
+  pw.Widget _buildPdfFooter(pw.Context context) {
+    return pw.Container(
+      alignment: pw.Alignment.center,
+      margin: const pw.EdgeInsets.only(top: 10.0),
+      child: pw.Text(
+        'صفحة ${context.pageNumber} من ${context.pagesCount}',
+        style: const pw.TextStyle(color: PdfColors.grey, fontSize: 10),
+      ),
+    );
+  }
+
+  // PDF Helper for info rows (replaces _InfoChip)
+  pw.Widget _buildPdfInfoRow(String label, String value, {PdfColor color = PdfColors.black}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          pw.Text(value, style: pw.TextStyle(color: color, fontWeight: pw.FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  // PDF Overall Analysis Helper
+  pw.Widget _buildPdfOverallAnalysis(List<_OverallSubjectMetric> overallMetrics) {
+    if (overallMetrics.isEmpty) return pw.Text('لا توجد بيانات للتحليل العام.');
+
+    final double overallAveragePercentage =
+        overallMetrics.map((m) => m.overallPercentage).reduce((a, b) => a + b) /
+            overallMetrics.length;
+
+    overallMetrics.sort((a, b) => b.overallAverage.compareTo(a.overallAverage));
+    final strengths = overallMetrics.take(3).toList();
+    final weaknesses = overallMetrics.reversed.take(3).toList();
+
+    String overallAssessment;
+    if (overallAveragePercentage >= 0.9) overallAssessment = 'أداء استثنائي ورائع! أنت تسير على طريق التفوق.';
+    else if (overallAveragePercentage >= 0.75) overallAssessment = 'أداء عام ممتاز. لديك نقاط قوة واضحة.';
+    else if (overallAveragePercentage >= 0.60) overallAssessment = 'أداء عام جيد جداً ومستقر.';
+    else if (overallAveragePercentage >= 0.50) overallAssessment = 'أداء جيد وهناك إمكانيات كبيرة للتحسن.';
+    else overallAssessment = 'الأداء العام يحتاج إلى متابعة وجهد إضافي.';
+
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text('المحصلة النهائية والتقييم الشامل', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+        pw.Divider(height: 10, thickness: 1),
+        pw.SizedBox(height: 10),
+
+        pw.Container(
+          padding: const pw.EdgeInsets.all(12),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.grey100,
+            borderRadius: pw.BorderRadius.circular(10),
+          ),
+          child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+              children: [
+                pw.Text('متوسط الأداء العام:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
+                pw.Text(
+                  "${(overallAveragePercentage * 100).toStringAsFixed(1)}%",
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 24, color: PdfColors.blue),
+                ),
+              ]
+          ),
+        ),
+
+        pw.SizedBox(height: 15),
+        pw.Text('التقييم الشامل:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
+        pw.Text(overallAssessment),
+        pw.SizedBox(height: 15),
+        pw.Divider(),
+
+        pw.Text('أبرز نقاط القوة (أعلى المواد أداءً):', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
+        pw.SizedBox(height: 5),
+        ...strengths.map((s) => pw.Row(children: [
+          pw.Text('•  ', style: pw.TextStyle(color: PdfColors.green, fontWeight: pw.FontWeight.bold)),
+          pw.Text(s.subjectName),
+          pw.Spacer(),
+          pw.Text('${(s.overallPercentage * 100).toStringAsFixed(1)}%', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        ])),
+
+        pw.SizedBox(height: 15),
+        pw.Text('مواد تحتاج إلى تركيز إضافي:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
+        pw.SizedBox(height: 5),
+        ...weaknesses.map((w) => pw.Row(children: [
+          pw.Text('•  ', style: pw.TextStyle(color: PdfColors.orange, fontWeight: pw.FontWeight.bold)),
+          pw.Text(w.subjectName),
+          pw.Spacer(),
+          pw.Text('${(w.overallPercentage * 100).toStringAsFixed(1)}%', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+        ])),
+      ],
+    );
+  }
+
+  // PDF Subject Details Helper
+  pw.Widget _buildPdfSubjectDetails(Map<String, List<_AnalysisResult>> allSubjectAnalyses, String Function(String) getAssessmentExplanation) {
+    return pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text('التحليل التفصيلي للمواد', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
+          pw.SizedBox(height: 10),
+
+          ...allSubjectAnalyses.entries.map((entry) {
+            final subjectName = entry.key;
+            final analysesList = entry.value;
+
+            return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(subjectName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20, color: PdfColors.blue800)),
+                  pw.SizedBox(height: 10),
+
+                  ...analysesList.map((analysis) {
+                    return pw.Container(
+                      margin: const pw.EdgeInsets.only(bottom: 15),
+                      padding: const pw.EdgeInsets.all(10),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: PdfColors.grey300),
+                        borderRadius: pw.BorderRadius.circular(5),
+                      ),
+                      child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(analysis.groupName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
+                            pw.Divider(),
+                            pw.Row(
+                                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                children: [
+                                  pw.Expanded(
+                                      flex: 2,
+                                      child: pw.Column(
+                                          children: [
+                                            _buildPdfInfoRow('المتوسط:', '${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}'),
+                                            _buildPdfInfoRow('مستوى الأداء:', analysis.consistency),
+                                            _buildPdfInfoRow('أعلى درجة:', '${analysis.highestGrade} / ${analysis.maxPossibleGrade.toInt()}', color: PdfColors.green),
+                                            _buildPdfInfoRow('أدنى درجة:', '${analysis.lowestGrade} / ${analysis.maxPossibleGrade.toInt()}', color: PdfColors.red),
+                                          ]
+                                      )
+                                  ),
+                                  pw.SizedBox(width: 10),
+                                  pw.Expanded(
+                                      flex: 3,
+                                      child: pw.Container(
+                                          padding: const pw.EdgeInsets.all(8),
+                                          decoration: pw.BoxDecoration(
+                                            color: PdfColors.grey100,
+                                            borderRadius: pw.BorderRadius.circular(5),
+                                          ),
+                                          child: pw.Column(
+                                              children: [
+                                                pw.Text(analysis.assessment, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
+                                                pw.Text("${(analysis.percentage * 100).toStringAsFixed(1)}%", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20, color: PdfColors.blue)),
+                                                pw.SizedBox(height: 5),
+                                                pw.Text(getAssessmentExplanation(analysis.assessment), style: const pw.TextStyle(fontSize: 10)),
+                                              ]
+                                          )
+                                      )
+                                  ),
+                                ]
+                            ),
+                            pw.SizedBox(height: 10),
+                            pw.Text('تفاصيل الدرجات:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                            pw.Table.fromTextArray(
+                              headers: ['الاختبار', 'الدرجة'],
+                              cellAlignment: pw.Alignment.center,
+                              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                              cellStyle: const pw.TextStyle(fontSize: 10),
+                              data: analysis.testResults.map((entry) {
+                                final testInfo = _allTestsMap[entry.key];
+                                final testNameDisplay = testInfo?.name ?? entry.key;
+                                final maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13')) ? 10.0 : 20.0;
+                                final gradeDisplay = entry.value == -1 ? 'غائب' : '${entry.value} / ${maxGradeForThisTest.toInt()}';
+                                return [testNameDisplay, gradeDisplay];
+                              }).toList(),
+                            ),
+                          ]
+                      ),
+                    );
+                  }),
+                  pw.Divider(height: 20, thickness: 1, borderStyle: pw.BorderStyle.dashed),
+                ]
+            );
+          }),
+        ]
+    );
+  }
+  // --- END OF PDF GENERATION FUNCTION ---
 
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
+      // --- ✅ PDF LOADING OVERLAY ADDED ✅ ---
       body: Stack(
         children: [
           _buildBody(),
-          // --- ✅✅✅ START OF PDF MODIFICATION ✅✅✅ ---
-          // Add a loading overlay while printing
           if (_isPrinting)
             Container(
               color: Colors.black.withOpacity(0.5),
               child: const Center(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
                     SizedBox(height: 20),
                     Text(
-                      'جاري إعداد التقرير بصيغة PDF...',
+                      'جاري إنشاء ملف PDF...',
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
               ),
             ),
-          // --- ✅✅✅ END OF PDF MODIFICATION ✅✅✅ ---
         ],
       ),
     );
@@ -587,18 +832,17 @@ class _StudentViewPageState extends State<StudentViewPage>
       appBarActions.addAll(_buildDashboardActions());
     }
 
-    // --- ✅✅✅ START OF PDF MODIFICATION ✅✅✅ ---
-    // Add PDF button only on the results page and if not already printing
+    // --- ✅✅✅ PDF BUTTON ADDED ✅✅✅ ---
     if (_currentView == StudentView.results && !_isPrinting) {
       appBarActions.add(
         IconButton(
           icon: const Icon(Icons.picture_as_pdf_outlined),
-          tooltip: 'حفظ التقرير كـ PDF',
-          onPressed: _generateAndSavePdf,
+          tooltip: 'تحميل التقرير (PDF)',
+          onPressed: _generateAndSavePdf, // Use the new vector PDF function
         ),
       );
     }
-    // --- ✅✅✅ END OF PDF MODIFICATION ✅✅✅ ---
+    // --- ✅✅✅ END OF PDF BUTTON ✅✅✅ ---
 
     appBarActions.add(
       Tooltip(
@@ -725,12 +969,10 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // --- ✅✅✅ START OF MODIFICATION (Dashboard Build Logic) ✅✅✅ ---
   Widget _buildDashboard() {
     final int totalLikes = _studentData?['totalLikes'] ?? 0;
     final int totalDislikes = _studentData?['totalDislikes'] ?? 0;
 
-    // خريطة لربط العنوان بمسار الصورة
     final Map<String, String> imageMap = {
       'النتائج والتحليل': 'assets/a13.png',
       'الطالب المنضبط': 'assets/a1.png',
@@ -745,10 +987,8 @@ class _StudentViewPageState extends State<StudentViewPage>
       'كرة القدم': 'assets/a7.png',
       'السباحة': 'assets/a12.png',
       'المسابقات الرقمية': 'assets/a8.png',
-      // 'الكاراتيه' سيستخدم الأيقونة الافتراضية
     };
 
-    // إنشاء قائمة بيانات منظمة
     final List<_DashboardButtonData> buttonDataList = [
       _DashboardButtonData(
         title: 'النتائج والتحليل',
@@ -854,12 +1094,11 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     return AnimationLimiter(
       child: GridView.extent(
-        maxCrossAxisExtent: 150, // عرض كل عنصر
+        maxCrossAxisExtent: 150,
         padding: const EdgeInsets.all(16.0),
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        // تعديل نسبة العرض إلى الارتفاع لتناسب (صندوق + نص)
-        childAspectRatio: 150 / (130 + 40), // العرض / (ارتفاع الصندوق + ارتفاع النص)
+        childAspectRatio: 150 / (130 + 40),
         children: List.generate(
           buttonDataList.length,
               (index) {
@@ -870,14 +1109,12 @@ class _StudentViewPageState extends State<StudentViewPage>
               columnCount: (MediaQuery.of(context).size.width / 166).floor(),
               child: ScaleAnimation(
                 child: FadeInAnimation(
-                  // كل عنصر عبارة عن عمود (صندوق ثم نص)
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
-                      // 1. الصندوق (الصورة/الأيقونة)
                       SizedBox(
-                        height: 130, // ارتفاع ثابت للصندوق
-                        width: 150, // عرض يطابق maxCrossAxisExtent
+                        height: 130,
+                        width: 150,
                         child: _buildDashboardButton(
                           icon: data.icon,
                           assetPath: data.assetPath,
@@ -886,8 +1123,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                           count: data.count,
                         ),
                       ),
-                      const SizedBox(height: 8), // مسافة بين الصندوق والنص
-                      // 2. النص (العنوان)
+                      const SizedBox(height: 8),
                       Text(
                         data.title,
                         textAlign: TextAlign.center,
@@ -909,15 +1145,10 @@ class _StudentViewPageState extends State<StudentViewPage>
       ),
     );
   }
-  // --- ✅✅✅ END OF MODIFICATION (Dashboard Build Logic) ✅✅✅ ---
 
-
-  // --- ✅✅✅ START OF MODIFICATION (Button Build Logic) ✅✅✅ ---
-  // تم تعديل هذه الدالة لتصبح مسؤولة عن الصندوق فقط (بدون النص)
-  // وتستخدم الصورة كخلفية
   Widget _buildDashboardButton({
-    required IconData icon, // أيقونة احتياطية
-    String? assetPath, // مسار الصورة (اختياري)
+    required IconData icon,
+    String? assetPath,
     required Color color,
     required VoidCallback onTap,
     int count = 0,
@@ -931,7 +1162,7 @@ class _StudentViewPageState extends State<StudentViewPage>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(20), // الحواف الدائرية
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
               color: color.withOpacity(0.4),
@@ -943,28 +1174,24 @@ class _StudentViewPageState extends State<StudentViewPage>
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            // هذا الودجت يضمن أن الصورة تملأ المربع وتحترم الحواف الدائرية
             ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: (assetPath != null && assetPath.isNotEmpty)
                   ? Image.asset(
                 assetPath,
-                width: double.infinity,  // املأ العرض
-                height: double.infinity, // املأ الارتفاع
-                fit: BoxFit.cover,       // اجعل الصورة تغطي المربع
+                width: double.infinity,
+                height: double.infinity,
+                fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
-                  // في حال فشل تحميل الصورة، اعرض الأيقونة في المنتصف
                   return Center(
                     child: Icon(icon, size: 40, color: Colors.white),
                   );
                 },
               )
                   : Center(
-                // في حال عدم وجود مسار للصورة، اعرض الأيقونة في المنتصف
                 child: Icon(icon, size: 40, color: Colors.white),
               ),
             ),
-            // كود شارة الإشعار (يبقى كما هو)
             if (count > 0)
               Positioned(
                 top: -5,
@@ -992,7 +1219,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       ),
     );
   }
-  // --- ✅✅✅ END OF MODIFICATION (Button Build Logic) ✅✅✅ ---
 
 
   Map<String, List<_AnalysisResult>> _buildSubjectAnalyses() {
@@ -1085,45 +1311,34 @@ class _StudentViewPageState extends State<StudentViewPage>
       );
     }
 
-    // --- ✅✅✅ START OF PDF MODIFICATION ✅✅✅ ---
-    // Wrap the scrollable content with the Screenshot widget.
-    // We wrap the *child* of the SingleChildScrollView.
     return SingleChildScrollView(
-      child: Screenshot(
-        controller: _screenshotController,
-        child: Container(
-          // Add a background color to the screenshot
-          color: Theme.of(context).scaffoldBackgroundColor,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                _buildOverallAnalysisWidget(overallMetrics),
-                const SizedBox(height: 24),
-                ...allSubjectAnalyses.entries.map((entry) {
-                  final subjectName = entry.key;
-                  final analysesList = entry.value;
-                  final subjectIcon = subjects
-                      .firstWhere((s) => s.name == subjectName,
-                      orElse: () => Subject(name: '', icon: Icons.book))
-                      .icon;
-                  final subjectColor = _subjectColors[subjectName] ?? Colors.blue;
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            _buildOverallAnalysisWidget(overallMetrics),
+            const SizedBox(height: 24),
+            ...allSubjectAnalyses.entries.map((entry) {
+              final subjectName = entry.key;
+              final analysesList = entry.value;
+              final subjectIcon = subjects
+                  .firstWhere((s) => s.name == subjectName,
+                  orElse: () => Subject(name: '', icon: Icons.book))
+                  .icon;
+              final subjectColor = _subjectColors[subjectName] ?? Colors.blue;
 
-                  return _SubjectResultCard(
-                    subjectName: subjectName,
-                    analyses: analysesList,
-                    subjectIcon: subjectIcon,
-                    color: subjectColor,
-                    allTestsMap: _allTestsMap,
-                  );
-                }).toList(),
-              ],
-            ),
-          ),
+              return _SubjectResultCard(
+                subjectName: subjectName,
+                analyses: analysesList,
+                subjectIcon: subjectIcon,
+                color: subjectColor,
+                allTestsMap: _allTestsMap,
+              );
+            }).toList(),
+          ],
         ),
       ),
     );
-    // --- ✅✅✅ END OF PDF MODIFICATION ✅✅✅ ---
   }
 
   Widget _buildOverallAnalysisWidget(List<_OverallSubjectMetric> overallMetrics) {
@@ -2278,31 +2493,27 @@ class _SubjectResultCard extends StatelessWidget {
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 16),
-          // --- ✅✅✅ START OF ERROR FIX ✅✅✅ ---
-          _buildPredictiveInfo( // No longer a class, direct method call
-            context, // Pass context
+          _buildPredictiveInfo(
+            context,
             icon: Icons.trending_up,
             color: analysis.performanceTrend.contains('تحسن')
                 ? Colors.green
-                : (analysis.performanceTrend.contains('تراجع') // Fixed typo 'tراجع'
+                : (analysis.performanceTrend.contains('تراجع')
                 ? Colors.red
                 : Colors.grey),
             label: 'اتجاه الأداء',
             value: analysis.performanceTrend,
           ),
-          // --- ✅✅✅ END OF ERROR FIX ✅✅✅ ---
           const SizedBox(height: 12),
           if (analysis.predictedNextGrade != null)
-          // --- ✅✅✅ START OF ERROR FIX ✅✅✅ ---
-            _buildPredictiveInfo( // No longer a class, direct method call
-              context, // Pass context
+            _buildPredictiveInfo(
+              context,
               icon: Icons.track_changes,
               color: Theme.of(context).primaryColor,
               label: 'الدرجة التالية المتوقعة',
               value:
               '~${analysis.predictedNextGrade!.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}',
             ),
-          // --- ✅✅✅ END OF ERROR FIX ✅✅✅ ---
           const Divider(height: 32),
           Text('تتبع الأداء الزمني',
               style: Theme.of(context)
@@ -2409,8 +2620,6 @@ class _SubjectResultCard extends StatelessWidget {
     );
   }
 
-  // --- ✅✅✅ START OF ERROR FIX ✅✅✅ ---
-  // The helper method is now defined inside the class, before the build method.
   Widget _buildPredictiveInfo(BuildContext context,
       {required IconData icon,
         required Color color,
@@ -2430,7 +2639,6 @@ class _SubjectResultCard extends StatelessWidget {
       ],
     );
   }
-  // --- ✅✅✅ END OF ERROR FIX ✅✅✅ ---
 
   @override
   Widget build(BuildContext context) {
@@ -2460,8 +2668,6 @@ class _SubjectResultCard extends StatelessWidget {
   }
 }
 
-// --- Removed _buildPredictiveInfo Class ---
-
 class _InfoChip extends StatelessWidget {
   final String label;
   final String value;
@@ -2478,15 +2684,28 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start, // لمحاذاة العناصر من الأعلى
       children: [
         Icon(icon, color: color, size: 18),
         const SizedBox(width: 8),
+        // العنوان (Label)
         Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
+        // Spacer يأخذ كل المساحة المتبقية
+        const Spacer(),
+        // القيمة (Value) توضع في Flexible لتسمح لها بالالتفاف (wrap)
+        // إذا كانت طويلة جداً، بدلاً من الضغط على العنوان
+        Flexible(
+          child: Text(
+            value,
+            style: const TextStyle(fontSize: 14),
+            textAlign: TextAlign.end, // محاذاة لليسار (النهاية في سياق LTR)
+          ),
+        ),
       ],
     );
   }
 }
+
 
 class _PerformanceTrendChart extends StatelessWidget {
   final List<FlSpot> spots;
@@ -2557,7 +2776,7 @@ class _PerformanceTrendChart extends StatelessWidget {
               show: true,
               border: Border.all(color: const Color(0xff37434d), width: 1)),
           minY: 0,
-          maxY: maxGrade, // Use maxGrade from analysis
+          maxY: maxGrade,
           minX: 0,
           maxX: (spots.length - 1).toDouble(),
           lineBarsData: [
