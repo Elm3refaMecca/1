@@ -1,11 +1,12 @@
-// student_view.dart (MODIFIED - Overflow, AppBar Style, PDF Logging Fixed)
+// student_view.dart (MODIFIED - تمت إضافة مؤقت لتحديث "آخر ظهور" بشكل دوري)
 // ✅ (FIX 1) تم إصلاح مشكلة تداخل النص في _InfoChip
 // ✅ (FIX 2) تم استبدال طريقة إنشاء PDF بالكامل لتصبح أكثر ثباتاً واحترافية (عبر تصوير الويدجت)
 // ✅ (FIX 3) [بناءً على طلبك] تم حذف أيقونة PDF من شريط التطبيق
 // ✅ (FIX 4) [بناءً على طلبك] تم تعديل واجهة "الاختبارات الدورية" لتصبح الدائرة "أعلى" التفاصيل بدلاً من "بجانبها" لحل مشكلة تداخل الكلمات
+// ✅ (FIX 5) تمت إضافة مؤقت دوري لتحديث "آخر ظهور" كل دقيقة
 
 import 'package:syncfusion_flutter_gauges/gauges.dart';
-import 'dart:async';
+import 'dart:async'; // <-- (إضافة جديدة) لاستخدام المؤقت (Timer)
 import 'dart:math';
 
 // --- PDF/PRINTING IMPORTS ---
@@ -145,6 +146,10 @@ class _StudentViewPageState extends State<StudentViewPage>
   StreamSubscription? _notificationSubscription;
   final Set<String> _processedNotificationIds = {};
 
+  // --- ✅✅✅ (FIX 5) إضافة متغيرات المؤقت ✅✅✅ ---
+  Timer? _lastSeenTimer; // المؤقت
+  bool _isTeacherView = false; // لتحديد هل العرض للطالب أم للمعلم
+
   // --- ✅✅✅ (FIX 2) إضافة مفتاح لالتقاط الواجهة للـ PDF ✅✅✅ ---
   final GlobalKey _printKey = GlobalKey();
 
@@ -168,6 +173,7 @@ class _StudentViewPageState extends State<StudentViewPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _isTeacherView = widget.studentId != null; // تحديد نوع العرض
     _initializeData();
   }
 
@@ -181,7 +187,37 @@ class _StudentViewPageState extends State<StudentViewPage>
   void dispose() {
     _tabController.dispose();
     _notificationSubscription?.cancel();
+    // --- ✅✅✅ (FIX 5) إيقاف المؤقت عند إغلاق الصفحة ✅✅✅ ---
+    _lastSeenTimer?.cancel();
     super.dispose();
+  }
+
+  // --- ✅✅✅ (FIX 5) دالة تحديث آخر ظهور ✅✅✅ ---
+  Future<void> _updateLastSeen() async {
+    // نقوم بالتحديث فقط إذا كان العرض للطالب (وليس للمعلم)
+    // والطالب مسجل دخوله (studentDocId موجود)
+    if (!_isTeacherView && _studentDocId != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('students')
+            .doc(_studentDocId)
+            .update({'lastSeen': FieldValue.serverTimestamp()});
+        debugPrint("Student lastSeen updated via timer.");
+      } catch (e) {
+        debugPrint("Error updating lastSeen via timer: $e");
+        // لا نعرض رسالة خطأ للمستخدم لأن هذا التحديث في الخلفية
+      }
+    }
+  }
+
+  // --- ✅✅✅ (FIX 5) دالة بدء المؤقت ✅✅✅ ---
+  void _startLastSeenTimer() {
+    // نتأكد أولاً من إيقاف أي مؤقت قديم
+    _lastSeenTimer?.cancel();
+    // نبدأ مؤقت جديد يعمل كل 60 ثانية (دقيقة)
+    _lastSeenTimer = Timer.periodic(const Duration(seconds: 60), (timer) {
+      _updateLastSeen();
+    });
   }
 
   List<TestInfo> _getAllPossibleTests() {
@@ -264,7 +300,10 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 
   Future<void> _fetchStudentData() async {
-    final studentDocumentId = widget.studentId ?? FirebaseAuth.instance.currentUser?.uid;
+    // --- (تعديل) تحديد studentId بناءً على نوع العرض ---
+    final studentDocumentId = _isTeacherView
+        ? widget.studentId // إذا كان العرض للمعلم، استخدم الـ ID الممرر
+        : FirebaseAuth.instance.currentUser?.uid; // إذا كان العرض للطالب، استخدم الـ UID الخاص به
 
     if (studentDocumentId == null) {
       if (mounted) setState(() => _isLoading = false);
@@ -279,13 +318,18 @@ class _StudentViewPageState extends State<StudentViewPage>
       if (mounted && docSnapshot.exists) {
         setState(() {
           _studentData = docSnapshot.data();
-          _studentDocId = docSnapshot.id;
+          _studentDocId = docSnapshot.id; // <-- هذا مهم جداً
           _isLoading = false;
         });
-        if (_studentDocId != null) {
+
+        // --- ✅✅✅ (FIX 5) بدء تشغيل المؤقت والإشعارات للطالب فقط ✅✅✅ ---
+        if (!_isTeacherView && _studentDocId != null) {
           _listenForNewNotifications();
           _requestNotificationPermission();
+          _startLastSeenTimer(); // <-- بدء المؤقت هنا
         }
+        // --- نهاية التعديل ---
+
       } else {
         if (mounted) setState(() => _isLoading = false);
       }
@@ -574,7 +618,8 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 
   AppBar _buildAppBar() {
-    final bool isTeacherView = widget.studentId != null;
+    // --- (تعديل) استخدام المتغير الذي عرفناه في initState ---
+    // final bool isTeacherView = widget.studentId != null;
     bool isDashboard = _currentView == StudentView.dashboard;
     final studentName = _studentData?['name'] ?? '';
 
@@ -593,10 +638,10 @@ class _StudentViewPageState extends State<StudentViewPage>
         baseTitle = 'سجل الملاحظات السلوكية';
         break;
       default: // Dashboard
-        baseTitle = isTeacherView ? 'تقرير الطالب: $studentName' : studentName; // Show name directly or with prefix
+        baseTitle = _isTeacherView ? 'تقرير الطالب: $studentName' : studentName; // Show name directly or with prefix
     }
 
-    if (isDashboard && !isTeacherView) {
+    if (isDashboard && !_isTeacherView) {
       // Use LayoutBuilder for dynamic title on student dashboard
       titleWidget = LayoutBuilder(
         builder: (context, constraints) {
@@ -623,7 +668,7 @@ class _StudentViewPageState extends State<StudentViewPage>
 
 
     List<Widget> appBarActions = [];
-    if (isDashboard && !isTeacherView) {
+    if (isDashboard && !_isTeacherView) {
       appBarActions.addAll(_buildDashboardActions());
     }
 
@@ -666,8 +711,8 @@ class _StudentViewPageState extends State<StudentViewPage>
       foregroundColor: Theme.of(context).primaryColor, // Color for icons and back button
       elevation: 1.0, // Subtle shadow
       title: titleWidget,
-      centerTitle: !isDashboard || isTeacherView, // Center only if not student dashboard
-      leading: (isTeacherView && isDashboard) || !isDashboard
+      centerTitle: !isDashboard || _isTeacherView, // Center only if not student dashboard
+      leading: (_isTeacherView && isDashboard) || !isDashboard
           ? IconButton(
         icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).primaryColor), // Icon color
         onPressed: () {
@@ -680,9 +725,9 @@ class _StudentViewPageState extends State<StudentViewPage>
       )
           : null,
       actions: appBarActions,
-      automaticallyImplyLeading: !isDashboard || isTeacherView,
+      automaticallyImplyLeading: !isDashboard || _isTeacherView,
       // --- Tribute Bar Style Change ---
-      bottom: (isDashboard && !isTeacherView)
+      bottom: (isDashboard && !_isTeacherView)
           ? PreferredSize(
         preferredSize: const Size.fromHeight(30.0),
         child: Container(
@@ -732,7 +777,8 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 
   Widget _buildBody() {
-    final bool isTeacherView = widget.studentId != null;
+    // --- (تعديل) استخدام المتغير الذي عرفناه في initState ---
+    // final bool isTeacherView = widget.studentId != null;
 
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_studentData == null) {
@@ -742,7 +788,7 @@ class _StudentViewPageState extends State<StudentViewPage>
             children: [
               const Text('عفواً، لم يتم العثور على بيانات الطالب.'),
               const SizedBox(height: 20),
-              if (!isTeacherView)
+              if (!_isTeacherView)
                 ElevatedButton(
                   onPressed: _signOutAndGoToLogin,
                   child: const Text('العودة لتسجيل الدخول'),
@@ -1762,6 +1808,8 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 
   Future<void> _signOutAndGoToLogin() async {
+    // --- ✅✅✅ (FIX 5) إيقاف المؤقت عند تسجيل الخروج ✅✅✅ ---
+    _lastSeenTimer?.cancel();
     await FirebaseAuth.instance.signOut();
     if (mounted) {
       Navigator.of(context)

@@ -1,4 +1,4 @@
-// add.dart (MODIFIED)
+// add.dart (MODIFIED - تمت إضافة قسم إحصائيات لعدد الزوار والمتصلين للأدمن)
 
 import 'dart:async';
 import 'dart:io';
@@ -73,20 +73,6 @@ class _AddPageState extends State<AddPage> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
-  // --- (ملاحظة) هذه الدالة أصبحت غير مستخدمة بعد إزالة الزر ---
-  // Future<void> _launchWhatsAppForSupport() async {
-  //   const phoneNumber = '966569064173';
-  //   final Uri whatsappUri = Uri.parse('https://wa.me/$phoneNumber');
-  //
-  //   if (!await launchUrl(whatsappUri, mode: LaunchMode.externalApplication)) {
-  //     if (mounted) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(content: Text('لا يمكن فتح تطبيق واتساب.')),
-  //       );
-  //     }
-  //   }
-  // }
 
   Future<void> _launchEduFormsUrl() async {
     final Uri url = Uri.parse('https://edu-forms.com/');
@@ -383,9 +369,6 @@ class _AddPageState extends State<AddPage> {
           ),
         ],
         automaticallyImplyLeading: false,
-
-        // --- ✅✅✅ START OF MODIFICATION (Programmer Tribute) ✅✅✅ ---
-        // تم نقل التكريم إلى هنا وإزالته من الأسفل
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(30.0), // ارتفاع مناسب
           child: Container(
@@ -433,9 +416,7 @@ class _AddPageState extends State<AddPage> {
             ),
           ),
         ),
-        // --- ✅✅✅ END OF MODIFICATION (Programmer Tribute) ✅✅✅ ---
       ),
-
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _isExporting || _isMassExporting
@@ -450,95 +431,254 @@ class _AddPageState extends State<AddPage> {
         )
       ],))
           : _buildTeacherDashboard(),
-
-      // --- ✅✅✅  بداية التعديل (إزالة التكريم)  ✅✅✅ ---
-      // تم حذف الزر العائم الخاص بالتكريم بالكامل
-      // floatingActionButton: ... (تم الحذف)
-      // --- ✅✅✅  نهاية التعديل (إزالة التكريم)  ✅✅✅ ---
     );
   }
 
-
+  // --- ✅✅✅ (تعديل) تم تحويل لوحة التحكم إلى ListView لإضافة قسم الإحصائيات ✅✅✅ ---
   Widget _buildTeacherDashboard() {
-    return GridView.count(
+    // سنستخدم ListView ليسمح لنا بوضع قسم الإحصائيات في الأعلى
+    // وقسم الأزرار (GridView) في الأسفل
+    return ListView(
       padding: const EdgeInsets.all(20),
-      crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 2,
-      crossAxisSpacing: 20,
-      mainAxisSpacing: 20,
       children: [
-        _buildDashboardButton(
-          title: 'رصد الدرجات',
-          icon: Icons.edit_note,
-          color: Colors.blue.shade700,
-          onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => GradeEntrySelectionPage(isBehaviorMode: false, isAdmin: _isAdmin)));
-          },
+        // --- ✅✅✅ (إضافة) قسم الإحصائيات للأدمن فقط ✅✅✅ ---
+        if (_isAdmin) ...[
+          _buildAnalyticsSection(),
+          const SizedBox(height: 20),
+          const Divider(),
+          const SizedBox(height: 20),
+        ],
+        // --- ✅✅✅ (نهاية الإضافة) ✅✅✅ ---
+
+        // لوحة التحكم الأصلية (الأزرار)
+        GridView.count(
+          shrinkWrap: true, // مهم جداً داخل ListView
+          physics: const NeverScrollableScrollPhysics(), // مهم جداً داخل ListView
+          crossAxisCount: MediaQuery.of(context).size.width > 600 ? 4 : 2,
+          crossAxisSpacing: 20,
+          mainAxisSpacing: 20,
+          children: [
+            _buildDashboardButton(
+              title: 'رصد الدرجات',
+              icon: Icons.edit_note,
+              color: Colors.blue.shade700,
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => GradeEntrySelectionPage(isBehaviorMode: false, isAdmin: _isAdmin)));
+              },
+            ),
+            _buildDashboardButton(
+              title: 'الطالب المنضبط',
+              icon: Icons.sentiment_very_satisfied,
+              color: Colors.teal.shade600,
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => GradeEntrySelectionPage(isBehaviorMode: true, isAdmin: _isAdmin)));
+              },
+            ),
+            _buildDashboardButton(
+              title: 'تعميم النماذج التعليمية',
+              icon: Icons.assignment,
+              color: Colors.indigo.shade600,
+              onTap: _launchEduFormsUrl,
+            ),
+            _buildDashboardButton(
+              title: 'صندوق الشكاوى',
+              icon: Icons.inbox,
+              color: Colors.orange.shade800,
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ComplaintsBoxPage()));
+              },
+            ),
+            _buildDashboardButton(
+              title: 'تحليل المخالفات',
+              icon: Icons.flag,
+              color: Colors.red.shade700,
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ViolationsLogPage()));
+              },
+            ),
+            if (_isAdmin)
+              _buildDashboardButton(
+                title: 'البحث عن نتائج طالب',
+                icon: Icons.person_search,
+                color: Colors.green.shade700,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentSearchPage()));
+                },
+              ),
+            if (_isAdmin)
+              _buildDashboardButton(
+                title: 'استخراج درجات فصل (PDF)',
+                icon: Icons.picture_as_pdf,
+                color: Colors.red.shade600,
+                onTap: _showComingSoonSnackBar,
+              ),
+            if (_isAdmin)
+              _buildDashboardButton(
+                title: 'تحليلات بيانات المدرسة',
+                icon: Icons.analytics_outlined,
+                color: Colors.purple.shade600,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SchoolAnalyticsPage()));
+                },
+              ),
+            if (_isAdmin)
+              _buildDashboardButton(
+                title: 'بيانات المدرسة كاملة (Excel)',
+                icon: Icons.corporate_fare,
+                color: Colors.blueGrey.shade700,
+                onTap: _exportFullSchoolDataToExcel,
+              ),
+          ],
         ),
-        _buildDashboardButton(
-          title: 'الطالب المنضبط',
-          icon: Icons.sentiment_very_satisfied,
-          color: Colors.teal.shade600,
-          onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => GradeEntrySelectionPage(isBehaviorMode: true, isAdmin: _isAdmin)));
-          },
-        ),
-        _buildDashboardButton(
-          title: 'تعميم النماذج التعليمية',
-          icon: Icons.assignment,
-          color: Colors.indigo.shade600,
-          onTap: _launchEduFormsUrl,
-        ),
-        _buildDashboardButton(
-          title: 'صندوق الشكاوى',
-          icon: Icons.inbox,
-          color: Colors.orange.shade800,
-          onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ComplaintsBoxPage()));
-          },
-        ),
-        _buildDashboardButton(
-          title: 'تحليل المخالفات',
-          icon: Icons.flag,
-          color: Colors.red.shade700,
-          onTap: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ViolationsLogPage()));
-          },
-        ),
-        if (_isAdmin)
-          _buildDashboardButton(
-            title: 'البحث عن نتائج طالب',
-            icon: Icons.person_search,
-            color: Colors.green.shade700,
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentSearchPage()));
-            },
-          ),
-        if (_isAdmin)
-          _buildDashboardButton(
-            title: 'استخراج درجات فصل (PDF)',
-            icon: Icons.picture_as_pdf,
-            color: Colors.red.shade600,
-            onTap: _showComingSoonSnackBar,
-          ),
-        if (_isAdmin)
-          _buildDashboardButton(
-            title: 'تحليلات بيانات المدرسة',
-            icon: Icons.analytics_outlined,
-            color: Colors.purple.shade600,
-            onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const SchoolAnalyticsPage()));
-            },
-          ),
-        if (_isAdmin)
-          _buildDashboardButton(
-            title: 'بيانات المدرسة كاملة (Excel)',
-            icon: Icons.corporate_fare,
-            color: Colors.blueGrey.shade700,
-            onTap: _exportFullSchoolDataToExcel,
-          ),
       ],
     );
   }
+
+  // --- ✅✅✅ (إضافة) ويدجت قسم الإحصائيات بالكامل ✅✅✅ ---
+  Widget _buildAnalyticsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '📊 إحصائيات حية للمنصة',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            color: Theme.of(context).primaryColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 12),
+        // استخدام Row لعرض البطاقات جنباً إلى جنب
+        Row(
+          children: [
+            // البطاقة الأولى: المتصلون حالياً
+            Expanded(
+              child: _buildOnlineStudentsCard(),
+            ),
+            const SizedBox(width: 16),
+            // البطاقة الثانية: إجمالي الطلاب
+            Expanded(
+              child: _buildTotalStudentsCard(),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// بطاقة إحصائية لعرض عدد الطلاب المتصلين الآن (تحديث لحظي)
+  Widget _buildOnlineStudentsCard() {
+    // نعتبر الطالب "متصل" إذا كان آخر ظهور له خلال الـ 5 دقائق الماضية
+    final fiveMinutesAgo = DateTime.now().subtract(const Duration(minutes: 5));
+
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.wifi, color: Colors.green.shade600),
+                const SizedBox(width: 8),
+                Text(
+                  'متصل حالياً',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.green.shade700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // استخدام StreamBuilder لتحديث العدد لحظياً
+            StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('students')
+                  .where('lastSeen', isGreaterThan: Timestamp.fromDate(fiveMinutesAgo))
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(
+                    height: 28, // ارتفاع ثابت لمنع "قفز" الواجهة
+                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return const Text('خطأ', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.red));
+                }
+
+                final count = snapshot.data?.docs.length ?? 0;
+                return Text(
+                  count.toString(),
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                );
+              },
+            ),
+            const Text('طالب', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// بطاقة إحصائية لعرض العدد الإجمالي للطلاب (يتم جلبه مرة واحدة)
+  Widget _buildTotalStudentsCard() {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.people_alt, color: Colors.blue.shade700),
+                const SizedBox(width: 8),
+                Text(
+                  'إجمالي الطلاب',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // استخدام FutureBuilder لجلب العدد الإجمالي (count)
+            // هذه الميزة تتطلب تفعيل (default) index في الفايرستور
+            FutureBuilder<AggregateQuerySnapshot>(
+              future: FirebaseFirestore.instance.collection('students').count().get(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const SizedBox(
+                    height: 28, // ارتفاع ثابت
+                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return const Text('خطأ', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.red));
+                }
+
+                final count = snapshot.data?.count ?? 0;
+                return Text(
+                  count.toString(),
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                );
+              },
+            ),
+            const Text('مسجل', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+      ),
+    );
+  }
+  // --- ✅✅✅ (نهاية الإضافات) ✅✅✅ ---
+
 
   Widget _buildDashboardButton({
     required String title,
@@ -743,7 +883,6 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     _classSubjectMapByGrade = classSubjects;
   }
 
-  // --- ✅✅✅ START OF MODIFICATION (إصلاح خطأ النوع وتعديل منطق التصدير) ✅✅✅ ---
   Future<void> _exportAllAssignedStudentsToExcel() async {
     if ((_userData == null || _userData!.isEmpty) && !widget.isAdmin) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -925,14 +1064,10 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
             if (gradeValue is num) {
               gradeNum = gradeValue;
             }
-            // يمكنك إضافة شرط للتحقق إذا كانت القيمة نصية ومحاولة تحويلها
-            // else if (gradeValue is String) {
-            //   gradeNum = num.tryParse(gradeValue);
-            // }
             // ------------------------------------
 
             if (gradeNum == null) {
-              // حالة الدرجة مفقودة أو غير صالحة (لا يفترض أن تحدث بسبب التحقق أعلاه)
+              // حالة الدرجة مفقودة أو غير صالحة
               sheet.appendRow([
                 TextCellValue(studentName),
                 TextCellValue('لم ترصد'),
@@ -991,7 +1126,6 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
       }
     }
   }
-  // --- ✅✅✅ END OF MODIFICATION (نهاية التعديل) ✅✅✅ ---
 
 
   @override
@@ -1222,6 +1356,51 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
   bool _isLoading = false;
   String _searchStatus = 'أدخل اسم الطالب للبحث...';
 
+  // --- ✅✅✅ (إضافة) دالة تنسيق "آخر ظهور" ✅✅✅ ---
+  Widget _buildLastSeenWidget(Timestamp? lastSeenTimestamp) {
+    // تحديد اللغة العربية لتنسيق الوقت
+
+    if (lastSeenTimestamp == null) {
+      return const Text(
+        'لم يُسجل',
+        style: TextStyle(fontSize: 12, color: Colors.grey),
+      );
+    }
+
+    final lastSeen = lastSeenTimestamp.toDate();
+    final now = DateTime.now();
+    final difference = now.difference(lastSeen);
+
+    if (difference.inMinutes < 5) {
+      return const Text(
+        'متصل الآن',
+        style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+      );
+    } else if (difference.inMinutes < 60) {
+      return Text(
+        'آخر ظهور: ${difference.inMinutes} د',
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
+      );
+    } else if (difference.inHours < 24) {
+      return Text(
+        'آخر ظهور: ${difference.inHours} س',
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
+      );
+    } else if (difference.inDays == 1) {
+      return const Text(
+        'آخر ظهور: أمس',
+        style: TextStyle(fontSize: 12, color: Colors.grey),
+      );
+    } else {
+      // استخدام 'ar' لضمان تنسيق التاريخ بالعربي
+      return Text(
+        intl.DateFormat('yyyy/MM/dd', 'ar').format(lastSeen),
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
+      );
+    }
+  }
+
+
   Future<void> _searchStudent(String query) async {
     if (query.isEmpty) {
       setState(() {
@@ -1331,6 +1510,8 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
                 final name = data['name'] ?? 'اسم غير متوفر';
                 final grade = data['grades'] ?? 'صف غير متوفر';
                 final className = data['classes'] ?? 'فصل غير متوفر';
+                // --- ✅✅✅ (تعديل) جلب "آخر ظهور" ✅✅✅ ---
+                final lastSeen = data['lastSeen'] as Timestamp?;
 
                 return Card(
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1338,6 +1519,8 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
                     leading: const Icon(Icons.person),
                     title: Text(name),
                     subtitle: Text('$grade / $className'),
+                    // --- ✅✅✅ (تعديل) إضافة "آخر ظهور" هنا ✅✅✅ ---
+                    trailing: _buildLastSeenWidget(lastSeen),
                     onTap: () {
                       Navigator.push(
                         context,

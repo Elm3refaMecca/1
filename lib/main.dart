@@ -1,5 +1,6 @@
 // main.dart (MODIFIED FOR "KHURAAFI" UI/UX, SHIMMER, AND NOTIFICATIONS)
 // ✅✅✅ (FIXED) تم إصلاح مشكلة البطء عند أول تشغيل ✅✅✅
+// ✅ (MODIFIED) تمت إضافة تحديث "آخر ظهور" للطالب عند تسجيل الدخول
 
 import 'dart:async';
 import 'dart:js' as js; // لاستدعاء دوال JavaScript
@@ -323,6 +324,19 @@ class _AuthWrapperState extends State<AuthWrapper> {
       final studentDoc = await studentDocRef.get();
       if (studentDoc.exists) {
         debugPrint("User role determined: student");
+
+        // --- ✅✅✅ START OF MODIFICATION (إضافة تحديث آخر ظهور) ✅✅✅ ---
+        // نقوم بتحديث آخر ظهور للطالب هنا
+        // نستخدم .then() بدلاً من await حتى لا نوقف تحميل الواجهة
+        studentDocRef.update({
+          'lastSeen': FieldValue.serverTimestamp(),
+        }).then((_) {
+          debugPrint("Student lastSeen updated from AuthWrapper.");
+        }).catchError((e) {
+          debugPrint("Failed to update lastSeen from AuthWrapper: $e");
+        });
+        // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+
 
         // --- ✅ التعديل هنا ---
         // استدعاء الدالة الجديدة للتعامل مع التوكن *بعد* التحقق من أنه طالب
