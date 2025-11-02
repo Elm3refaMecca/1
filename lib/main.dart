@@ -319,20 +319,21 @@ class _AuthWrapperState extends State<AuthWrapper> {
         debugPrint("User role determined: teacher");
         return 'teacher';
       }
+
       final studentDocRef = _firestore.collection('students').doc(user.uid);
       final studentDoc = await studentDocRef.get();
       if (studentDoc.exists) {
         debugPrint("User role determined: student");
+
         // --- ✅✅✅ START OF MODIFICATION (إضافة تحديث آخر ظهور) ✅✅✅ ---
         // نقوم بتحديث آخر ظهور للطالب هنا
         // نستخدم .then() بدلاً من await حتى لا نوقف تحميل الواجهة
         studentDocRef.update({
           'lastSeen': FieldValue.serverTimestamp(),
-          'totalActiveSeconds': FieldValue.increment(0)
         }).then((_) {
-          debugPrint("Student lastSeen/totalActiveSeconds updated/initialized from AuthWrapper.");
+          debugPrint("Student lastSeen updated from AuthWrapper.");
         }).catchError((e) {
-          debugPrint("Failed to update lastSeen/totalActiveSeconds from AuthWrapper: $e");
+          debugPrint("Failed to update lastSeen from AuthWrapper: $e");
         });
         // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
 
@@ -340,7 +341,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
         // --- ✅ التعديل هنا ---
         // استدعاء الدالة الجديدة للتعامل مع التوكن *بعد* التحقق من أنه طالب
         // (تم حذف await) هذا سيجعلها تعمل في الخلفية ولن توقف تحميل الواجهة
-        _handleStudentTokenRegistration(studentDocRef, studentDoc.data() as Map<String, dynamic>?);        // --- نهاية التعديل ---
+        _handleStudentTokenRegistration(studentDocRef, studentDoc.data() as Map<String, dynamic>?);
+        // --- نهاية التعديل ---
 
         return 'student';
       }
@@ -358,7 +360,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
       return 'unauthorized';
     }
-  }  // --- ✅✅✅ END OF PERFORMANCE FIXES ✅✅✅ ---
+  }
+  // --- ✅✅✅ END OF PERFORMANCE FIXES ✅✅✅ ---
 
 
   @override

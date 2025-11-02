@@ -1,4 +1,4 @@
-// online_students_page.dart (مُعَدَّل بالكامل لحل مشكلة "لا يوجد نشاط")
+// online_students_page.dart (مُعَدَّل - تم تقليص نافذة الاتصال إلى 70 ثانية)
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -26,7 +26,8 @@ class OnlineStudentsPage extends StatelessWidget {
     final now = DateTime.now();
     final difference = now.difference(lastSeen);
 
-    if (difference.inSeconds < 90) { // <-- (تم التعديل هنا أيضاً)
+    // (تم التعديل) تقليص النافذة إلى 70 ثانية لتناسب المؤقت الجديد
+    if (difference.inSeconds < 70) {
       return 'متصل الآن';
     } else if (difference.inHours < 1) {
       return 'منذ ${difference.inMinutes} دقيقة';
@@ -108,14 +109,14 @@ class OnlineStudentsPage extends StatelessWidget {
   // --- ✅ (نهاية التعديل) ---
 
 
-  // --- (تم التعديل) دالة لتحديد حالة الاتصال (نافذة 90 ثانية) ---
+  // --- (تم التعديل) دالة لتحديد حالة الاتصال (نافذة 70 ثانية) ---
   bool _isCurrentlyOnline(Timestamp? timestamp) {
     if (timestamp == null) return false;
     final lastSeen = timestamp.toDate();
     final difference = DateTime.now().difference(lastSeen);
-    // يعتبر متصلاً إذا كان آخر ظهور خلال آخر 90 ثانية
-    // (الطالب يرسل تحديث كل 60 ثانية، هذا يعطي هامش 30 ثانية)
-    return difference.inSeconds < 90;
+    // (تم التعديل) يعتبر متصلاً إذا كان آخر ظهور خلال آخر 70 ثانية
+    // (الطالب يرسل تحديث كل 30 ثانية، هذا يعطي هامش 40 ثانية)
+    return difference.inSeconds < 70;
   }
 
 
