@@ -3,7 +3,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-
+import 'package:almarefamecca/online_students_page.dart';
 import 'package:almarefamecca/profile_page.dart';
 import 'package:almarefamecca/student_view.dart';
 import 'package:almarefamecca/test_selection_page.dart';
@@ -567,64 +567,78 @@ class _AddPageState extends State<AddPage> {
 
   /// بطاقة إحصائية لعرض عدد الطلاب المتصلين الآن (تحديث لحظي)
   Widget _buildOnlineStudentsCard() {
-    // نعتبر الطالب "متصل" إذا كان آخر ظهور له خلال الـ 5 دقائق الماضية
-    final fiveMinutesAgo = DateTime.now().subtract(const Duration(minutes: 5));
+    // --- (ملاحظة) هذا العداد سيبقى دقيقاً (آخر دقيقتين) للواجهة فقط ---
+    final twoMinutesAgo = DateTime.now().subtract(const Duration(minutes: 2));
 
     return Card(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.wifi, color: Colors.green.shade600),
-                const SizedBox(width: 8),
-                Text(
-                  'متصل حالياً',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.green.shade700,
+      // --- ✅✅✅ (الإضافة) جعل البطاقة قابلة للضغط ✅✅✅ ---
+      child: InkWell(
+        onTap: () {
+          // --- (الإضافة) الانتقال إلى صفحة "سجل الظهور" الجديدة ---
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const OnlineStudentsPage()),
+          );
+        },
+        borderRadius: BorderRadius.circular(15),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.wifi, color: Colors.green.shade600),
+                  const SizedBox(width: 8),
+                  Text(
+                    'متصل حالياً', // سيبقى العنوان كما هو
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.green.shade700,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // استخدام StreamBuilder لتحديث العدد لحظياً
-            StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('students')
-                  .where('lastSeen', isGreaterThan: Timestamp.fromDate(fiveMinutesAgo))
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const SizedBox(
-                    height: 28, // ارتفاع ثابت لمنع "قفز" الواجهة
-                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
-                  );
-                }
-                if (snapshot.hasError) {
-                  return const Text('خطأ', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.red));
-                }
+                  // --- (الإضافة) أيقونة توضح أنها قابلة للضغط ---
+                  const SizedBox(width: 4),
+                  Icon(Icons.arrow_forward_ios, size: 12, color: Colors.green.shade400),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // استخدام StreamBuilder لتحديث العدد لحظياً
+              StreamBuilder<QuerySnapshot>(
+                // --- (ملاحظة) هذا الاستعلام يبقى كما هو لعرض العدد اللحظي ---
+                stream: FirebaseFirestore.instance
+                    .collection('students')
+                    .where('lastSeen', isGreaterThan: Timestamp.fromDate(twoMinutesAgo))
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox(
+                      height: 28, // ارتفاع ثابت لمنع "قفز" الواجهة
+                      child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return const Text('خطأ', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.red));
+                  }
 
-                final count = snapshot.data?.docs.length ?? 0;
-                return Text(
-                  count.toString(),
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                );
-              },
-            ),
-            const Text('طالب', style: TextStyle(fontSize: 12, color: Colors.grey)),
-          ],
+                  final count = snapshot.data?.docs.length ?? 0;
+                  return Text(
+                    count.toString(),
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  );
+                },
+              ),
+              const Text('طالب', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
         ),
       ),
     );
-  }
-
-  /// بطاقة إحصائية لعرض العدد الإجمالي للطلاب (يتم جلبه مرة واحدة)
+  }  /// بطاقة إحصائية لعرض العدد الإجمالي للطلاب (يتم جلبه مرة واحدة)
+  ///
   Widget _buildTotalStudentsCard() {
     return Card(
       elevation: 3,
@@ -639,7 +653,7 @@ class _AddPageState extends State<AddPage> {
                 Icon(Icons.people_alt, color: Colors.blue.shade700),
                 const SizedBox(width: 8),
                 Text(
-                  'إجمالي الطلاب',
+                  'الغياب',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,

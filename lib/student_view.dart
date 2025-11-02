@@ -201,15 +201,19 @@ class _StudentViewPageState extends State<StudentViewPage>
         await FirebaseFirestore.instance
             .collection('students')
             .doc(_studentDocId)
-            .update({'lastSeen': FieldValue.serverTimestamp()});
-        debugPrint("Student lastSeen updated via timer.");
+            .update({
+          'lastSeen': FieldValue.serverTimestamp(),
+          // --- ✅ (NEW) الإضافة المطلوبة هنا ---
+          // زيادة العداد 60 ثانية (لأن المؤقت يعمل كل 60 ثانية)
+          'totalActiveSeconds': FieldValue.increment(60)
+        });
+        debugPrint("Student lastSeen and totalActiveSeconds updated via timer.");
       } catch (e) {
         debugPrint("Error updating lastSeen via timer: $e");
         // لا نعرض رسالة خطأ للمستخدم لأن هذا التحديث في الخلفية
       }
     }
   }
-
   // --- ✅✅✅ (FIX 5) دالة بدء المؤقت ✅✅✅ ---
   void _startLastSeenTimer() {
     // نتأكد أولاً من إيقاف أي مؤقت قديم
@@ -320,13 +324,23 @@ class _StudentViewPageState extends State<StudentViewPage>
           _studentData = docSnapshot.data();
           _studentDocId = docSnapshot.id; // <-- هذا مهم جداً
           _isLoading = false;
-        });
-
-        // --- ✅✅✅ (FIX 5) بدء تشغيل المؤقت والإشعارات للطالب فقط ✅✅✅ ---
+        });        // --- ✅✅✅ (FIX 5) بدء تشغيل المؤقت والإشعارات للطالب فقط ✅✅✅ ---
         if (!_isTeacherView && _studentDocId != null) {
+
+          // --- ✅✅✅ START OF MODIFICATION (تحديث فوري) ✅✅✅ ---
+          // قم بتحديث آخر ظهور + تهيئة العداد (احتياطياً) فوراً عند فتح الصفحة
+          // هذا يضمن ظهور الطالب "متصل الآن" في صفحة الأدمن على الفور
+          FirebaseFirestore.instance.collection('students').doc(_studentDocId!).update({
+            'lastSeen': FieldValue.serverTimestamp(),
+            'totalActiveSeconds': FieldValue.increment(0)
+          }).catchError((e) {
+            debugPrint("Error on initial lastSeen update in StudentView: $e");
+          });
+          // --- ✅✅✅ END OF MODIFICATION ✅✅✅ ---
+
           _listenForNewNotifications();
           _requestNotificationPermission();
-          _startLastSeenTimer(); // <-- بدء المؤقت هنا
+          _startLastSeenTimer(); // <-- بدء المؤقت هنا (سيعمل بعد 60 ثانية)
         }
         // --- نهاية التعديل ---
 
@@ -338,7 +352,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
   void _requestNotificationPermission() {
     if (kIsWeb) {
       if (html.Notification.supported) {
