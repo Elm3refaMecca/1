@@ -1,5 +1,6 @@
 // add1.dart
-// ✅ يحتوي على نظام رصد الدرجات + نظام الطالب المنضبط (Grade Entry & Noble Student)
+// ✅ (MODIFIED) تم تحديث معايير اللغة الإنجليزية لتكون شاملة ومهنية
+// ✅ تم دمج التقييم مع رصد الدرجة ورفعه على Firebase
 
 import 'dart:async';
 import 'dart:io';
@@ -21,7 +22,7 @@ import 'package:universal_html/html.dart' as html;
 // ---------------------------------------------------------------------------
 
 class GradeEntrySelectionPage extends StatefulWidget {
-  final bool isBehaviorMode; // true = الطالب المنضبط, false = رصد درجات
+  final bool isBehaviorMode;
   final bool isAdmin;
 
   const GradeEntrySelectionPage({
@@ -39,17 +40,14 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
   String? _selectedStage, _selectedGrade, _selectedClass;
   bool _isLoading = true;
 
-  // هيكل البيانات لربط الصفوف بالمواد للمعلم
   Map<String, Map<String, List<String>>> _classSubjectMapByGrade = {};
 
-  // القوائم المستخدمة في القوائم المنسدلة
   List<String> _subjectsForSelectedClass = [];
   List<String> _availableStages = [];
   Map<String, List<String>> _gradesByStage = {};
   List<String> _gradesForSelectedStage = [];
   List<String> _classesForSelectedGrade = [];
 
-  // القوائم الثابتة للإدمن
   final List<String> _allStages = ['المرحلة الابتدائية', 'المرحلة المتوسطة', 'المرحلة الثانوية'];
   final List<String> _allGrades = [
     'الصف الأول', 'الصف الثاني', 'الصف الثالث', 'الصف الرابع', 'الصف الخامس', 'الصف السادس',
@@ -306,7 +304,7 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
                     grade: _selectedGrade!,
                     className: _selectedClass!,
                     subject: 'سلوك',
-                    testFieldKey: 'behavior', // مفتاح وهمي للسلوك
+                    testFieldKey: 'behavior',
                     testName: 'تقييم السلوك (الطالب المنضبط)',
                     isBehaviorMode: true,
                   ),
@@ -345,7 +343,7 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
               final professionKey = _subjectToProfessionKeyMap[subject];
               if (professionKey == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('خطأ: المادة "$subject" غير قابلة للاختيار هنا (قد تكون نافس).')),
+                  SnackBar(content: Text('خطأ: المادة "$subject" غير قابلة للاختيار هنا.')),
                 );
                 return;
               }
@@ -657,7 +655,7 @@ class __TestTileState extends State<_TestTile> {
 }
 
 // ---------------------------------------------------------------------------
-// 3. صفحة رصد الدرجات / تسجيل السلوك (GradeEntryPage)
+// 3. صفحة رصد الدرجات / تسجيل السلوك (GradeEntryPage) مع التقييم
 // ---------------------------------------------------------------------------
 
 class GradeEntryPage extends StatefulWidget {
@@ -689,6 +687,9 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   bool _isLoading = true;
   List<DocumentSnapshot> _students = [];
   Map<String, dynamic> _grades = {};
+  // ✅ خريطة لتخزين تقييمات الطلاب
+  Map<String, dynamic> _evaluations = {};
+
   final Map<String, int> _likes = {};
   final Map<String, int> _dislikes = {};
 
@@ -719,6 +720,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       });
 
       final grades = <String, dynamic>{};
+      final evaluations = <String, dynamic>{};
       final likes = <String, int>{};
       final dislikes = <String, int>{};
 
@@ -726,6 +728,13 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         final data = studentDoc.data() as Map<String, dynamic>?;
         final studentId = studentDoc.id;
         grades[studentId] = data?[widget.testFieldKey];
+
+        // ✅ جلب التقييم المرتبط بهذا الاختبار تحديداً
+        // اسم الحقل سيكون: eval_اسم_الاختبار (مثلاً eval_e1profession1)
+        if (data != null && data.containsKey('eval_${widget.testFieldKey}')) {
+          evaluations[studentId] = data['eval_${widget.testFieldKey}'];
+        }
+
         likes[studentId] = data?['totalLikes'] ?? 0;
         dislikes[studentId] = data?['totalDislikes'] ?? 0;
       }
@@ -734,6 +743,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         setState(() {
           _students = students;
           _grades = grades;
+          _evaluations = evaluations;
           _likes.addAll(likes);
           _dislikes.addAll(dislikes);
           _isLoading = false;
@@ -861,15 +871,32 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  Future<void> _saveGrade(String studentId, num grade) async {
+  // ✅ تحديث دالة الحفظ لتشمل التقييم
+  Future<void> _saveGrade(String studentId, num grade, Map<String, dynamic>? evaluationData) async {
     try {
       final studentRef = _firestore.collection('students').doc(studentId);
-      await studentRef.update({ widget.testFieldKey: grade });
-      setState(() => _grades[studentId] = grade);
+
+      // تجهيز البيانات للحفظ
+      Map<String, dynamic> updates = { widget.testFieldKey: grade };
+
+      // إذا كان هناك تقييم، نضيفه للحقل الخاص به
+      if (evaluationData != null) {
+        updates['eval_${widget.testFieldKey}'] = evaluationData;
+      }
+
+      await studentRef.set(updates, SetOptions(merge: true));
+
+      setState(() {
+        _grades[studentId] = grade;
+        if (evaluationData != null) {
+          _evaluations[studentId] = evaluationData;
+        }
+      });
+
       if(mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة بنجاح'),
+              content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة والتقييم بنجاح'),
               backgroundColor: grade == -1 ? Colors.blueGrey : Colors.green),
         );
       }
@@ -883,9 +910,17 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   Future<void> _deleteGrade(String studentId) async {
     try {
       final studentRef = _firestore.collection('students').doc(studentId);
-      await studentRef.update({widget.testFieldKey: FieldValue.delete()});
+      // حذف الدرجة والتقييم المرتبط بها
+      await studentRef.update({
+        widget.testFieldKey: FieldValue.delete(),
+        'eval_${widget.testFieldKey}': FieldValue.delete(),
+      });
+
       if (mounted) {
-        setState(() => _grades[studentId] = null);
+        setState(() {
+          _grades[studentId] = null;
+          _evaluations[studentId] = null;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text('تم الحذف بنجاح'),
@@ -926,9 +961,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
     final excel = Excel.createExcel();
     final Sheet sheetObject = excel['Sheet1'];
-
     sheetObject.isRTL = true;
-
     final List<String> headers = ['اسم الطالب', 'الدرجة', 'النسبة المئوية', 'التقييم'];
     sheetObject.appendRow(headers.map((header) => TextCellValue(header)).toList());
 
@@ -992,12 +1025,9 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       }
     }
 
-    for (var i = 0; i < headers.length; i++) {
-      sheetObject.setColAutoFit(i);
-    }
+    for (var i = 0; i < headers.length; i++) { sheetObject.setColAutoFit(i); }
 
     final String fileName = "درجات-${widget.testName}-${widget.className}.xlsx";
-
     final fileBytes = excel.save();
 
     if (fileBytes == null) {
@@ -1020,7 +1050,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         final path = '${directory.path}/$fileName';
         final file = File(path);
         await file.writeAsBytes(fileBytes);
-
         final result = await OpenFilex.open(path);
         if (result.type != ResultType.done) {
           if (mounted) {
@@ -1032,19 +1061,13 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم تصدير الملف بنجاح باسم: $fileName'),
-            backgroundColor: Colors.green,
-          ),
+          SnackBar(content: Text('تم تصدير الملف بنجاح باسم: $fileName'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('حدث خطأ أثناء تصدير الملف: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('حدث خطأ أثناء تصدير الملف: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -1119,8 +1142,11 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           studentId: studentId,
           studentName: studentName,
           currentGrade: currentGrade,
+          // ✅ تمرير التقييم الحالي إن وجد
+          currentEvaluation: _evaluations[studentId],
           maxGrade: maxGrade,
           passingGrade: passingGrade,
+          subjectName: widget.subject, // ✅ تمرير اسم المادة لجلب المعايير
           onSaveGrade: _saveGrade,
           onDeleteGrade: _deleteGrade,
         );
@@ -1179,7 +1205,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           }
 
           final currentGrade = _grades[studentId];
-
           final likeCount = _likes[studentId] ?? 0;
           final dislikeCount = _dislikes[studentId] ?? 0;
 
@@ -1271,21 +1296,26 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   }
 }
 
+
 class _GradeEntryDialog extends StatefulWidget {
   final String studentId;
   final String studentName;
   final dynamic currentGrade;
+  final Map<String, dynamic>? currentEvaluation; // ✅ التقييم الحالي
   final double maxGrade;
   final double passingGrade;
-  final Future<void> Function(String studentId, num grade) onSaveGrade;
+  final String subjectName; // ✅ اسم المادة لجلب المعايير
+  final Future<void> Function(String studentId, num grade, Map<String, dynamic>? evaluationData) onSaveGrade;
   final Future<void> Function(String studentId) onDeleteGrade;
 
   const _GradeEntryDialog({
     required this.studentId,
     required this.studentName,
     required this.currentGrade,
+    this.currentEvaluation,
     required this.maxGrade,
     required this.passingGrade,
+    required this.subjectName,
     required this.onSaveGrade,
     required this.onDeleteGrade,
   });
@@ -1299,6 +1329,67 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
 
+  // ✅ متغيرات التقييم
+  List<String> _selectedWeaknesses = [];
+  String? _severityLevel; // منخفض، متوسط، مرتفع
+
+  // ✅ قوائم المعايير للمواد المختلفة (بما فيها الإنجليزي)
+  final Map<String, List<String>> _subjectCriteria = {
+    'لغتي': [
+      'التمييز بين أقسام الكلمة',
+      'التمييز بين الجملة المثبتة والمنفية',
+      'التمييز بين اللام الشمسية والقمرية',
+      'تمييز الموقع الإعرابي للكلمة',
+      'الأساليب واستخدام علامات الترقيم',
+      'التمييز بين علامات الإعراب الأصلية والفرعية',
+      'التمييز بين أقسام الفعل من حيث الزمن',
+      'التمييز بين الجملة الاسمية والفعلية',
+      'تمييز الأفعال الخمسة',
+      'الرسم الإملائي',
+      'مهارات القراءة والاستيعاب',
+    ],
+    'رياضيات': [
+      'حفظ جدول الضرب',
+      'إتقان العمليات الحسابية الأربع (جمع، طرح، ضرب، قسمة)',
+      'فهم واستخدام الكسور',
+      'استيعاب المفاهيم الهندسية والقياس',
+      'حل المسائل اللفظية',
+      'ترتيب ومقارنة الأعداد',
+      'تحليل البيانات والتمثيل البياني',
+      'القيمة المنزلية للأعداد',
+    ],
+    'علوم': [
+      'استيعاب المفاهيم العلمية الأساسية',
+      'تطبيق خطوات المنهج العلمي',
+      'التمييز بين الكائنات الحية واحتياجاتها',
+      'فهم حالات المادة وخصائصها',
+      'التعرف على الظواهر الطبيعية (الكون، الأرض)',
+      'حفظ المصطلحات العلمية',
+      'الربط بين السبب والنتيجة',
+      'الطاقة والقوى والحركة',
+    ],
+    'انجليزي': [
+      'مهارة الاستماع (Listening Skills)',
+      'مهارة التحدث (Speaking Skills)',
+      'مهارة القراءة (Reading Skills)',
+      'مهارة الكتابة (Writing Skills)',
+      'القواعد (Grammar)',
+      'المفردات (Vocabulary)',
+      'النطق الصحيح (Pronunciation)',
+      'المشاركة والتفاعل (Participation)',
+    ],
+  };
+
+  List<String> get _currentCriteriaList {
+    // محاولة مطابقة اسم المادة بالقوائم الموجودة
+    if (widget.subjectName.contains('لغتي')) return _subjectCriteria['لغتي']!;
+    if (widget.subjectName.contains('رياضيات')) return _subjectCriteria['رياضيات']!;
+    if (widget.subjectName.contains('علوم')) return _subjectCriteria['علوم']!;
+    if (widget.subjectName.contains('انجليزي') || widget.subjectName.contains('نجليزي')) return _subjectCriteria['انجليزي']!;
+    // افتراضي إذا لم تكن المادة موجودة
+    return ['ضعف عام في الاستيعاب', 'عدم المشاركة الصفية', 'نقص في حل الواجبات', 'صعوبة في الفهم'];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1307,12 +1398,91 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
           ? widget.currentGrade.toString()
           : '',
     );
+
+    // ✅ استرجاع التقييم السابق إن وجد
+    if (widget.currentEvaluation != null) {
+      if (widget.currentEvaluation!['selected_points'] != null) {
+        _selectedWeaknesses = List<String>.from(widget.currentEvaluation!['selected_points']);
+      }
+      _severityLevel = widget.currentEvaluation!['severity'];
+    }
   }
 
   @override
   void dispose() {
     _gradeController.dispose();
     super.dispose();
+  }
+
+  // ✅ دالة عرض نافذة اختيار المعايير
+  Future<void> _showAssessmentSelectionDialog() async {
+    final List<String> criteria = _currentCriteriaList;
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('تقييم جوانب القصور'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('اختر نقاط الضعف:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                    const SizedBox(height: 8),
+                    ...criteria.map((criterion) {
+                      return CheckboxListTile(
+                        title: Text(criterion, style: const TextStyle(fontSize: 14)),
+                        value: _selectedWeaknesses.contains(criterion),
+                        dense: true,
+                        onChanged: (bool? value) {
+                          setDialogState(() {
+                            if (value == true) {
+                              _selectedWeaknesses.add(criterion);
+                            } else {
+                              _selectedWeaknesses.remove(criterion);
+                            }
+                          });
+                          // تحديث حالة الدايلوج الأصلي أيضاً
+                          this.setState(() {});
+                        },
+                      );
+                    }).toList(),
+                    const Divider(),
+                    const Text('درجة القصور (اختياري):', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                    DropdownButton<String>(
+                      isExpanded: true,
+                      value: _severityLevel,
+                      hint: const Text("اختر المستوى"),
+                      items: ['منخفضة', 'متوسطة', 'مرتفعة'].map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          _severityLevel = val;
+                        });
+                        this.setState(() {});
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('تم'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _handleConfirm() async {
@@ -1358,7 +1528,20 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
         );
         if (confirmed != true) return;
       }
-      await widget.onSaveGrade(widget.studentId, grade);
+
+      // ✅ تجهيز بيانات التقييم للحفظ
+      Map<String, dynamic>? evalData;
+      if (_selectedWeaknesses.isNotEmpty) {
+        evalData = {
+          'selected_points': _selectedWeaknesses,
+          'severity': _severityLevel,
+          'timestamp': Timestamp.now(),
+        };
+      } else {
+        evalData = null; // لا يوجد تقييم
+      }
+
+      await widget.onSaveGrade(widget.studentId, grade, evalData);
       if (mounted) Navigator.pop(context);
     } finally {
       if (mounted) {
@@ -1371,7 +1554,8 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
     if (_isSaving) return;
     setState(() => _isSaving = true);
     try {
-      await widget.onSaveGrade(widget.studentId, -1);
+      // الغياب لا يحتاج تقييم عادة، نرسل null
+      await widget.onSaveGrade(widget.studentId, -1, null);
       if (mounted) Navigator.pop(context);
     } finally {
       if (mounted) {
@@ -1395,6 +1579,11 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ تحديد لون خلفية مربع التقييم
+    final bool hasEvaluation = _selectedWeaknesses.isNotEmpty;
+    final Color evalBoxColor = hasEvaluation ? Colors.green.shade100 : Colors.amber.shade100;
+    final Color evalBorderColor = hasEvaluation ? Colors.green : Colors.amber;
+
     return AlertDialog(
       title: null,
       contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0.0),
@@ -1412,46 +1601,87 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
             children: [
               Text('الطالب: ${widget.studentName}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54, fontSize: 16)),
               const SizedBox(height: 16),
-              SizedBox(
-                width: 120,
-                child: TextFormField(
-                  controller: _gradeController,
-                  autofocus: true,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.bold),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-                    TextInputFormatter.withFunction((oldValue, newValue) {
-                      final num? value = num.tryParse(newValue.text);
-                      if (value != null && value > widget.maxGrade) {
-                        return oldValue;
+              Center(
+                child: SizedBox(
+                  width: 120,
+                  child: TextFormField(
+                    controller: _gradeController,
+                    autofocus: true,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.bold),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                      TextInputFormatter.withFunction((oldValue, newValue) {
+                        final num? value = num.tryParse(newValue.text);
+                        if (value != null && value > widget.maxGrade) {
+                          return oldValue;
+                        }
+                        return newValue;
+                      }),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: 'الدرجة (من ${widget.maxGrade})',
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'أدخل درجة';
                       }
-                      return newValue;
-                    }),
-                  ],
-                  decoration: InputDecoration(
-                    labelText: 'الدرجة (من ${widget.maxGrade})',
-                    border: const OutlineInputBorder(),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      final grade = num.tryParse(value.trim());
+                      if (grade == null) {
+                        return 'رقم غير صالح';
+                      }
+                      if (grade < 0) {
+                        return 'لا يمكن أن تكون سالبة';
+                      }
+                      if (grade > widget.maxGrade) {
+                        return 'أعلى من ${widget.maxGrade}';
+                      }
+                      return null;
+                    },
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'أدخل درجة';
-                    }
-                    final grade = num.tryParse(value.trim());
-                    if (grade == null) {
-                      return 'رقم غير صالح';
-                    }
-                    if (grade < 0) {
-                      return 'لا يمكن أن تكون سالبة';
-                    }
-                    if (grade > widget.maxGrade) {
-                      return 'أعلى من ${widget.maxGrade}';
-                    }
-                    return null;
-                  },
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ✅ مربع التقييم الجديد
+              InkWell(
+                onTap: _showAssessmentSelectionDialog,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: evalBoxColor,
+                    border: Border.all(color: evalBorderColor),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(hasEvaluation ? Icons.check_circle : Icons.rate_review, color: Colors.black54, size: 20),
+                          const SizedBox(width: 8),
+                          const Text(
+                            "تقييم جوانب القصور",
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                        ],
+                      ),
+                      if (hasEvaluation) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          "${_selectedWeaknesses.length} نقاط محددة${_severityLevel != null ? ' - $_severityLevel' : ''}",
+                          style: const TextStyle(fontSize: 12, color: Colors.black87),
+                        ),
+                      ]
+                    ],
+                  ),
                 ),
               ),
             ],

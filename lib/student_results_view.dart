@@ -1,15 +1,14 @@
-// student_results_view.dart
-// ✅ (FIXED) تم إصلاح مشكلة "موت الواجهة" بنقل العمليات الحسابية خارج دالة الرسم المتكررة
-// ✅ (OPTIMIZED) تحسين الأداء بنسبة 90% باستخدام التخزين المؤقت (Caching) للنتائج
-
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:math';
 
-// --- Models ---
+// ---------------------------------------------------------------------------
+// 1. Models (نماذج البيانات)
+// ---------------------------------------------------------------------------
 
 class TestInfo {
   final String key;
@@ -31,6 +30,34 @@ class Subject {
   Subject({required this.name, required this.icon});
 }
 
+class TestResultDetail {
+  final String testName;
+  final num grade;
+  final double maxGrade;
+  final List<String> specificNotes;
+
+  TestResultDetail({
+    required this.testName,
+    required this.grade,
+    required this.maxGrade,
+    required this.specificNotes,
+  });
+}
+
+class TeacherContactInfo {
+  final String name;
+  final String? phone;
+  final String availableTime;
+  final bool isFound;
+
+  TeacherContactInfo({
+    required this.name,
+    this.phone,
+    required this.availableTime,
+    this.isFound = false,
+  });
+}
+
 class _AnalysisResult {
   final String groupName;
   final String subjectName;
@@ -42,12 +69,23 @@ class _AnalysisResult {
   final String assessment;
   final String consistency;
   final bool isBelowPassing;
+
   final List<MapEntry<String, num>> testResults;
+  final List<TestResultDetail> detailedTestResults;
   final List<FlSpot> trendSpots;
   final String performanceTrend;
   final double? predictedNextGrade;
   final String riskAssessment;
   final int testCount;
+
+  final List<String> teacherNotes;
+  final String severityLevel;
+  final List<String> studentTasks;
+  final List<String> parentTasks;
+  final String timeRecommendation;
+
+  final String predictionMessage;
+  final bool isPositiveTrend;
 
   _AnalysisResult({
     required this.groupName,
@@ -61,11 +99,19 @@ class _AnalysisResult {
     required this.consistency,
     required this.isBelowPassing,
     required this.testResults,
+    required this.detailedTestResults,
     required this.trendSpots,
     required this.performanceTrend,
     this.predictedNextGrade,
     required this.riskAssessment,
     required this.testCount,
+    required this.teacherNotes,
+    required this.severityLevel,
+    required this.studentTasks,
+    required this.parentTasks,
+    required this.timeRecommendation,
+    required this.predictionMessage,
+    required this.isPositiveTrend,
   });
 }
 
@@ -76,7 +122,97 @@ class _OverallSubjectMetric {
   _OverallSubjectMetric({required this.subjectName, required this.overallPercentage, required this.overallAverage});
 }
 
-// --- ✅ (FIXED) تحويل الكلاس إلى StatefulWidget لحفظ النتائج ---
+// ---------------------------------------------------------------------------
+// 2. AdviceEngine (محرك التوجيه التربوي)
+// ---------------------------------------------------------------------------
+
+class AdviceEngine {
+  static Map<String, dynamic> generateFamilyPlan(
+      String subject,
+      String grade,
+      double percentage,
+      List<String> weaknesses,
+      String performanceTrend,
+      double? predictedNextGrade,
+      double maxGrade,
+      ) {
+    List<String> sTasks = [];
+    List<String> pTasks = [];
+    String timePlan = "";
+    String predictionMsg = "";
+    bool isPositive = true;
+
+    if (predictedNextGrade != null) {
+      if (performanceTrend.contains('تصاعد') || (predictedNextGrade >= (maxGrade * 0.85))) {
+        isPositive = true;
+        predictionMsg = "🌟 بشارة خير: مؤشر أداء ابننا الغالي في تصاعد، ونتوقع له تحقيق (${predictedNextGrade.toStringAsFixed(1)}) في التقييم القادم. كلماتكم المشجعة هي وقوده للاستمرار.";
+      } else if (performanceTrend.contains('تراجع') || predictedNextGrade < (maxGrade * 0.6)) {
+        isPositive = false;
+        predictionMsg = "💡 فرصة للتحسين: المؤشرات الحالية تنبهنا لاحتمال تراجع الدرجة إلى (${predictedNextGrade.toStringAsFixed(1)}). لكننا واثقون أنه بالالتزام بالخطة أدناه، سيكسر هذه القاعدة ويعود للقمة.";
+      } else {
+        predictionMsg = "📊 استقرار مطمئن: المستوى ثابت، وبقليل من الجهد الإضافي في النقاط المذكورة، سنرى قفزة نوعية في النتائج بإذن الله.";
+      }
+    } else {
+      predictionMsg = "نحن بانتظار المزيد من التقييمات لرسم مسار دقيق للبطل.";
+    }
+
+    if (percentage >= 0.90) {
+      timePlan = "⏱️ 20 دقيقة (إثراء للموهبة)";
+      sTasks.add("🌟 أنت قائد: قم بشرح الدرس لأخوتك أو زملائك.");
+      sTasks.add("🚀 التحدي: ابحث عن معلومة جديدة حول الدرس لم تذكر في الكتاب.");
+      pTasks.add("🎁 تعزيز الثقة: امدح جهده وليس ذكائه فقط.");
+    } else if (percentage >= 0.70) {
+      timePlan = "⏱️ 40 دقيقة (تركيز نوعي)";
+      sTasks.add("📝 المراجعة الذكية: التركيز فقط على النقاط التي تم تحديدها.");
+      pTasks.add("🔍 المتابعة الهادئة: التأكد من إتمام الواجبات بدقة.");
+    } else {
+      timePlan = "🚨 60 دقيقة (دعم ومساندة)";
+      sTasks.add("🛑 التأسيس أولاً: العودة للمهارات الأساسية قبل البدء بالجديد.");
+      pTasks.add("🤝 الشراكة: الجلوس بجانب الطالب أثناء الحل لمنحه الأمان والثقة.");
+    }
+
+    if (subject.contains('لغتي')) {
+      sTasks.add("📚 القراءة الحرة لمدة 10 دقائق يومياً.");
+      sTasks.add("✍️ تحسين الخط من خلال نسخ فقرة قصيرة.");
+    } else if (subject.contains('رياضيات')) {
+      sTasks.add("🔢 حل مسألة رياضية واحدة يومياً لتبقى الذاكرة نشطة.");
+      sTasks.add("🧠 ربط الأرقام بالحياة اليومية (التسوق، الوقت).");
+    }
+    else if (subject.contains('نجليزي') || subject.contains('English')) {
+      sTasks.add("📺 شاهد مقطع كرتوني قصير بالإنجليزية يومياً (ممتع ومفيد!).");
+      sTasks.add("🎮 العب ألعاب تعليمية للغة الإنجليزية لمدة 10 دقائق.");
+      sTasks.add("🗣️ حاول تسمية الأشياء حولك باللغة الإنجليزية (كرسي، طاولة..).");
+
+      pTasks.add("🌍 الإنجليزية لغة العالم: ذكروا طفلكم بأنها ستجعله يفهم ألعابه وبرامجه المفضلة.");
+      pTasks.add("👏 التشجيع المستمر: صفقوا له عندما ينطق كلمة صحيحة، هذا يبني ثقة هائلة.");
+      pTasks.add("📱 التكنولوجيا: استخدموا التطبيقات المسلية لتعلم اللغة معاً كعائلة.");
+    }
+    else if (subject.contains('علوم')) {
+      sTasks.add("🌍 التأمل في الظواهر الطبيعية وربطها بالدرس.");
+    } else if (subject.contains('إسلاميات') || subject.contains('قرآن')) {
+      sTasks.add("🕌 استشعار عظمة الله في الآيات والأحاديث.");
+      sTasks.add("🤲 تطبيق الآداب الإسلامية عملياً.");
+    } else {
+      sTasks.add("📅 تنظيم الجدول المدرسي والاستعداد المبكر.");
+    }
+
+    if (pTasks.isEmpty) {
+      pTasks.add("❤️ توفير جو هادئ ومحب ومحفز للدراسة.");
+    }
+
+    return {
+      'studentTasks': sTasks,
+      'parentTasks': pTasks,
+      'timePlan': timePlan,
+      'predictionMsg': predictionMsg,
+      'isPositive': isPositive,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. Main View
+// ---------------------------------------------------------------------------
 
 class StudentResultsView extends StatefulWidget {
   final Map<String, dynamic> studentData;
@@ -99,23 +235,99 @@ class StudentResultsView extends StatefulWidget {
 }
 
 class _StudentResultsViewState extends State<StudentResultsView> {
-  // متغيرات لتخزين نتائج التحليل ومنع إعادة حسابها
   late Map<String, List<_AnalysisResult>> _cachedSubjectAnalyses;
   late List<_OverallSubjectMetric> _cachedOverallMetrics;
+  final Map<String, TeacherContactInfo> _subjectTeachers = {};
   bool _isAnalyzing = true;
 
   @override
   void initState() {
     super.initState();
-    // إجراء العمليات الحسابية الثقيلة مرة واحدة فقط عند بدء الصفحة
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _performAnalysis();
+      _fetchTeachersAndAnalyze();
     });
   }
 
-  Future<void> _performAnalysis() async {
-    // نقوم بتشغيل التحليل في Future للسماح للواجهة بالظهور أولاً
-    await Future.delayed(Duration.zero);
+  Future<void> _fetchTeachersAndAnalyze() async {
+    try {
+      final String studentStage = widget.studentData['stages'] ?? '';
+      final String studentGrade = widget.studentData['grades'] ?? '';
+      final String studentClass = widget.studentData['classes'] ?? '';
+
+      final teachersSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('profession', isNotEqualTo: 'admin')
+          .get();
+
+      final structure = {
+        'المرحلة الابتدائية': {
+          'grades': {
+            'الصف الأول': {'gradeField': 'grade1', 'classField': 'class1'},
+            'الصف الثاني': {'gradeField': 'grade2', 'classField': 'class2'},
+            'الصف الثالث': {'gradeField': 'grade3', 'classField': 'class3'},
+            'الصف الرابع': {'gradeField': 'grade4', 'classField': 'class4'},
+            'الصف الخامس': {'gradeField': 'grade5', 'classField': 'class5'},
+            'الصف السادس': {'gradeField': 'grade6', 'classField': 'class6'},
+          }
+        },
+        'المرحلة المتوسطة': {
+          'grades': {
+            'الصف الأول المتوسط': {'gradeField': 'grade11', 'classField': 'class11'},
+            'الصف الثاني المتوسط': {'gradeField': 'grade22', 'classField': 'class22'},
+            'الصف الثالث المتوسط': {'gradeField': 'grade33', 'classField': 'class33'},
+          }
+        },
+        'المرحلة الثانوية': {
+          'grades': {
+            'الصف الأول الثانوي': {'gradeField': 'grade111', 'classField': 'class111'},
+            'الصف الثاني الثانوي': {'gradeField': 'grade222', 'classField': 'class222'},
+            'الصف الثالث الثانوي': {'gradeField': 'grade333', 'classField': 'class333'},
+          }
+        }
+      };
+
+      for (var doc in teachersSnapshot.docs) {
+        final data = doc.data();
+        final String tName = data['name'] ?? 'معلم المادة';
+        final String? tPhone = data['phone'];
+
+        if (structure.containsKey(studentStage)) {
+          final stageMap = structure[studentStage]!;
+          final gradesMap = stageMap['grades'] as Map<String, dynamic>;
+
+          if (gradesMap.containsKey(studentGrade)) {
+            final fields = gradesMap[studentGrade] as Map<String, String>;
+            final String gradeField = fields['gradeField']!;
+            final String classField = fields['classField']!;
+
+            if (data[gradeField] != null && data[gradeField] != '0') {
+              final String classesString = data[classField] ?? '';
+              final List<String> assignments = classesString.split(',');
+
+              for (var assignment in assignments) {
+                final parts = assignment.split('=');
+                if (parts.length == 2) {
+                  final String cls = parts[0].trim();
+                  final String subj = parts[1].trim();
+
+                  if (cls == studentClass) {
+                    _subjectTeachers[subj] = TeacherContactInfo(
+                      name: tName,
+                      phone: tPhone,
+                      availableTime: "طوال أيام الأسبوع الدراسي",
+                      isFound: true,
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+    } catch (e) {
+      debugPrint("Error fetching teachers: $e");
+    }
 
     final analyses = _buildSubjectAnalyses();
     final metrics = _calculateOverallMetrics(analyses);
@@ -129,74 +341,67 @@ class _StudentResultsViewState extends State<StudentResultsView> {
     }
   }
 
-  // --- Logic Methods (Moved inside State) ---
-
   Map<String, List<_AnalysisResult>> _buildSubjectAnalyses() {
-    final Map<String, Map<String, Map<String, num>>> subjectGroupedGrades = {};
+    final Map<String, Map<String, Map<String, dynamic>>> subjectGroupedData = {};
+    String studentGrade = widget.studentData['grades'] ?? 'عام';
 
     widget.studentData.forEach((key, value) {
       if (value is num && widget.allTestsMap.containsKey(key)) {
         final testInfo = widget.allTestsMap[key]!;
-        subjectGroupedGrades
-            .putIfAbsent(testInfo.subject, () => {})
-            .putIfAbsent(testInfo.testGroup, () => {})[testInfo.key] = value;
+        subjectGroupedData.putIfAbsent(testInfo.subject, () => {});
+        subjectGroupedData[testInfo.subject]!.putIfAbsent(testInfo.testGroup, () => {'grades': <String, num>{}, 'evaluations': <String, dynamic>{}});
+        (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['grades'] as Map<String, num>)[testInfo.key] = value;
+
+        final evalKey = 'eval_${testInfo.key}';
+        if (widget.studentData.containsKey(evalKey) && widget.studentData[evalKey] != null) {
+          (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['evaluations'] as Map<String, dynamic>)[testInfo.key] = widget.studentData[evalKey];
+        }
       }
     });
 
     final Map<String, List<_AnalysisResult>> finalAnalyses = {};
 
-    subjectGroupedGrades.forEach((subjectName, groups) {
+    subjectGroupedData.forEach((subjectName, groups) {
       final List<_AnalysisResult> subjectAnalyses = [];
+      groups.forEach((groupNameKey, data) {
+        final gradesMap = data['grades'] as Map<String, num>;
+        final evaluationsMap = data['evaluations'] as Map<String, dynamic>;
 
-      if (groups.containsKey('periodic') && groups['periodic']!.isNotEmpty) {
-        subjectAnalyses.add(_analyzeSubjectGrades(
-          subjectName: subjectName,
-          groupName: "الاختبارات الدورية",
-          testResults: groups['periodic']!,
-          maxGrade: 20.0,
-        ));
-      }
+        String displayGroupName = groupNameKey;
+        double maxG = 20.0;
+        if (groupNameKey == 'periodic') displayGroupName = "الاختبارات الدورية";
+        if (groupNameKey == 'nafes') { displayGroupName = "اختبارات نافس"; maxG = 10.0; }
+        if (groupNameKey == 'additional') displayGroupName = "اختبارات قياس المستوي";
 
-      if (groups.containsKey('nafes') && groups['nafes']!.isNotEmpty) {
-        subjectAnalyses.add(_analyzeSubjectGrades(
-          subjectName: subjectName,
-          groupName: "اختبارات نافس",
-          testResults: groups['nafes']!,
-          maxGrade: 10.0,
-        ));
-      }
-
-      if (groups.containsKey('additional') && groups['additional']!.isNotEmpty) {
-        subjectAnalyses.add(_analyzeSubjectGrades(
-          subjectName: subjectName,
-          groupName: "اختبارات قياس المستوي",
-          testResults: groups['additional']!,
-          maxGrade: 20.0,
-        ));
-      }
-
+        if (gradesMap.isNotEmpty) {
+          subjectAnalyses.add(_analyzeSubjectGrades(
+            subjectName: subjectName,
+            groupName: displayGroupName,
+            grade: studentGrade,
+            testResults: gradesMap,
+            evaluations: evaluationsMap,
+            maxGrade: maxG,
+          ));
+        }
+      });
       if (subjectAnalyses.isNotEmpty) {
         finalAnalyses[subjectName] = subjectAnalyses;
       }
     });
-
     return finalAnalyses;
   }
 
   List<_OverallSubjectMetric> _calculateOverallMetrics(Map<String, List<_AnalysisResult>> subjectAnalyses) {
     final List<_OverallSubjectMetric> metrics = [];
-
     subjectAnalyses.forEach((subjectName, analyses) {
       double totalWeightedSum = 0;
       int totalTests = 0;
       double totalAverageSum = 0;
-
       for (var analysis in analyses) {
         totalWeightedSum += (analysis.average * analysis.testCount);
         totalTests += analysis.testCount;
         totalAverageSum += (analysis.percentage * analysis.testCount);
       }
-
       if (totalTests > 0) {
         metrics.add(_OverallSubjectMetric(
           subjectName: subjectName,
@@ -205,76 +410,81 @@ class _StudentResultsViewState extends State<StudentResultsView> {
         ));
       }
     });
-
     return metrics;
   }
 
   _AnalysisResult _analyzeSubjectGrades({
     required String subjectName,
     required String groupName,
+    required String grade,
     required Map<String, num> testResults,
+    required Map<String, dynamic> evaluations,
     required double maxGrade,
   }) {
-    final sortedTests = testResults.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
-
+    final sortedTests = testResults.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
     final validGrades = sortedTests.map((e) => e.value).where((g) => g >= 0).toList();
 
-    final double maxGradeForThisAnalysis = maxGrade;
-    final double passingGradeForThisAnalysis = maxGradeForThisAnalysis / 2.0;
+    List<TestResultDetail> detailedResults = [];
+    final Set<String> allWeaknesses = {};
+    String maxSeverity = 'غير محدد';
+
+    for (var entry in sortedTests) {
+      List<String> specificNotes = [];
+      if (evaluations.containsKey(entry.key)) {
+        final evalData = evaluations[entry.key];
+        if (evalData is Map) {
+          if (evalData['selected_points'] != null) {
+            List<dynamic> points = evalData['selected_points'];
+            for(var p in points) {
+              specificNotes.add("تقصير في: ${p.toString()}");
+              allWeaknesses.add(p.toString());
+            }
+          }
+          if (evalData['severity'] != null) {
+            String sev = evalData['severity'];
+            if (sev == 'مرتفعة') maxSeverity = 'مرتفعة';
+            else if (sev == 'متوسطة' && maxSeverity != 'مرتفعة') maxSeverity = 'متوسطة';
+            else if (sev == 'منخفضة' && maxSeverity == 'غير محدد') maxSeverity = 'منخفضة';
+          }
+        }
+      }
+      final testInfo = widget.allTestsMap[entry.key];
+      detailedResults.add(TestResultDetail(
+        testName: testInfo?.name ?? entry.key,
+        grade: entry.value,
+        maxGrade: (testInfo?.key.contains('profession13') == true) ? 10.0 : 20.0,
+        specificNotes: specificNotes,
+      ));
+    }
 
     if (validGrades.isEmpty) {
       return _AnalysisResult(
-        groupName: groupName,
-        subjectName: subjectName,
-        average: 0,
-        percentage: 0,
-        maxPossibleGrade: maxGradeForThisAnalysis,
-        highestGrade: 0,
-        lowestGrade: 0,
-        assessment: 'لا توجد درجات',
-        consistency: 'N/A',
-        isBelowPassing: false,
-        testResults: sortedTests,
-        trendSpots: [],
-        performanceTrend: 'لا يوجد بيانات كافية',
-        predictedNextGrade: null,
-        riskAssessment: 'غير محدد',
-        testCount: sortedTests.length,
+        groupName: groupName, subjectName: subjectName, average: 0, percentage: 0,
+        maxPossibleGrade: maxGrade, highestGrade: 0, lowestGrade: 0,
+        assessment: 'N/A', consistency: 'N/A', isBelowPassing: false,
+        detailedTestResults: [], trendSpots: [], performanceTrend: 'N/A',
+        riskAssessment: 'N/A', testCount: 0, testResults: [],
+        teacherNotes: [], severityLevel: 'N/A',
+        studentTasks: [], parentTasks: [], timeRecommendation: '',
+        predictionMessage: '', isPositiveTrend: true,
       );
     }
 
     final double average = validGrades.reduce((a, b) => a + b) / validGrades.length;
-    final double percentage = (average / maxGradeForThisAnalysis).clamp(0.0, 1.0);
+    final double percentage = (average / maxGrade).clamp(0.0, 1.0);
     final num highest = validGrades.reduce(max);
     final num lowest = validGrades.reduce(min);
-    final bool isBelowPassing = average < passingGradeForThisAnalysis;
+    final bool isBelowPassing = average < (maxGrade / 2.0);
 
     final double variance = validGrades.map((g) => pow(g - average, 2)).reduce((a, b) => a + b) / validGrades.length;
     final double stdDev = sqrt(variance);
-    String consistency;
-    if (stdDev > (maxGradeForThisAnalysis * 0.15)) {
-      consistency = 'يحتاج إلى ثبات';
-    } else if (stdDev < (maxGradeForThisAnalysis * 0.05)) {
-      consistency = 'مستقر جداً';
-    } else {
-      consistency = 'مستقر';
-    }
+    String consistency = stdDev > (maxGrade * 0.15) ? 'متذبذب' : 'مستقر';
 
     String assessment;
-    if (percentage >= 0.95) {
-      assessment = 'متفوق ورائع!';
-    } else if (percentage >= 0.85) {
-      assessment = 'ممتاز';
-    } else if (percentage >= 0.75) {
-      assessment = 'جيد جداً';
-    } else if (percentage >= 0.60) {
-      assessment = 'جيد';
-    } else if (percentage >= 0.50) {
-      assessment = 'مقبول';
-    } else {
-      assessment = 'يحتاج لمتابعة';
-    }
+    if (percentage >= 0.90) assessment = 'متميز';
+    else if (percentage >= 0.75) assessment = 'جيد جداً';
+    else if (percentage >= 0.60) assessment = 'جيد';
+    else assessment = 'يحتاج متابعة';
 
     final trendSpots = <FlSpot>[];
     int validIndex = 0;
@@ -287,798 +497,500 @@ class _StudentResultsViewState extends State<StudentResultsView> {
 
     String performanceTrend = 'مستقر';
     double? predictedNextGrade;
-    String riskAssessment = 'في المسار الصحيح';
+    String riskAssessment = 'طبيعي';
 
     if (validGrades.length >= 2) {
       double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
       for (int i = 0; i < validGrades.length; i++) {
-        sumX += i;
-        sumY += validGrades[i];
-        sumXY += i * validGrades[i];
-        sumX2 += i * i;
+        sumX += i; sumY += validGrades[i]; sumXY += i * validGrades[i]; sumX2 += i * i;
       }
       final n = validGrades.length.toDouble();
       final double denominator = (n * sumX2 - sumX * sumX);
-
       if (denominator != 0) {
         final double slope = (n * sumXY - sumX * sumY) / denominator;
-
-        if (slope > (maxGradeForThisAnalysis * 0.05)) {
-          performanceTrend = 'تحسن ملحوظ';
-        } else if (slope < -(maxGradeForThisAnalysis * 0.05)) {
-          performanceTrend = 'تراجع يحتاج انتباه';
-        }
-
+        if (slope > 0.5) performanceTrend = 'في تصاعد 📈';
+        else if (slope < -0.5) performanceTrend = 'في تراجع 📉';
         final double intercept = (sumY - slope * sumX) / n;
-        predictedNextGrade = (slope * n + intercept).clamp(0.0, maxGradeForThisAnalysis);
-      } else {
-        performanceTrend = 'مستقر';
+        predictedNextGrade = (slope * n + intercept).clamp(0.0, maxGrade);
       }
-
-      if (isBelowPassing && (performanceTrend.contains('تراجع'))) {
-        riskAssessment = 'يحتاج دعم فوري';
-      } else if (isBelowPassing || (predictedNextGrade != null && predictedNextGrade < passingGradeForThisAnalysis)) {
-        riskAssessment = 'يحتاج لبعض التركيز';
-      } else if (performanceTrend.contains('تراجع')){
-        riskAssessment = 'يحتاج لبعض التركيز';
-      }
-
-    } else {
-      performanceTrend = 'يتطلب اختبارين للتحليل';
-      if(isBelowPassing && validGrades.isNotEmpty) {
-        riskAssessment = 'يحتاج لبعض التركيز';
-      } else if (validGrades.isEmpty) {
-        riskAssessment = 'غير محدد';
-      }
+      if (performanceTrend.contains('تراجع')) riskAssessment = 'انتبه للتراجع';
     }
+
+    final plan = AdviceEngine.generateFamilyPlan(
+        subjectName, grade, percentage, allWeaknesses.toList(),
+        performanceTrend, predictedNextGrade, maxGrade
+    );
 
     return _AnalysisResult(
       groupName: groupName,
       subjectName: subjectName,
       average: average,
       percentage: percentage,
-      maxPossibleGrade: maxGradeForThisAnalysis,
+      maxPossibleGrade: maxGrade,
       highestGrade: highest,
       lowestGrade: lowest,
       assessment: assessment,
       consistency: consistency,
       isBelowPassing: isBelowPassing,
+      detailedTestResults: detailedResults,
       testResults: sortedTests,
       trendSpots: trendSpots,
       performanceTrend: performanceTrend,
       predictedNextGrade: predictedNextGrade,
       riskAssessment: riskAssessment,
       testCount: sortedTests.length,
-    );
-  }
-
-  Widget _buildOverallAnalysisWidget(BuildContext context, List<_OverallSubjectMetric> overallMetrics) {
-    if (overallMetrics.isEmpty) return const SizedBox.shrink();
-
-    final double overallAveragePercentage =
-        overallMetrics.map((m) => m.overallPercentage).reduce((a, b) => a + b) /
-            overallMetrics.length;
-
-    overallMetrics.sort((a, b) => b.overallAverage.compareTo(a.overallAverage));
-    final strengths = overallMetrics.take(3).toList();
-    final weaknesses = overallMetrics.reversed.take(3).toList();
-
-    String overallAssessment;
-    if (overallAveragePercentage >= 0.9) {
-      overallAssessment =
-      'أداء استثنائي ورائع! أنت تسير على طريق التفوق. حافظ على هذا المستوى المتميز.';
-    } else if (overallAveragePercentage >= 0.75) {
-      overallAssessment =
-      'أداء عام ممتاز. لديك نقاط قوة واضحة ومستوى يبعث على الفخر. عمل رائع!';
-    } else if (overallAveragePercentage >= 0.60) {
-      overallAssessment =
-      'أداء عام جيد جداً ومستقر. بالتركيز على بعض النقاط ستصل إلى الامتياز بسهولة.';
-    } else if (overallAveragePercentage >= 0.50) {
-      overallAssessment =
-      'أداء جيد وهناك إمكانيات كبيرة للتحسن. بالجهد والمتابعة ستحقق نتائج أفضل بكثير.';
-    } else {
-      overallAssessment =
-      'الأداء العام يحتاج إلى متابعة وجهد إضافي. لديك القدرة على تحقيق نتائج أفضل، ثق بنفسك.';
-    }
-
-
-    return Card(
-      margin: const EdgeInsets.only(top: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'المحصلة النهائية والتقييم الشامل',
-              style: Theme.of(context).textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const Divider(height: 24),
-            Center(
-              child: CircularPercentIndicator(
-                radius: 60.0,
-                lineWidth: 12.0,
-                animation: true,
-                percent: overallAveragePercentage,
-                center: Text(
-                  "${(overallAveragePercentage * 100).toStringAsFixed(1)}%",
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 22.0),
-                ),
-                footer: const Padding(
-                  padding: EdgeInsets.only(top: 8.0),
-                  child: Text("متوسط الأداء العام",
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 15.0)),
-                ),
-                circularStrokeCap: CircularStrokeCap.round,
-                progressColor: Colors.deepPurple,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'التقييم الشامل:',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              overallAssessment,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const Divider(height: 24),
-            Text(
-              'أبرز نقاط القوة (أعلى المواد أداءً):',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            ...strengths.map((s) => ListTile(
-              leading: Icon(Icons.check_circle, color: Colors.green[700]),
-              title: Text(s.subjectName),
-              trailing: Text(
-                  '${(s.overallPercentage * 100).toStringAsFixed(1)}%',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-            )),
-            const Divider(height: 24),
-            Text(
-              'مواد تحتاج إلى تركيز إضافي:',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            ...weaknesses.map((w) => ListTile(
-              leading:
-              Icon(Icons.warning_amber_rounded, color: Colors.orange[800]),
-              title: Text(w.subjectName),
-              trailing: Text(
-                  '${(w.overallPercentage * 100).toStringAsFixed(1)}%',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-            )),
-          ],
-        ),
-      ),
+      teacherNotes: allWeaknesses.toList(),
+      severityLevel: maxSeverity,
+      studentTasks: plan['studentTasks'],
+      parentTasks: plan['parentTasks'],
+      timeRecommendation: plan['timePlan'],
+      predictionMessage: plan['predictionMsg'],
+      isPositiveTrend: plan['isPositive'],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isAnalyzing) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('جاري تحليل البيانات وإعداد الرسوم البيانية...'),
-          ],
-        ),
-      );
-    }
-
+    if (_isAnalyzing) return const Center(child: CircularProgressIndicator());
     if (_cachedSubjectAnalyses.isEmpty) {
-      return const Center(
-        child: Text('لا توجد نتائج دراسية لعرضها حالياً.',
-            style: TextStyle(fontSize: 18, color: Colors.grey)),
-      );
+      return Center(child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.school_outlined, size: 80, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text("لا توجد نتائج تحليلية لعرضها حالياً.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+        ],
+      ));
     }
 
+    // ✅✅✅ الإصلاح الأساسي: إضافة SingleChildScrollView هنا ليتحكم هو بالتمرير ويحفظ حالته ✅✅✅
     return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(), // يسمح بالتمرير دائماً للعمل مع RefreshIndicator
       child: RepaintBoundary(
         key: widget.printKey,
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              _buildOverallAnalysisWidget(context, _cachedOverallMetrics),
-              const SizedBox(height: 24),
+              _buildWelcomeMessage(widget.studentData['name'] ?? 'ولي الأمر'),
+              const SizedBox(height: 16),
+              _OverallSummaryCard(metrics: _cachedOverallMetrics),
+              const SizedBox(height: 20),
               ..._cachedSubjectAnalyses.entries.map((entry) {
                 final subjectName = entry.key;
-                final analysesList = entry.value;
-                final subjectIcon = widget.subjects
-                    .firstWhere((s) => s.name == subjectName,
-                    orElse: () => Subject(name: '', icon: Icons.book))
-                    .icon;
+                final analyses = entry.value;
+                final subjectIcon = widget.subjects.firstWhere((s) => s.name == subjectName, orElse: () => Subject(name: '', icon: Icons.book)).icon;
                 final subjectColor = widget.subjectColors[subjectName] ?? Colors.blue;
 
-                return _SubjectResultCard(
-                  subjectName: subjectName,
-                  analyses: analysesList,
-                  subjectIcon: subjectIcon,
-                  color: subjectColor,
-                  allTestsMap: widget.allTestsMap,
+                final TeacherContactInfo? teacherInfo = _subjectTeachers[subjectName];
+
+                return Column(
+                  children: analyses.map((analysis) => _DetailedSubjectCard(
+                    analysis: analysis,
+                    icon: subjectIcon,
+                    color: subjectColor,
+                    teacherInfo: teacherInfo,
+                  )).toList(),
                 );
               }).toList(),
+              const SizedBox(height: 50),
             ],
           ),
         ),
       ),
     );
   }
-}
 
-// --- Helper Widgets (Kept Stateless for performance) ---
-
-class _SubjectResultCard extends StatelessWidget {
-  const _SubjectResultCard({
-    required this.subjectName,
-    required this.analyses,
-    required this.subjectIcon,
-    required this.color,
-    required this.allTestsMap,
-  });
-
-  final String subjectName;
-  final List<_AnalysisResult> analyses;
-  final IconData subjectIcon;
-  final Color color;
-  final Map<String, TestInfo> allTestsMap;
-
-  Widget _buildAssessmentExplanation(BuildContext context, String assessment) {
-    String explanation;
-    IconData icon;
-    Color color;
-
-    switch (assessment) {
-      case 'متفوق ورائع!':
-        explanation = 'أداء استثنائي! هذا يعني أن الطالب يتقن المهارات بشكل كامل ومتميز في هذه المجموعة.';
-        icon = Icons.auto_awesome;
-        color = Colors.amber.shade700;
-        break;
-      case 'ممتاز':
-        explanation = 'أداء ممتاز! الطالب يظهر فهماً قوياً للمادة ويتجاوز التوقعات في هذه المجموعة.';
-        icon = Icons.check_circle;
-        color = Colors.green.shade700;
-        break;
-      case 'جيد جداً':
-        explanation = 'أداء جيد جداً! الطالب يظهر فهماً جيداً لمعظم المهارات في هذه المجموعة.';
-        icon = Icons.thumb_up_alt;
-        color = Colors.blue.shade700;
-        break;
-      case 'جيد':
-        explanation = 'أداء جيد. الطالب يسير في المسار الصحيح ويظهر فهماً للمهارات الأساسية.';
-        icon = Icons.trending_up;
-        color = Colors.lightGreen.shade800;
-        break;
-      case 'مقبول':
-        explanation = 'أداء مقبول. الطالب يحقق الحد الأدنى من المهارات المطلوبة في هذه المجموعة.';
-        icon = Icons.thumbs_up_down;
-        color = Colors.orange.shade800;
-        break;
-      case 'يحتاج لمتابعة':
-      default:
-        explanation = 'يحتاج لمتابعة. الطالب يواجه بعض الصعوبات ويحتاج إلى دعم إضافي في هذه المجموعة.';
-        icon = Icons.warning_amber_rounded;
-        color = Colors.red.shade700;
-        break;
-    }
-
+  Widget _buildWelcomeMessage(String name) {
     return Container(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(color: color.withOpacity(0.2)),
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade100),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 28),
+          const Icon(Icons.favorite, color: Colors.blue, size: 24),
           const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              "أهلاً بك، شريك النجاح. كلنا هنا لخدمة بطلنا $name.",
+              style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fade(duration: 600.ms);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4. UI Components (البطاقات الذكية)
+// ---------------------------------------------------------------------------
+
+class _OverallSummaryCard extends StatelessWidget {
+  final List<_OverallSubjectMetric> metrics;
+  const _OverallSummaryCard({required this.metrics});
+
+  @override
+  Widget build(BuildContext context) {
+    if (metrics.isEmpty) return const SizedBox.shrink();
+    final avg = metrics.map((m) => m.overallPercentage).reduce((a, b) => a + b) / metrics.length;
+    MaterialColor color = avg >= 0.85 ? Colors.green : (avg >= 0.6 ? Colors.blue : Colors.orange);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [color.shade700, color.shade400]),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6))],
+      ),
+      child: Row(
+        children: [
+          CircularPercentIndicator(
+            radius: 45.0, lineWidth: 8.0, percent: avg,
+            center: Text("${(avg * 100).toStringAsFixed(1)}%", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+            progressColor: Colors.white, backgroundColor: Colors.white24, circularStrokeCap: CircularStrokeCap.round,
+          ),
+          const SizedBox(width: 20),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'شرح التقييم: ($assessment)',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16),
-                ),
+                const Text("المؤشر العام للأداء", style: TextStyle(color: Colors.white70, fontSize: 14)),
                 const SizedBox(height: 4),
                 Text(
-                  explanation,
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade800, height: 1.4),
+                  avg >= 0.85 ? "مستوى مشرف ورائع! 🌟" : (avg >= 0.6 ? "بداية جيدة، والقادم أفضل 💪" : "نحتاج لتكاتف الجهود معاً ❤️"),
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, height: 1.3),
                 ),
               ],
             ),
           ),
         ],
       ),
-    );
+    ).animate().fadeIn().slideY(begin: 0.3, end: 0);
+  }
+}
+
+class _DetailedSubjectCard extends StatelessWidget {
+  final _AnalysisResult analysis;
+  final IconData icon;
+  final Color color;
+  final TeacherContactInfo? teacherInfo;
+
+  const _DetailedSubjectCard({
+    required this.analysis,
+    required this.icon,
+    required this.color,
+    this.teacherInfo,
+  });
+
+  Future<void> _launchWhatsApp(String phone) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final url = Uri.parse("https://wa.me/$cleanPhone");
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      debugPrint("Could not launch WhatsApp");
+    }
   }
 
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = analysis.percentage >= 0.85 ? Colors.green : (analysis.percentage >= 0.6 ? Colors.blue : Colors.red);
 
-  Widget _buildAnalysisGroup(BuildContext context, _AnalysisResult analysis) {
-    Color gaugeColor;
-    if (analysis.percentage >= 0.85) {
-      gaugeColor = Colors.green;
-    } else if (analysis.percentage >= 0.70) {
-      gaugeColor = Colors.blue;
-    } else if (analysis.percentage >= 0.50) {
-      gaugeColor = Colors.orange;
-    } else {
-      gaugeColor = Colors.red;
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(top: 16),
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.05),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Colors.grey.shade200),
       ),
+      color: Colors.white,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            analysis.groupName,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: color,
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.05),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
             ),
-          ),
-          const SizedBox(height: 20),
-
-          Column(
-            children: [
-              Center(
-                child: SizedBox(
-                  width: 130,
-                  height: 130,
-                  child: SfRadialGauge(
-                    axes: <RadialAxis>[
-                      RadialAxis(
-                        minimum: 0,
-                        maximum: 100,
-                        showLabels: false,
-                        showTicks: false,
-                        axisLineStyle: AxisLineStyle(
-                          thickness: 0.15,
-                          cornerStyle: CornerStyle.bothCurve,
-                          color: gaugeColor.withOpacity(0.2),
-                          thicknessUnit: GaugeSizeUnit.factor,
-                        ),
-                        pointers: <GaugePointer>[
-                          RangePointer(
-                            value: analysis.percentage * 100,
-                            cornerStyle: CornerStyle.bothCurve,
-                            width: 0.15,
-                            sizeUnit: GaugeSizeUnit.factor,
-                            color: gaugeColor,
-                          ),
-                        ],
-                        annotations: <GaugeAnnotation>[
-                          GaugeAnnotation(
-                            positionFactor: 0.1,
-                            angle: 90,
-                            widget: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  "${(analysis.percentage * 100).toStringAsFixed(1)}%",
-                                  style: TextStyle(
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                    color: gaugeColor,
-                                  ),
-                                ),
-                                Text(
-                                  analysis.assessment,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        ],
-                      ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                  child: Icon(icon, color: color, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(analysis.subjectName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      Text(analysis.groupName, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
                     ],
                   ),
-                ).animate().fade(duration: 500.ms).scale(delay: 200.ms),
-              ),
-              const SizedBox(height: 20),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _InfoChip(
-                      label: 'المتوسط',
-                      value: '${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}',
-                      icon: Icons.functions,
-                      color: color),
-                  const SizedBox(height: 8),
-                  _InfoChip(
-                      label: 'مستوى الأداء',
-                      value: analysis.consistency,
-                      icon: Icons.show_chart_outlined,
-                      color: color),
-                  const SizedBox(height: 8),
-                  _InfoChip(
-                      label: 'أعلى درجة',
-                      value: '${analysis.highestGrade} / ${analysis.maxPossibleGrade.toInt()}',
-                      icon: Icons.arrow_upward_outlined,
-                      color: Colors.green),
-                  const SizedBox(height: 8),
-                  _InfoChip(
-                      label: 'أدنى درجة',
-                      value: '${analysis.lowestGrade} / ${analysis.maxPossibleGrade.toInt()}',
-                      icon: Icons.arrow_downward_outlined,
-                      color: Colors.redAccent),
-                ],
-              ).animate().fade(delay: 300.ms).slideX(begin: 0.2),
-            ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text("المتوسط", style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(20)),
+                      child: Text(
+                        "${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}",
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 16),
-          _buildAssessmentExplanation(context, analysis.assessment),
-          const Divider(height: 32),
-          Text('التحليل التنبؤي للمسار',
-              style: Theme.of(context)
-                  .textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          _buildPredictiveInfo(
-            context,
-            icon: Icons.trending_up,
-            color: analysis.performanceTrend.contains('تحسن')
-                ? Colors.green
-                : (analysis.performanceTrend.contains('تراجع')
-                ? Colors.red
-                : Colors.grey),
-            label: 'اتجاه الأداء',
-            value: analysis.performanceTrend,
-          ),
-          const SizedBox(height: 12),
-          if (analysis.predictedNextGrade != null)
-            _buildPredictiveInfo(
-              context,
-              icon: Icons.track_changes,
-              color: Theme.of(context).primaryColor,
-              label: 'الدرجة التالية المتوقعة',
-              value:
-              '~${analysis.predictedNextGrade!.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}',
-            ),
-          const Divider(height: 32),
-          Text('تتبع الأداء الزمني',
-              style: Theme.of(context)
-                  .textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          _PerformanceTrendChart(
-              spots: analysis.trendSpots,
-              color: color,
-              maxGrade: analysis.maxPossibleGrade),
-          const Divider(height: 32),
-          Text(
-            'تفاصيل الدرجات (${analysis.groupName})',
-            style: Theme.of(context)
-                .textTheme.titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          if (analysis.testResults.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
-              child: Text('لا توجد درجات مسجلة لهذه المجموعة.', style: TextStyle(color: Colors.grey)),
-            )
-          else
-            Container(
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade200)
-              ),
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                children: analysis.testResults.map((entry) {
-                  final testInfo = allTestsMap[entry.key];
-                  final testNameDisplay = testInfo?.name ?? entry.key;
-                  final double maxGradeForThisTest = (testInfo != null && testInfo.key.contains('profession13'))
-                      ? 10.0
-                      : 20.0;
-                  final bool isBelowPassing = entry.value >= 0 && entry.value < (maxGradeForThisTest / 2);
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 6.0, horizontal: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("📝 سجل الدرجات والملاحظات:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const SizedBox(height: 10),
+
+                ...analysis.detailedTestResults.map((detail) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(testNameDisplay, style: const TextStyle(fontSize: 15)),
-                        Text(
-                          entry.value == -1
-                              ? 'غائب'
-                              : '${entry.value} / ${maxGradeForThisTest.toInt()}',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: entry.value == -1
-                                ? Colors.grey.shade600
-                                : (isBelowPassing ? Colors.red.shade700 : Colors.black87),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(detail.testName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Text("${detail.grade} / ${detail.maxGrade.toInt()}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            ),
+                          ],
+                        ),
+                        if (detail.specificNotes.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          const Divider(height: 1),
+                          const SizedBox(height: 8),
+                          ...detail.specificNotes.map((note) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4.0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.info_outline, size: 14, color: Colors.orange.shade800),
+                                const SizedBox(width: 6),
+                                Expanded(child: Text(note, style: TextStyle(fontSize: 12, color: Colors.grey.shade800, height: 1.4))),
+                              ],
+                            ),
+                          )),
+                        ]
+                      ],
+                    ),
+                  );
+                }),
+
+                const SizedBox(height: 20),
+
+                if (analysis.predictedNextGrade != null)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 20),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: analysis.isPositiveTrend ? Colors.green.shade50 : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: analysis.isPositiveTrend ? Colors.green.shade200 : Colors.orange.shade200),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(analysis.isPositiveTrend ? Icons.trending_up : Icons.trending_down,
+                            color: analysis.isPositiveTrend ? Colors.green.shade700 : Colors.orange.shade800, size: 28),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(analysis.isPositiveTrend ? "مؤشر إيجابي ورائع!" : "وقفة للتصحيح",
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: analysis.isPositiveTrend ? Colors.green.shade900 : Colors.orange.shade900)),
+                              const SizedBox(height: 4),
+                              Text(analysis.predictionMessage, style: const TextStyle(fontSize: 13, height: 1.5, color: Colors.black87)),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  );
-                }).toList(),
-              ),
-            ),
-        ],
-      ),
-    ).animate().fade(duration: 300.ms).slideY(begin: 0.1);
-  }
+                  ),
 
-  Widget _getOverallRiskAssessmentWidget() {
-    String overallRisk = 'في المسار الصحيح';
-    if (analyses.any((a) => a.riskAssessment == 'يحتاج دعم فوري')) {
-      overallRisk = 'يحتاج دعم فوري';
-    } else if (analyses.any((a) => a.riskAssessment == 'يحتاج لبعض التركيز')) {
-      overallRisk = 'يحتاج لبعض التركيز';
-    }
+                const Text("🌱 خطة الدعم والمساندة المنزلية:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.indigo.shade100),
+                    boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 4))],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.access_time_filled, color: Colors.indigo.shade400, size: 20),
+                          const SizedBox(width: 8),
+                          Text(analysis.timeRecommendation, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+                        ],
+                      ),
+                      const Divider(height: 24),
 
-    IconData icon;
-    Color color;
-    switch (overallRisk) {
-      case 'يحتاج دعم فوري':
-        icon = Icons.dangerous;
-        color = Colors.red.shade700;
-        break;
-      case 'يحتاج لبعض التركيز':
-        icon = Icons.warning_amber_rounded;
-        color = Colors.amber.shade800;
-        break;
-      default:
-        icon = Icons.check_circle;
-        color = Colors.green.shade700;
-        break;
-    }
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 4),
-        Text(overallRisk,
-            style: TextStyle(
-                color: color, fontWeight: FontWeight.bold, fontSize: 12)),
-      ],
-    );
-  }
+                      Row(children: [
+                        Icon(Icons.person_outline, size: 18, color: Colors.green),
+                        const SizedBox(width: 8),
+                        const Text("مهام البطل (الطالب):", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      ]),
+                      const SizedBox(height: 8),
+                      ...analysis.studentTasks.map((task) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6.0, right: 26.0),
+                        child: Text("• $task", style: const TextStyle(fontSize: 12, height: 1.4, color: Colors.black87)),
+                      )),
 
-  Widget _buildPredictiveInfo(BuildContext context,
-      {required IconData icon,
-        required Color color,
-        required String label,
-        required String value}) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(width: 12),
-        Text('$label:',
-            style:
-            const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-        const Spacer(),
-        Text(value,
-            style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-      ],
-    );
-  }
+                      const SizedBox(height: 16),
+                      Row(children: [
+                        Icon(Icons.favorite_border, size: 18, color: Colors.redAccent),
+                        const SizedBox(width: 8),
+                        const Text("دور الأسرة الكريمة:", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                      ]),
+                      const SizedBox(height: 8),
+                      ...analysis.parentTasks.map((task) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6.0, right: 26.0),
+                        child: Text("• $task", style: const TextStyle(fontSize: 12, height: 1.4, color: Colors.black87)),
+                      )),
+                    ],
+                  ),
+                ),
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(subjectIcon, size: 28, color: color),
-                const SizedBox(width: 12),
-                Text(subjectName,
-                    style: Theme.of(context).textTheme.headlineSmall),
-                const Spacer(),
-                _getOverallRiskAssessmentWidget(),
+                const SizedBox(height: 24),
+
+                if (teacherInfo != null) ...[
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.teal.shade50.withOpacity(0.5),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.teal.shade100),
+                    ),
+                    child: ExpansionTile(
+                      title: Text("التواصل المباشر مع المعلم", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.teal.shade800)),
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.teal.shade100,
+                        radius: 18,
+                        child: Icon(Icons.person, color: Colors.teal.shade700, size: 20),
+                      ),
+                      subtitle: Text(teacherInfo!.name, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+                      childrenPadding: const EdgeInsets.all(16),
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (teacherInfo!.phone != null)
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  icon: const Icon(Icons.chat_bubble_outline),
+                                  label: const Text("مراسلة عبر واتساب"),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF25D366),
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  onPressed: () => _launchWhatsApp(teacherInfo!.phone!),
+                                ),
+                              )
+                            else
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+                                child: const Center(
+                                  child: Text(
+                                    "رقم التواصل غير مدرج حالياً، يرجى مراجعة الإدارة.",
+                                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 12),
+                            const Text("⚠️ للتكرم قبل التواصل:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(height: 4),
+                            const Text("- التأكد من مراجعة الكتاب المدرسي ودفتر الطالب.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            const Text("- التواصل في أوقات الدوام الرسمي.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 20),
+
+                if (analysis.trendSpots.length >= 2) ...[
+                  const Text("📈 مسار التطور:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 150,
+                    child: LineChart(
+                      LineChartData(
+                        gridData: FlGridData(show: true, drawVerticalLine: false),
+                        titlesData: FlTitlesData(
+                          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, interval: 5, getTitlesWidget: (v,m) => Text(v.toInt().toString(), style: const TextStyle(fontSize: 10)))),
+                          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v,m) {
+                            if (v.toInt() >= 0 && v.toInt() < analysis.testResults.length) {
+                              return Padding(padding: const EdgeInsets.only(top: 4), child: Text("خ ${v.toInt() + 1}", style: const TextStyle(fontSize: 10)));
+                            }
+                            return const Text('');
+                          })),
+                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        ),
+                        borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.shade200)),
+                        minY: 0,
+                        maxY: analysis.maxPossibleGrade,
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: analysis.trendSpots,
+                            isCurved: true,
+                            color: color,
+                            barWidth: 3,
+                            isStrokeCapRound: true,
+                            dotData: FlDotData(show: true),
+                            belowBarData: BarAreaData(show: true, color: color.withOpacity(0.1)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
-            ...analyses.map((analysis) => _buildAnalysisGroup(context, analysis)),
-          ],
-        ),
+          ),
+        ],
       ),
-    ).animate().fade(duration: 200.ms);
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _InfoChip({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: color, size: 18),
-        const SizedBox(width: 8),
-        Flexible(
-          flex: 2,
-          child: Text(
-            '$label: ',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-            softWrap: true,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          flex: 3,
-          child: Text(
-            value,
-            style: const TextStyle(fontSize: 14),
-            textAlign: TextAlign.end,
-            softWrap: true,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PerformanceTrendChart extends StatelessWidget {
-  final List<FlSpot> spots;
-  final Color color;
-  final double maxGrade;
-
-  const _PerformanceTrendChart({
-    required this.spots,
-    required this.color,
-    required this.maxGrade,
-  });
-
-  Widget _bottomTitleWidgets(double value, TitleMeta meta) {
-    final style = TextStyle(
-      color: Colors.grey.shade700,
-      fontWeight: FontWeight.bold,
-      fontSize: 10,
-    );
-    return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
-      child: Text('خ${value.toInt() + 1}', style: style),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (spots.length < 2) {
-      return Container(
-        height: 150,
-        alignment: Alignment.center,
-        child: const Text(
-            'يتطلب عرض الرسم البياني وجود اختبارين على الأقل.',
-            style: TextStyle(color: Colors.grey)),
-      );
-    }
-
-    double yInterval = maxGrade / 4;
-    if (yInterval < 1) yInterval = 1;
-
-    double xInterval = (spots.length / 5).ceil().toDouble();
-    if (xInterval < 1) xInterval = 1;
-
-    return SizedBox(
-      height: 150,
-      child: LineChart(
-        LineChartData(
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: true,
-            getDrawingHorizontalLine: (value) =>
-                FlLine(color: Colors.grey.withOpacity(0.2), strokeWidth: 1),
-            getDrawingVerticalLine: (value) =>
-                FlLine(color: Colors.grey.withOpacity(0.2), strokeWidth: 1),
-          ),
-          titlesData: FlTitlesData(
-            leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 28,
-                  interval: yInterval,
-                  getTitlesWidget: (value, meta) => SideTitleWidget(
-                    axisSide: meta.axisSide,
-                    space: 4,
-                    child: Text(value.toInt().toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
-                  ),
-                )
-            ),
-            bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 30,
-                    interval: xInterval,
-                    getTitlesWidget: _bottomTitleWidgets)),
-            topTitles:
-            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles:
-            const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          ),
-          borderData: FlBorderData(
-              show: true,
-              border: Border.all(color: Colors.grey.shade300, width: 1)),
-          minY: 0,
-          maxY: maxGrade,
-          minX: 0,
-          maxX: (spots.length - 1).toDouble(),
-          lineBarsData: [
-            LineChartBarData(
-              spots: spots,
-              isCurved: true,
-              color: color,
-              barWidth: 4,
-              isStrokeCapRound: true,
-              dotData: FlDotData(
-                  show: true,
-                  getDotPainter: (spot, percent, barData, index) =>
-                      FlDotCirclePainter(
-                          radius: 5,
-                          color: color,
-                          strokeWidth: 2,
-                          strokeColor: Colors.white)),
-              belowBarData: BarAreaData(show: true, color: color.withOpacity(0.2)),
-            ),
-          ],
-          lineTouchData: LineTouchData(
-            touchTooltipData: LineTouchTooltipData(
-              tooltipBgColor: color.withOpacity(0.8),
-              getTooltipItems: (List<LineBarSpot> touchedSpots) {
-                return touchedSpots.map((LineBarSpot touchedSpot) {
-                  final textStyle = TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  );
-                  return LineTooltipItem(touchedSpot.y.toStringAsFixed(1), textStyle);
-                }).toList();
-              },
-            ),
-            handleBuiltInTouches: true,
-          ),
-        ),
-      ).animate().fade(duration: 500.ms),
-    );
+    ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.1, end: 0);
   }
 }

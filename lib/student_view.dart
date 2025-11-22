@@ -1,5 +1,5 @@
 // student_view.dart
-// ✅ (MODIFIED) تم تفعيل نظام الريفرش الموحد (Pull-to-Refresh) في حساب الطالب
+// ✅ (FIXED) تم إصلاح مشكلة القفز للأعلى عند تصفح النتائج بإزالة السكرول المتداخل
 
 import 'dart:math' as math;
 import 'dart:async';
@@ -729,16 +729,13 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     switch (_currentView) {
       case StudentView.results:
-        return SingleChildScrollView(
-          // ✅ تأكد أن المحتوى قابل للتمرير دائماً
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: StudentResultsView(
-            studentData: _studentData!,
-            allTestsMap: _allTestsMap,
-            subjects: subjects,
-            subjectColors: _subjectColors,
-            printKey: _printKey,
-          ),
+      // ✅✅✅ الإصلاح: إزالة SingleChildScrollView هنا لأن صفحة النتائج تحتوي عليه بالفعل ✅✅✅
+        return StudentResultsView(
+          studentData: _studentData!,
+          allTestsMap: _allTestsMap,
+          subjects: subjects,
+          subjectColors: _subjectColors,
+          printKey: _printKey,
         );
       case StudentView.noble:
         return SingleChildScrollView(
