@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  
+  <meta name="description" content="موقع مدرسة المعرفة الأهلية بمكة المكرمة (القسم الابتدائي).">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="ابتدائية المعرفة بمكة المكرمة">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>ابتدائية المعرفة الأهلية بمكة المكرمة</title>
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    body {
+      background-color: #f5f5f5;
+    }
+    .loader-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: #ffffff;
+      z-index: 9999;
+      opacity: 1;
+      transition: opacity 0.5s ease-out;
+    }
+    .loader {
+      border: 8px solid #f3f3f3;
+      border-top: 8px solid #1976D2; /* Primary color */
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      animation: spin 1.5s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="loader" class="loader-container">
+    <div class="loader"></div>
+  </div>
+
+  <script>
+    // NEW: Hide loader after 4 seconds
+    setTimeout(function() {
+      var loader = document.getElementById('loader');
+      if (loader) {
+        loader.style.opacity = '0';
+        // Wait for the fade-out animation to complete before removing the element
+        setTimeout(function() {
+          loader.style.display = 'none';
+        }, 500);
+      }
+    }, 4000);
+
+    // --- PWA Installation Logic ---
+    let deferredPrompt;
+    window.isInstallable = false;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      window.isInstallable = true;
+      window.dispatchEvent(new CustomEvent('pwa-installable'));
+    });
+
+    function showInstallPrompt() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('User accepted the A2HS prompt');
+          } else {
+            console.log('User dismissed the A2HS prompt');
+          }
+          deferredPrompt = null;
+          window.isInstallable = false;
+          window.dispatchEvent(new CustomEvent('pwa-installable'));
+        });
+      }
+    }
+
+    // --- ✅✅✅ START OF NEW UPDATE LOGIC ✅✅✅ ---
+    let newWorker;
+    window.isUpdateAvailable = false;
+
+    // This event fires when the service worker controlling this page changes.
+    // We reload the page to get the new content.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      });
+
+      // Check for new service worker versions.
+      navigator.serviceWorker.getRegistration().then((reg) => {
+        if (reg) {
+          reg.addEventListener('updatefound', () => {
+            newWorker = reg.installing;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // A new version of the app is available and ready to activate.
+                console.log('New PWA version is available. Notifying the app.');
+                window.isUpdateAvailable = true;
+                // Dispatch a custom event that Flutter can listen to.
+                window.dispatchEvent(new CustomEvent('pwa-update-available'));
+              }
+            });
+          });
+        }
+      });
+    }
+
+    // This function will be called from Flutter to trigger the update.
+    function triggerPwaUpdate() {
+      if (newWorker) {
+        // Send a message to the new service worker to skip the waiting phase and activate immediately.
+        newWorker.postMessage({ action: 'skipWaiting' });
+      }
+    }
+    // --- ✅✅✅ END OF NEW UPDATE LOGIC ✅✅✅ ---
+
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

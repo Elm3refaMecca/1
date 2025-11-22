@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "773233380314",
+    "firebase_url": "https://mostfa-said-default-rtdb.firebaseio.com",
+    "project_id": "mostfa-said",
+    "storage_bucket": "mostfa-said.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:773233380314:android:c4536cbc020eb97fd6cee3",
+        "android_client_info": {
+          "package_name": "com.example.almarefamecca"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "773233380314-hge21nlltfjm50sgnhdevb1sj5tbcsp9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDS923nE9lXPVVuvLXebIAFPx0gTTdli2o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "773233380314-hge21nlltfjm50sgnhdevb1sj5tbcsp9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "773233380314-cncthu6fubhguh5lc1hvpr8alrsfeaj6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.appweb1"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

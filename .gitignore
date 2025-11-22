@@ -1,0 +1,8 @@
+# تجاهل المفتاح السري القديم
+admin/mostfa-said-firebase-adminsdk-fbsvc-a320b2c76b.json
+# تجاهل سجلات Firebase التي قد تحتوي على رموز وصول
+firebase-debug.log
+
+# يمكنك إضافة أي ملفات بناء مؤقتة أخرى هنا
+.dart_tool/
+build/
