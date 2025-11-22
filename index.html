@@ -5,116 +5,152 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  
-  <meta name="description" content="موقع مدرسة المعرفة الأهلية بمكة المكرمة (القسم الابتدائي).">
+  <meta name="description" content="بوابة ابتدائية المعرفة الاهلية">
 
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="ابتدائية المعرفة بمكة المكرمة">
+  <meta name="apple-mobile-web-app-title" content="almarefamecca">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>ابتدائية المعرفة الأهلية بمكة المكرمة</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <title>بوابة ابتدائية المعرفة الاهلية</title>
   <link rel="manifest" href="manifest.json">
+
+  <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+
+  <script>
+    let deferredPrompt;
+    window.isInstallable = false;
+    window.isUpdateAvailable = false;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      window.isInstallable = true;
+      window.dispatchEvent(new Event('pwa-installable'));
+      console.log('PWA is installable');
+    });
+
+    window.showInstallPrompt = () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          deferredPrompt = null;
+          window.isInstallable = false;
+        });
+      }
+    };
+
+    window.triggerPwaUpdate = () => {
+      if (window.reg && window.reg.waiting) {
+        window.reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        window.location.reload();
+      }
+    };
+  </script>
 
   <style>
     body {
-      background-color: #f5f5f5;
+      background-color: #ffffff; /* لون خلفية أبيض نقي */
+      background-image: none !important; /* ⛔️ هذا السطر يمنع ظهور الأيقونة في الخلفية */
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
     }
-    .loader-container {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
+    
+    #loading-container {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
+      height: 100%;
       background-color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
       z-index: 9999;
-      opacity: 1;
       transition: opacity 0.5s ease-out;
     }
-    .loader {
-      border: 8px solid #f3f3f3;
-      border-top: 8px solid #1976D2; /* Primary color */
-      border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      animation: spin 1.5s linear infinite;
+
+    /* إخفاء مشغل اللوتي مبدئياً لمنع الوميض */
+    lottie-player {
+      width: 300px;
+      height: 300px;
+      opacity: 0; 
+      transition: opacity 0.3s ease-in;
     }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
+
+    .loading-text {
+      margin-top: 20px;
+      font-family: sans-serif;
+      color: #1976D2;
+      font-weight: bold;
+      font-size: 18px;
     }
   </style>
+
+  <script>
+    // The value below is injected by flutter build, do not touch.
+    const serviceWorkerVersion = "3321266861";
+  </script>
+  
+  <script src="flutter.js" defer></script>
 </head>
 <body>
-  <div id="loader" class="loader-container">
-    <div class="loader"></div>
+
+  <div id="loading-container">
+    <lottie-player 
+      id="splash-lottie"
+      src="1.json" 
+      background="transparent" 
+      speed="1" 
+      loop 
+      autoplay>
+    </lottie-player>
+    <div class="loading-text">جاري تحميل البوابة...</div>
   </div>
 
   <script>
-    // NEW: Hide loader after 4 seconds
-    setTimeout(function() {
-      var loader = document.getElementById('loader');
-      if (loader) {
-        loader.style.opacity = '0';
-        // Wait for the fade-out animation to complete before removing the element
-        setTimeout(function() {
-          loader.style.display = 'none';
-        }, 500);
-      }
-    }, 4000);
-
-    let deferredPrompt;
-    window.isInstallable = false;
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-      // Prevent the mini-infobar from appearing on mobile.
-      e.preventDefault();
-      // Stash the event so it can be triggered later.
-      deferredPrompt = e;
-      // Update a global flag that Flutter can read.
-      window.isInstallable = true;
-      // Dispatch a custom event that Flutter can listen to.
-      window.dispatchEvent(new CustomEvent('pwa-installable'));
+    const player = document.getElementById('splash-lottie');
+    player.addEventListener('ready', () => {
+      player.style.opacity = '1';
     });
-
-    function showInstallPrompt() {
-      if (deferredPrompt) {
-        // Show the install prompt.
-        deferredPrompt.prompt();
-        // Wait for the user to respond to the prompt.
-        deferredPrompt.userChoice.then((choiceResult) => {
-          if (choiceResult.outcome === 'accepted') {
-            console.log('User accepted the A2HS prompt');
-          } else {
-            console.log('User dismissed the A2HS prompt');
-          }
-          deferredPrompt = null;
-          window.isInstallable = false;
-          // Dispatch the event again to update the Flutter UI.
-          window.dispatchEvent(new CustomEvent('pwa-installable'));
-        });
-      }
-    }
-
-    // --- ✅✅✅ (هذا هو التعديل المطلوب) ✅✅✅ ---
-    // تسجيل ملف Firebase Service Worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('firebase-messaging-sw.js').then(function (registration) {
-          console.log('Firebase MS SW registered: ', registration);
-        }).catch(function (err) {
-          console.log('Firebase MS SW registration failed: ', err);
-        });
-      });
-    }
-    // --- ✅✅✅ (نهاية التعديل) ✅✅✅ ---
-
   </script>
-  <script src="flutter_bootstrap.js" async></script>
+
+  <script>
+    window.addEventListener('load', function(ev) {
+      // Download main.dart.js
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            appRunner.runApp();
+            
+            // إخفاء شاشة التحميل
+            var loader = document.querySelector('#loading-container');
+            if (loader) {
+              loader.style.opacity = '0';
+              setTimeout(function() {
+                loader.remove();
+                document.body.style.overflow = '';
+              }, 500);
+            }
+          });
+        }
+      }).then(function(engineInitializer) {
+         if ('serviceWorker' in navigator) {
+             navigator.serviceWorker.ready.then(function(registration) {
+                 window.reg = registration;
+             });
+         }
+      });
+    });
+  </script>
 </body>
 </html>

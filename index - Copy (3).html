@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="بوابة ابتدائية المعرفة الاهلية">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="almarefamecca">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <title>بوابة ابتدائية المعرفة الاهلية</title>
+  <link rel="manifest" href="manifest.json">
+
+  <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+
+  <script>
+    // متغيرات للتحكم في التثبيت والتحديث
+    let deferredPrompt;
+    window.isInstallable = false;
+    window.isUpdateAvailable = false;
+
+    // الاستماع لحدث إمكانية التثبيت (Chrome/Android/Desktop)
+    window.addEventListener('beforeinstallprompt', (e) => {
+      // منع المتصفح من إظهار النافذة تلقائياً
+      e.preventDefault();
+      deferredPrompt = e;
+      window.isInstallable = true;
+      
+      // إبلاغ تطبيق فلاتر بأن التثبيت متاح
+      window.dispatchEvent(new Event('pwa-installable'));
+      console.log('PWA is installable');
+    });
+
+    // دالة يستدعيها فلاتر عند الضغط على زر "تثبيت التطبيق"
+    window.showInstallPrompt = () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            console.log('User accepted the install prompt');
+          } else {
+            console.log('User dismissed the install prompt');
+          }
+          deferredPrompt = null;
+          window.isInstallable = false;
+        });
+      }
+    };
+
+    // دالة لتحديث التطبيق (Service Worker)
+    window.triggerPwaUpdate = () => {
+      if (window.reg && window.reg.waiting) {
+        window.reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        window.location.reload();
+      }
+    };
+  </script>
+
+  <style>
+    body {
+      background-color: #F0F4F8;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    
+    #loading-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      transition: opacity 0.5s ease-out;
+    }
+
+    .loading-text {
+      margin-top: 20px;
+      font-family: sans-serif;
+      color: #1976D2;
+      font-weight: bold;
+      font-size: 18px;
+    }
+  </style>
+
+  <script>
+    // The value below is injected by flutter build, do not touch.
+    var serviceWorkerVersion = null;
+  </script>
+  
+  <script src="flutter.js" defer></script>
+</head>
+<body>
+
+  <div id="loading-container">
+    <lottie-player 
+      src="1.json" 
+      background="transparent" 
+      speed="1" 
+      style="width: 300px; height: 300px;" 
+      loop 
+      autoplay>
+    </lottie-player>
+    <div class="loading-text">جاري تحميل البوابة...</div>
+  </div>
+
+  <script>
+    window.addEventListener('load', function(ev) {
+      // Download main.dart.js
+      _flutter.loader.loadEntrypoint({
+        serviceWorker: {
+          serviceWorkerVersion: serviceWorkerVersion,
+        },
+        onEntrypointLoaded: function(engineInitializer) {
+          engineInitializer.initializeEngine().then(function(appRunner) {
+            appRunner.runApp();
+            
+            // إخفاء شاشة التحميل بعد التشغيل
+            var loader = document.querySelector('#loading-container');
+            if (loader) {
+              loader.style.opacity = '0';
+              setTimeout(function() {
+                loader.remove();
+                document.body.style.overflow = '';
+              }, 500);
+            }
+          });
+        }
+      }).then(function(engineInitializer) {
+         // حفظ مرجع للـ Service Worker لدعم التحديث
+         if ('serviceWorker' in navigator) {
+             navigator.serviceWorker.ready.then(function(registration) {
+                 window.reg = registration;
+             });
+         }
+      });
+    });
+  </script>
+</body>
+</html>
