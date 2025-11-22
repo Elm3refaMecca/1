@@ -1,6 +1,5 @@
-// C:\appweb1\fcm\index.js (النسخة النهائية المدمجة)
+// C:\appweb1\fcm\index.js (النسخة النهائية المدمجة والمصححة للصوت)
 
-// 💡 (تعديل) إضافة onDocumentCreated بجانب onDocumentUpdated
 const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -11,7 +10,7 @@ initializeApp();
 const db = getFirestore();
 const messaging = getMessaging();
 
-// --- (دالة getTestMaps تبقى كما هي - لا تغيير) ---
+// --- (دالة الخرائط للأسماء - Helper Function) ---
 function getTestMaps() {
   const testKeyToName = {};
   const testKeyToSubject = {};
@@ -78,8 +77,7 @@ function getTestMaps() {
 
 
 /**
- * دالة مساعدة موحدة لإرسال الإشعار وكتابته في قاعدة البيانات
- * (هذه الدالة موجودة لديك بالفعل)
+ * دالة مساعدة موحدة لإرسال الإشعار وكتابته في قاعدة البيانات (للإشعارات الفردية)
  */
 async function sendNotification(fcmToken, studentId, title, body, actionData) {
   if (!fcmToken) {
@@ -89,54 +87,72 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
 
   const prefixedTitle = `المعرفة: ${title}`;
 
+  // ✅ تم تصحيح هيكلية الـ Payload لضمان عمل الصوت وعدم حدوث أخطاء
   const payload = {
     notification: {
       title: prefixedTitle,
       body: body,
+      // ❌ لا تضع sound هنا، يسبب خطأ Invalid JSON
     },
-    data: actionData,
+    data: actionData, // بيانات إضافية للتوجيه داخل التطبيق
+    
+    // إعدادات الويب (مهمة لتطبيقك)
     webpush: {
+      headers: {
+        Urgency: "high"
+      },
       notification: {
         title: prefixedTitle,
         body: body,
         icon: "/icons/Icon-192.png",
         badge: "/2.png",
-        sound: "/1.mp3",
-        requireInteraction: true,
+        requireInteraction: true, // يبقى الإشعار ظاهراً حتى يتفاعل المستخدم
+        /* ملاحظة: المتصفحات قد تتجاهل خاصية sound هنا، 
+           لكننا نضعها كاحتياط للمتصفحات التي تدعمها */
+        data: {
+            sound: "1.mp3" 
+        }
       },
     },
-    apns: { // إعدادات Apple
+    
+    // إعدادات أندرويد (في حال تم تثبيت التطبيق كـ PWA أو Native)
+    android: {
+      priority: "high",
+      notification: {
+        sound: "1.mp3", 
+        channelId: "high_importance_channel", // قناة الإشعارات الهامة
+        icon: "stock_ticker_update"
+      },
+    },
+    
+    // إعدادات Apple
+    apns: {
       payload: {
         aps: {
           sound: "1.mp3",
+          contentAvailable: true,
         },
-      },
-    },
-    android: { // إعدادات Android
-      notification: {
-        sound: "1.mp3",
       },
     },
   };
 
+  // محاولة الإرسال باستخدام send بدلاً من sendToDevice (أحدث)
   try {
+    // ملاحظة: sendToDevice قديمة، لكن إذا كانت تعمل معك اتركها. 
+    // الكود أدناه يستخدم sendToDevice بناء على طلبك للكود السابق
     const response = await messaging.sendToDevice(fcmToken, payload);
     logger.info(`تم إرسال الإشعار بنجاح إلى الطالب: ${studentId}`, response);
 
     response.results.forEach((result, index) => {
       const error = result.error;
       if (error) {
-        logger.error(`فشل إرسال الإشعار إلى توكن [${index}]:`, error);
+        logger.error(`فشل إرسال الإشعار:`, error);
         if (error.code === "messaging/registration-token-not-registered" ||
             error.code === "messaging/invalid-registration-token") {
-          logger.warn(`التوكن ${fcmToken} غير صالح للطالب: ${studentId}. سيتم محاولة حذفه.`);
+          logger.warn(`التوكن ${fcmToken} غير صالح. سيتم حذفه.`);
           db.collection("students").doc(studentId).update({
             fcmToken: FieldValue.delete(),
-          }).then(() => {
-            logger.info(`تم حذف التوكن غير الصالح للطالب: ${studentId}`);
-          }).catch((deleteError) => {
-            logger.error(`فشل حذف التوكن للطالب ${studentId}:`, deleteError);
-          });
+          }).catch(e => logger.error("فشل حذف التوكن", e));
         }
       }
     });
@@ -145,6 +161,7 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
     logger.error(`خطأ عام عند محاولة إرسال الإشعار إلى ${studentId}:`, error);
   }
 
+  // تسجيل الإشعار في قاعدة البيانات ليظهر داخل التطبيق
   try {
     await db.collection("students").doc(studentId).collection("notifications").add({
       message: body,
@@ -160,14 +177,10 @@ async function sendNotification(fcmToken, studentId, title, body, actionData) {
 }
 
 /**
- * دالة إشعارات الدرجات والسلوك الحالية الخاصة بك
- * (تبقى كما هي)
+ * دالة مراقبة تحديثات الطالب (درجات وسلوك)
  */
 exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId}", async (event) => {
-  if (!event.data) {
-    logger.warn("No data in event, exiting.");
-    return null;
-  }
+  if (!event.data) return null;
 
   const studentDataBefore = event.data.before.data();
   const studentDataAfter = event.data.after.data();
@@ -184,19 +197,19 @@ exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId
   };
   let shouldSend = false;
 
-  // ----- التحقق من تغييرات السلوك -----
+  // 1. السلوك (نبل / شغب)
   const likesBefore = studentDataBefore.totalLikes ?? 0;
   const likesAfter = studentDataAfter.totalLikes ?? 0;
   const dislikesBefore = studentDataBefore.totalDislikes ?? 0;
   const dislikesAfter = studentDataAfter.totalDislikes ?? 0;
 
   if (likesAfter > likesBefore) {
-    notificationTitle = "تهنئة من المعلم!";
-    notificationBody = `أهلاً ${studentDataAfter.name || 'بالطالب'}، لقد حصلت على إعجاب جديد! رائع! 🎉`;
+    notificationTitle = "تهنئة من المعلم! 🌟";
+    notificationBody = `أهلاً ${studentDataAfter.name || 'يا بطل'}، حصلت على إعجاب جديد لسلوكك النبيل!`;
     shouldSend = true;
   } else if (dislikesAfter > dislikesBefore) {
-    notificationTitle = "ملاحظة سلوكية";
-    notificationBody = `أهلاً ${studentDataAfter.name || 'بالطالب'}، تم تسجيل ملاحظة سلوك. يرجى المراجعة. ⚠️`;
+    notificationTitle = "تنبيه سلوكي ⚠️";
+    notificationBody = `أهلاً ${studentDataAfter.name || 'بالطالب'}، تم تسجيل ملاحظة عليك. يرجى الانتباه.`;
     shouldSend = true;
   }
 
@@ -205,7 +218,7 @@ exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId
     return null;
   }
 
-  // ----- التحقق من تغييرات الدرجات (فقط إذا لم يتغير السلوك) -----
+  // 2. الدرجات
   for (const testKey in testKeyToName) {
     const gradeBefore = studentDataBefore[testKey];
     const gradeAfter = studentDataAfter[testKey];
@@ -214,21 +227,19 @@ exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId
       const testName = testKeyToName[testKey] || "اختبار";
       const subjectName = testKeyToSubject[testKey] || "مادة";
       shouldSend = true;
-      const studentName = studentDataAfter.name || 'أيها الطالب';
+      const studentName = studentDataAfter.name || 'الطالب';
 
-      if (gradeBefore === undefined && gradeAfter !== undefined) { // رصد جديد
-        notificationTitle = `تم رصد درجة: ${subjectName}`;
+      if (gradeBefore === undefined && gradeAfter !== undefined) {
+        notificationTitle = `رصد درجة: ${subjectName}`;
         notificationBody = (gradeAfter === -1) ?
-          `مرحباً ${studentName}، تم تسجيلك "غائب" في: ${testName}.` :
-          `مرحباً ${studentName}، تم رصد درجتك (${gradeAfter}) في: ${testName}.`;
-      } else if (gradeBefore !== undefined && gradeAfter !== undefined) { // تعديل درجة
-        notificationTitle = `تم تعديل درجة: ${subjectName}`;
-        notificationBody = (gradeAfter === -1) ?
-          `مرحباً ${studentName}، تم تعديل حالتك إلى "غائب" في: ${testName}.` :
-          `مرحباً ${studentName}، تم تعديل درجتك في ${testName} إلى (${gradeAfter}).`;
-      } else if (gradeBefore !== undefined && gradeAfter === undefined) { // حذف درجة
-        notificationTitle = `تم حذف درجة: ${subjectName}`;
-        notificationBody = `مرحباً ${studentName}، تم حذف درجتك التي كانت مسجلة في: ${testName}.`;
+          `تم تسجيل الغياب في ${testName}.` :
+          `تم رصد درجة ${gradeAfter} في ${testName}.`;
+      } else if (gradeBefore !== undefined && gradeAfter !== undefined) {
+        notificationTitle = `تعديل درجة: ${subjectName}`;
+        notificationBody = `تم تعديل درجة ${testName} إلى ${gradeAfter === -1 ? 'غائب' : gradeAfter}.`;
+      } else if (gradeBefore !== undefined && gradeAfter === undefined) {
+        notificationTitle = `حذف درجة: ${subjectName}`;
+        notificationBody = `تم حذف الدرجة المسجلة في ${testName}.`;
       } else {
         shouldSend = false;
       }
@@ -240,17 +251,13 @@ exports.sendNotificationOnStudentUpdate = onDocumentUpdated("students/{studentId
     }
   }
 
-  if (!shouldSend) {
-    logger.info(`تحديث لا يتطلب إشعاراً للطالب ${studentId}.`);
-  }
   return null;
 });
 
 
 /**
- * 📣 (إضافة جديدة)
- * Trigger: عند إنشاء مستند جديد في "broadcast_notifications"
- * يرسل إشعارًا عامًا لجميع الطلاب المشتركين في "public_announcements".
+ * 📣 دالة الإشعار العام (Broadcast) المعدلة والمصححة
+ * يتم تفعيلها عند إنشاء مستند في "broadcast_notifications"
  */
 exports.sendBroadcastNotification = onDocumentCreated(
   "broadcast_notifications/{docId}",
@@ -269,47 +276,60 @@ exports.sendBroadcastNotification = onDocumentCreated(
       return;
     }
 
-    // هذا هو الموضوع الذي يشترك فيه الطلاب في main.dart
     const topic = "public_announcements";
 
-    // 2. تحضير حمولة الإشعار (Payload)
+    // ✅ هيكلية Payload الصحيحة لتجنب خطأ Invalid JSON وتشغيل الصوت
     const payload = {
       notification: {
         title: title,
         body: body,
-        sound: "1.mp3", // استخدام ملف الصوت الافتراضي
+        // ❌ لا يوجد sound هنا
+      },
+      // بيانات إضافية
+      data: {
+        type: "broadcast",
+        sound: "1.mp3" // نرسل اسم الملف كبيانات ليتمكن التطبيق من التعامل معه
       },
       webpush: {
+        headers: {
+          Urgency: "high"
+        },
         notification: {
-          icon: "icons/Icon-192.png", // أيقونة الويب
-          sound: "/1.mp3",
-          requireInteraction: true, // جعل الإشعار "دائم"
+          icon: "/icons/Icon-192.png",
+          badge: "/2.png",
+          requireInteraction: true, // يجعل الإشعار ثابتاً حتى يغلقه المستخدم
+          // محاولة لتشغيل الصوت في المتصفحات التي تدعمه عبر الـ Payload
+          data: {
+             url: "https://elma3refa.site", // رابط عند الضغط
+             sound: "1.mp3"
+          }
         },
       },
-      apns: { // إعدادات Apple
+      apns: {
         payload: {
           aps: {
-            sound: "1.mp3",
+            sound: "1.mp3", // الصوت للآيفون
+            contentAvailable: true,
           },
         },
       },
-      android: { // إعدادات Android
+      android: {
+        priority: "high",
         notification: {
-          sound: "1.mp3",
+          sound: "1.mp3", // الصوت للأندرويد
+          channelId: "high_importance_channel", // القناة ذات الأولوية العالية
+          defaultSound: false
         },
       },
       topic: topic,
     };
 
     try {
-      // 3. إرسال الرسالة إلى الموضوع (Topic)
-      const response = await getMessaging().send(payload);
-      logger.info(`Broadcast: ✅ تم إرسال الإشعار بنجاح إلى ${topic}`, response);
+      // استخدام messaging.send() لأنها تدعم الـ Topics بشكل أفضل في الإصدارات الحديثة
+      const response = await messaging.send(payload);
+      logger.info(`Broadcast: ✅ تم إرسال الإشعار العام بنجاح إلى ${topic}`, response);
     } catch (error) {
-      logger.error(`Broadcast: ❌ فشل إرسال الإشعار إلى ${topic}`, error);
+      logger.error(`Broadcast: ❌ فشل إرسال الإشعار العام إلى ${topic}`, error);
     }
-    
-    // (اختياري) يمكنك إلغاء التعليق على السطر التالي لحذف الإشعار بعد إرساله
-    // return snap.ref.delete();
   }
 );

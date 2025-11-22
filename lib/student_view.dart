@@ -1,7 +1,5 @@
-// student_view.dart (MODIFIED - TOKKATSU REDESIGN)
-// ✅ (NEW DESIGN) واجهة توكاتسو عصرية تعتمد على الدوران التفاعلي عند السحب
-// ✅ (COLORS) ألوان زرقاء فاتحة ومريحة للعين (Theme: Japanese Zen)
-// ✅ (REMOVED) تم حذف الأنشطة الرياضية والرقمية من القائمة الرئيسية
+// student_view.dart
+// ✅ (MODIFIED) تم تفعيل نظام الريفرش الموحد (Pull-to-Refresh) في حساب الطالب
 
 import 'dart:math' as math;
 import 'dart:async';
@@ -108,6 +106,18 @@ class _StudentViewPageState extends State<StudentViewPage>
     _tabController = TabController(length: 3, vsync: this);
     _isTeacherView = widget.studentId != null;
     _initializeData();
+  }
+
+  // ✅✅✅ دالة التحديث الموحدة ✅✅✅
+  Future<void> _onRefresh() async {
+    // انتظار بسيط لرؤية الأيقونة
+    if (kIsWeb) {
+      await Future.delayed(const Duration(milliseconds: 800));
+      html.window.location.reload();
+    } else {
+      _initializeData(); // إعادة تحميل البيانات
+      if (mounted) setState(() {});
+    }
   }
 
   void _initializeData() {
@@ -540,27 +550,34 @@ class _StudentViewPageState extends State<StudentViewPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
-      body: Stack(
-        children: [
-          _buildBody(),
-          if (_isPrinting)
-            Container(
-              color: Colors.black.withOpacity(0.5),
-              child: const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
-                    SizedBox(height: 20),
-                    Text(
-                      'جاري إنشاء ملف PDF...',
-                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ],
+      // ✅ تغليف المحتوى بـ RefreshIndicator
+      body: RefreshIndicator(
+        onRefresh: _onRefresh,
+        displacement: 40.0,
+        color: Theme.of(context).primaryColor,
+        backgroundColor: Colors.white,
+        child: Stack(
+          children: [
+            _buildBody(), // الآن _buildBody يضمن إرجاع قوائم قابلة للسحب
+            if (_isPrinting)
+              Container(
+                color: Colors.black.withOpacity(0.5),
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
+                      SizedBox(height: 20),
+                      Text(
+                        'جاري إنشاء ملف PDF...',
+                        style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -583,30 +600,15 @@ class _StudentViewPageState extends State<StudentViewPage>
         baseTitle = 'سجل الملاحظات السلوكية';
         break;
       default:
-        baseTitle = _isTeacherView ? 'تقرير الطالب: $studentName' : studentName;
+        baseTitle = _isTeacherView ? 'تقرير الطالب: $studentName' : 'لوحة الطالب';
     }
 
-    if (isDashboard && !_isTeacherView) {
-      titleWidget = LayoutBuilder(
-        builder: (context, constraints) {
-          bool showGreeting = constraints.maxWidth > 250;
-          String titleText = showGreeting ? 'أهلاً بك، $studentName' : studentName;
-          return Text(
-            titleText,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          );
-        },
-      );
-    } else {
-      titleWidget = Text(
-        baseTitle,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
-      );
-    }
+    titleWidget = Text(
+      baseTitle,
+      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+      overflow: TextOverflow.ellipsis,
+      maxLines: 1,
+    );
 
 
     List<Widget> appBarActions = [];
@@ -636,7 +638,7 @@ class _StudentViewPageState extends State<StudentViewPage>
       foregroundColor: Theme.of(context).primaryColor,
       elevation: 1.0,
       title: titleWidget,
-      centerTitle: !isDashboard || _isTeacherView,
+      centerTitle: true, // دائما توسيط العنوان
       leading: (_isTeacherView && isDashboard) || !isDashboard
           ? IconButton(
         icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).primaryColor),
@@ -700,38 +702,53 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
+  // ✅ تعديل هنا لضمان أن كل صفحة ترجع قائمة قابلة للسحب
   Widget _buildBody() {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_studentData == null) {
-      return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('عفواً، لم يتم العثور على بيانات الطالب.'),
-              const SizedBox(height: 20),
-              if (!_isTeacherView)
-                ElevatedButton(
-                  onPressed: _signOutAndGoToLogin,
-                  child: const Text('العودة لتسجيل الدخول'),
-                )
-            ],
-          ));
+      return ListView( // ✅ استخدام ListView بدلاً من Center ليقبل السحب
+          children: [
+            SizedBox(height: MediaQuery.of(context).size.height * 0.4),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('عفواً، لم يتم العثور على بيانات الطالب.'),
+                  const SizedBox(height: 20),
+                  if (!_isTeacherView)
+                    ElevatedButton(
+                      onPressed: _signOutAndGoToLogin,
+                      child: const Text('العودة لتسجيل الدخول'),
+                    )
+                ],
+              ),
+            ),
+          ]
+      );
     }
 
     switch (_currentView) {
       case StudentView.results:
-        return StudentResultsView(
-          studentData: _studentData!,
-          allTestsMap: _allTestsMap,
-          subjects: subjects,
-          subjectColors: _subjectColors,
-          printKey: _printKey,
+        return SingleChildScrollView(
+          // ✅ تأكد أن المحتوى قابل للتمرير دائماً
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: StudentResultsView(
+            studentData: _studentData!,
+            allTestsMap: _allTestsMap,
+            subjects: subjects,
+            subjectColors: _subjectColors,
+            printKey: _printKey,
+          ),
         );
       case StudentView.noble:
-        return _buildNobleStudentView();
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: _buildNobleStudentView(),
+        );
       case StudentView.teacherComplaints:
         return _buildTeacherComplaintsView();
       default:
+      // الداشبورد هو ListView أصلاً
         return _buildDashboard();
     }
   }
@@ -742,6 +759,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
+  // ✅✅✅ دالة بناء الداشبورد المعدلة (مع الهيدر) ✅✅✅
   Widget _buildDashboard() {
     final int totalLikes = _studentData?['totalLikes'] ?? 0;
     final int totalDislikes = _studentData?['totalDislikes'] ?? 0;
@@ -757,10 +775,8 @@ class _StudentViewPageState extends State<StudentViewPage>
       'التوكاتسو ': 'assets/a4.png',
       'المسابقات': 'assets/a10.png',
       'المؤذن': 'assets/a6.png',
-      // --- تم حذف الأنشطة غير المطلوبة من الخريطة ---
     };
 
-    // --- ✅ (تعديل) قائمة الأزرار بعد الحذف ---
     final List<_DashboardButtonData> buttonDataList = [
       _DashboardButtonData(
         title: 'النتائج والتحليل',
@@ -855,66 +871,174 @@ class _StudentViewPageState extends State<StudentViewPage>
         onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
         isWorking: false,
       ),
-      // --- ✅ تم حذف كرة القدم، السباحة، الكاراتيه، والمسابقات الرقمية ---
     ];
 
-    return AnimationLimiter(
-      child: GridView.extent(
-        maxCrossAxisExtent: 150,
-        padding: const EdgeInsets.all(16.0),
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 150 / 180,
-        children: List.generate(
-          buttonDataList.length,
-              (index) {
-            final data = buttonDataList[index];
-            return AnimationConfiguration.staggeredGrid(
-              position: index,
-              duration: const Duration(milliseconds: 375),
-              columnCount: (MediaQuery.of(context).size.width / (150 + 16)).floor(),
-              child: ScaleAnimation(
-                child: FadeInAnimation(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: SizedBox(
-                          width: 150,
-                          child: _buildDashboardButton(
-                            icon: data.icon,
-                            assetPath: data.assetPath,
-                            color: data.color,
-                            onTap: data.onTap,
-                            count: data.count,
-                            isWorking: data.isWorking,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        flex: 1,
-                        child: Text(
-                          data.title,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
+    // ✅✅✅ الهيدر المطابق لحساب المعلم ✅✅✅
+    Widget buildHeader() {
+      return Container(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 25),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue.shade800, Colors.blue.shade500],
+            begin: Alignment.bottomLeft,
+            end: Alignment.topRight,
+          ),
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(25),
+            bottomRight: Radius.circular(25),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.blue.shade900.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
         ),
-      ),
+        child: Row(
+          children: [
+            // الصورة الشخصية للطالب (أو أيقونة افتراضية)
+            Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white.withOpacity(0.6), width: 2),
+              ),
+              child: CircleAvatar(
+                radius: 22,
+                backgroundColor: Colors.white,
+                backgroundImage: (_studentData != null &&
+                    _studentData!.containsKey('photo') &&
+                    _studentData!['photo'] != null &&
+                    _studentData!['photo'].toString().isNotEmpty)
+                    ? NetworkImage(_studentData!['photo'])
+                    : null,
+                child: (_studentData == null ||
+                    !_studentData!.containsKey('photo') ||
+                    _studentData!['photo'] == null ||
+                    _studentData!['photo'].toString().isEmpty)
+                    ? const Icon(Icons.person, color: Colors.blue, size: 26)
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // الاسم والصف
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'مرحباً، ${_studentData?['name'] ?? '...'}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Cairo',
+                      height: 1.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      // عرض الصف والفصل بدلاً من المسمى الوظيفي
+                      '${_studentData?['grades'] ?? ''} - ${_studentData?['classes'] ?? ''}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Opacity(
+              opacity: 0.7,
+              child: Icon(Icons.school_outlined, color: Colors.white.withOpacity(0.2), size: 40),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView(
+      padding: EdgeInsets.zero, // إزالة الحشو الافتراضي ليلتصق الهيدر بالأعلى
+      children: [
+        buildHeader(),
+        const SizedBox(height: 10),
+        // عرض شبكة الأزرار
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: AnimationLimiter(
+            child: GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: buttonDataList.length,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 150,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 150 / 180,
+              ),
+              itemBuilder: (context, index) {
+                final data = buttonDataList[index];
+                return AnimationConfiguration.staggeredGrid(
+                  position: index,
+                  duration: const Duration(milliseconds: 375),
+                  columnCount: (MediaQuery.of(context).size.width / (150 + 16)).floor(),
+                  child: ScaleAnimation(
+                    child: FadeInAnimation(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: SizedBox(
+                              width: 150,
+                              child: _buildDashboardButton(
+                                icon: data.icon,
+                                assetPath: data.assetPath,
+                                color: data.color,
+                                onTap: data.onTap,
+                                count: data.count,
+                                isWorking: data.isWorking,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Expanded(
+                            flex: 1,
+                            child: Text(
+                              data.title,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 40),
+      ],
     );
   }
 
@@ -988,7 +1112,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                 ),
               ),
 
-            // --- ✅ مؤشر الحالة (صح أزرق أو ترس انتظار) ---
+            // مؤشر الحالة (صح أزرق أو ترس انتظار)
             Positioned(
               bottom: 10,
               left: 10,
@@ -1185,215 +1309,168 @@ class _StudentViewPageState extends State<StudentViewPage>
       ],
     );
   }
-  // --- ✅✅✅ نهاية القسم المعدل ✅✅✅ ---
 
   Widget _buildNobleStudentView() {
-    return SingleChildScrollView(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-            child: Text(
-              "🏆 قاعة الشرف: فرسان الانضباط 🏆",
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).primaryColor,
-              ),
+    // ✅ دمج المحتوى في Column
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+          child: Text(
+            "🏆 قاعة الشرف: فرسان الانضباط 🏆",
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).primaryColor,
             ),
           ),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('students')
-                .orderBy('totalLikes', descending: true)
-                .limit(3)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) return Center(child: Text('حدث خطأ: ${snapshot.error}'));
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-              if (snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text('لا يوجد طلاب في القائمة حالياً.'));
-              }
-              final docs = snapshot.data!.docs;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 8.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (docs.length > 1) Flexible(child: _buildRankPodium(context, docs[1], 2)),
-                    if (docs.isNotEmpty) Flexible(child: _buildRankPodium(context, docs[0], 1)),
-                    if (docs.length > 2) Flexible(child: _buildRankPodium(context, docs[2], 3)),
-                  ],
-                ),
-              );
-            },
-          ),
+        ),
+        // ✅ (MODIFIED) جرس التنبيهات الخاص للطالب المنضبط
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('students')
+              .doc(_studentDocId) // تأكد أن متغير رقم الطالب متاح هنا
+              .collection('notifications')
+              .where('isRead', isEqualTo: false) // نعد فقط غير المقروء
+              .snapshots(),
+          builder: (context, snapshot) {
+            int unreadCount = 0;
+            if (snapshot.hasData) {
+              unreadCount = snapshot.data!.docs.length;
+            }
 
-          _buildNobleCriteriaSlider(),
-
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.shade200),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            return Stack(
               children: [
-                const Icon(Icons.info_outline_rounded, color: Colors.blue, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: RichText(
-                    text: TextSpan(
-                      style: const TextStyle(fontFamily: 'Cairo', color: Colors.black87, fontSize: 12, height: 1.5),
-                      children: [
-                        const TextSpan(
-                          text: "تنويه هام: ",
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                IconButton(
+                  icon: const Icon(Icons.notifications, size: 30, color: Colors.blue), // لون أزرق
+                  onPressed: () => _showNotifications(1), // ✅ فتح على تبويب الإشعارات الخاصة (1)
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.blue, // ✅ لون أزرق للتناسق
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      child: Text(
+                        '$unreadCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
                         ),
-                        const TextSpan(
-                          text: "نقاط التميز (اللايكات) تُمنح بشكل ",
-                        ),
-                        const TextSpan(
-                          text: "تتابعي وتراكمي ",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const TextSpan(
-                          text: "يعكس استمرار انضباط الطالب، وهي ثمرة ",
-                        ),
-                        const TextSpan(
-                          text: "تقييم تكاملي تشاركي بين جميع المعلمين، ",
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const TextSpan(
-                          text: "ولا يتم منحها بشكل عشوائي.",
-                        ),
-                      ],
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
-                ),
               ],
-            ),
-          ),
+            );
+          },
+        )
 
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Card(
-              elevation: 8,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              clipBehavior: Clip.antiAlias,
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.amber.shade300, Colors.amber.shade600],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
+        ,_buildNobleCriteriaSlider(),
+
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline_rounded, color: Colors.blue, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: RichText(
+                  text: TextSpan(
+                    style: const TextStyle(fontFamily: 'Cairo', color: Colors.black87, fontSize: 12, height: 1.5),
                     children: [
-                      const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.card_giftcard, color: Colors.white, size: 30),
-                          SizedBox(width: 12),
-                          Text(
-                            "مكافأة الأبطال",
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
+                      const TextSpan(
+                        text: "تنويه هام: ",
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        "سيتم تكريم هؤلاء الطلاب المنضبطين وتكريمهم بمكافآت قيمة في جميع الفعاليات والاحتفالات المدرسية تقديراً لتميزهم السلوكي والأخلاقي.",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withOpacity(0.95),
-                          height: 1.5,
-                        ),
+                      const TextSpan(
+                        text: "نقاط التميز (اللايكات) تُمنح بشكل ",
+                      ),
+                      const TextSpan(
+                        text: "تتابعي وتراكمي ",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const TextSpan(
+                        text: "يعكس استمرار انضباط الطالب، وهي ثمرة ",
+                      ),
+                      const TextSpan(
+                        text: "تقييم تكاملي تشاركي بين جميع المعلمين، ",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const TextSpan(
+                        text: "ولا يتم منحها بشكل عشوائي.",
                       ),
                     ],
                   ),
                 ),
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRankPodium(BuildContext context, DocumentSnapshot doc, int rank) {
-    // ... (نفس كود التتويج السابق)
-    final data = doc.data() as Map<String, dynamic>;
-    final name = data['name'] ?? 'طالب';
-    final likes = data['totalLikes'] ?? 0;
-
-    final podiumHeights = {1: 150.0, 2: 120.0, 3: 90.0};
-    final rankColors = {
-      1: Colors.amber,
-      2: Colors.grey.shade400,
-      3: const Color(0xFFCD7F32),
-    };
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _AnimatedTrophy(rank: rank),
-        const SizedBox(height: 8),
-        Text(
-          name,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.thumb_up, color: Colors.blue.shade700, size: 16),
-            const SizedBox(width: 4),
-            Text('$likes', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          width: 100,
-          height: podiumHeights[rank],
-          decoration: BoxDecoration(
-            color: rankColors[rank],
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(8),
-              topRight: Radius.circular(8),
-            ),
-            border: Border.all(color: Colors.black.withOpacity(0.2)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                spreadRadius: 2,
-                blurRadius: 5,
-                offset: const Offset(0, 3),
-              )
             ],
           ),
-          child: Center(
-            child: Text(
-              '$rank',
-              style: const TextStyle(
-                fontSize: 40,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+        ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Card(
+            elevation: 8,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.amber.shade300, Colors.amber.shade600],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  children: [
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.card_giftcard, color: Colors.white, size: 30),
+                        SizedBox(width: 12),
+                        Text(
+                          "مكافأة الأبطال",
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      "سيتم تكريم هؤلاء الطلاب المنضبطين وتكريمهم بمكافآت قيمة في جميع الفعاليات والاحتفالات المدرسية تقديراً لتميزهم السلوكي والأخلاقي.",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white.withOpacity(0.95),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1404,7 +1481,7 @@ class _StudentViewPageState extends State<StudentViewPage>
 
   Widget _buildTeacherComplaintsView() {
     if (_studentDocId == null) {
-      return const Center(child: Text("لا يمكن عرض الملاحظات. الطالب غير معرّف."));
+      return ListView(children: [const SizedBox(height: 300), const Center(child: Text("لا يمكن عرض الملاحظات. الطالب غير معرّف."))]);
     }
 
     return StreamBuilder<QuerySnapshot>(
@@ -1421,23 +1498,29 @@ class _StudentViewPageState extends State<StudentViewPage>
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+        // ✅ تحويل الحالة الفارغة إلى قائمة قابلة للسحب
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.check_circle_outline, color: Colors.green, size: 80),
-                SizedBox(height: 20),
-                Text(
-                  'سجلك السلوكي نظيف!',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          return ListView(
+            children: [
+              SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+              const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle_outline, color: Colors.green, size: 80),
+                    SizedBox(height: 20),
+                    Text(
+                      'سجلك السلوكي نظيف!',
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'لم يتم تسجيل أي ملاحظات سلبية عليك.',
+                      style: TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
+                  ],
                 ),
-                Text(
-                  'لم يتم تسجيل أي ملاحظات سلبية عليك.',
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                ),
-              ],
-            ),
+              ),
+            ],
           );
         }
 
@@ -1461,6 +1544,33 @@ class _StudentViewPageState extends State<StudentViewPage>
     final Color iconColor = Theme.of(context).primaryColor;
 
     return [
+      // ✅ 1. أيقونة الإشعارات العامة (خضراء بالكامل)
+      StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('broadcast_notifications')
+            .orderBy('timestamp', descending: true)
+            .limit(10) // تتبع آخر 10 فقط
+            .snapshots(),
+        builder: (context, snapshot) {
+          final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+          // (يمكن تحسين المنطق لعد "غير المقروء" فقط إذا تم حفظ حالة القراءة محلياً)
+          // هنا نعرض نقطة إذا كان هناك تعاميم حديثة (كمثال)
+          return badges.Badge(
+            showBadge: count > 0,
+            badgeContent: Text('!', // رمز تنبيه
+                style: const TextStyle(color: Colors.white, fontSize: 10)),
+            badgeStyle: badges.BadgeStyle(badgeColor: Colors.green), // ✅ لون الشارة أخضر
+            position: badges.BadgePosition.topEnd(top: 4, end: 4),
+            child: IconButton(
+              icon: Icon(Icons.notifications_active, color: Colors.green.shade600), // ✅ لون الأيقونة أخضر
+              tooltip: 'التعاميم العامة',
+              onPressed: () => _showNotifications(0), // فتح تبويب التعاميم (0)
+            ),
+          );
+        },
+      ),
+
+      // ✅ 2. أيقونة الإشعارات الخاصة (زرقاء بالكامل)
       StreamBuilder<QuerySnapshot>(
         stream: _studentDocId == null
             ? null
@@ -1476,12 +1586,12 @@ class _StudentViewPageState extends State<StudentViewPage>
             showBadge: count > 0,
             badgeContent: Text('$count',
                 style: const TextStyle(color: Colors.white, fontSize: 10)),
-            badgeStyle: badges.BadgeStyle(badgeColor: Colors.red),
+            badgeStyle: badges.BadgeStyle(badgeColor: Colors.blue), // ✅ لون الشارة أزرق
             position: badges.BadgePosition.topEnd(top: 4, end: 4),
             child: IconButton(
-              icon: Icon(Icons.notifications, color: iconColor),
-              tooltip: 'الإشعارات',
-              onPressed: _showNotifications,
+              icon: Icon(Icons.notifications, color: iconColor), // ✅ لون الأيقونة أزرق (primary)
+              tooltip: 'إشعاراتي',
+              onPressed: () => _showNotifications(1), // فتح تبويب إشعارات خاصة (1)
             ),
           );
         },
@@ -1500,7 +1610,8 @@ class _StudentViewPageState extends State<StudentViewPage>
     ];
   }
 
-  void _showNotifications() {
+  // ✅ تعديل الدالة لتقبل initialIndex
+  void _showNotifications(int initialIndex) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1510,12 +1621,14 @@ class _StudentViewPageState extends State<StudentViewPage>
         // استخدام DefaultTabController للتبديل بين الإشعارات العامة والخاصة
         return DefaultTabController(
           length: 2,
+          initialIndex: initialIndex, // تحديد التبويب المختار
           child: DraggableScrollableSheet(
             expand: false,
             initialChildSize: 0.6,
             maxChildSize: 0.9,
             builder: (_, scrollController) {
-              // (اختياري) تحديث حالة القراءة يمكن أن يتم هنا
+              // عند فتح القائمة، نعتبر الإشعارات الخاصة مقروءة إذا كنا في التبويب الخاص
+              // (للبساطة هنا نقوم بذلك عند الفتح)
               _markNotificationsAsRead();
 
               return Column(
@@ -1530,8 +1643,8 @@ class _StudentViewPageState extends State<StudentViewPage>
                     labelColor: Colors.blue,
                     unselectedLabelColor: Colors.grey,
                     tabs: [
-                      Tab(text: "إشعارات عامة"),
-                      Tab(text: "إشعارات خاصة"),
+                      Tab(text: "تعاميم عامة"), // تبويب 0
+                      Tab(text: "إشعارات خاصة"), // تبويب 1
                     ],
                   ),
                   Expanded(
@@ -1612,13 +1725,14 @@ class _StudentViewPageState extends State<StudentViewPage>
             // تحديد العنوان والنص بناء على نوع الإشعار
             String title = isPublic ? (data['title'] ?? 'إشعار عام') : 'تنبيه';
             String body = isPublic ? (data['body'] ?? '...') : (data['message'] ?? '...');
+            String senderName = isPublic ? (data['senderName'] ?? 'الإدارة') : 'النظام';
 
             return ListTile(
               leading: CircleAvatar(
-                backgroundColor: isPublic ? Colors.amber.withOpacity(0.2) : Colors.blue.withOpacity(0.2),
+                backgroundColor: isPublic ? Colors.green.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
                 child: Icon(
                   isPublic ? Icons.campaign : Icons.person,
-                  color: isPublic ? Colors.amber.shade800 : Colors.blue,
+                  color: isPublic ? Colors.green.shade700 : Colors.blue,
                 ),
               ),
               title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -1627,7 +1741,19 @@ class _StudentViewPageState extends State<StudentViewPage>
                 children: [
                   Text(body),
                   const SizedBox(height: 4),
-                  Text(formattedDate, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time, size: 12, color: Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(formattedDate, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                      if (isPublic) ...[
+                        const SizedBox(width: 8),
+                        Icon(Icons.person_outline, size: 12, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Text(senderName, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                      ]
+                    ],
+                  ),
                 ],
               ),
             );
@@ -2189,9 +2315,6 @@ class _AnimatedScaleButtonState extends State<_AnimatedScaleButton>
   }
 }
 
-// --- ✅ انسخ هذا الجزء وضعه بدلاً من كود التوكاتسو السابق ---
-// تأكد من وجود: import 'dart:math' as math; و import 'dart:ui' as ui; في أعلى الملف
-
 class TokkatsuItem {
   final String imagePath;
   final String title;
@@ -2386,7 +2509,6 @@ class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
   }
 }
 
-// --- ✅✅✅ إضافة الصفحة الجديدة: المكتبة الرقمية والمقررات ---
 class SchoolBooksPage extends StatelessWidget {
   final String grade;
 

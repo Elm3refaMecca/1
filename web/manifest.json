@@ -1,11 +1,11 @@
 {
-    "name": "ابتدائية المعرفة الاهلية مكة",
-    "short_name": "ابتدائية المعرفة",
+    "name": "بوابة المعرفة",
+    "short_name": "المعرفة",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F0F4F8",
+    "theme_color": "#1976D2",
+    "description": "بوابة ابتدائية المعرفة الاهلية بمكة المكرمة",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

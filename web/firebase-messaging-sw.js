@@ -1,68 +1,67 @@
-// في المسار: /web/firebase-messaging-sw.js
-// النسخة الموثوقة التي تعرض الصوت والإشعار معاً
+// web/firebase-messaging-sw.js
 
-importScripts("https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js");
 
+// ✅ تم وضع بياناتك الحقيقية هنا
 const firebaseConfig = {
-  apiKey: "AIzaSyCpRziGJhRa3r8oZYreUxffW4a630sIH7c", // تأكد أنها صحيحة لمشروعك
+  apiKey: "AIzaSyCpRziGJhRa3r8oZYreUxffW4a630sIH7c",
   authDomain: "mostfa-said.firebaseapp.com",
   projectId: "mostfa-said",
   storageBucket: "mostfa-said.firebasestorage.app",
   messagingSenderId: "773233380314",
-  appId: "1:773233380314:web:350ad7c2565062b0d6cee3",
-  databaseURL: "https://mostfa-said-default-rtdb.firebaseio.com",
-  measurementId: "G-4MPQX98Z8Z"
+  appId: "1:773233380314:web:b2813e48e0aa3328d6cee3",
+  measurementId: "G-MY7BT0ZYLE"
 };
 
+// 1. تهيئة فايربيز
 firebase.initializeApp(firebaseConfig);
+
+// 2. إعداد استلام الرسائل
 const messaging = firebase.messaging();
 
-// معالجة الرسائل الواردة في الخلفية (الطريقة القياسية)
+// 3. معالجة الرسائل في الخلفية (والتطبيق مغلق)
 messaging.onBackgroundMessage((payload) => {
-  console.log("[SW - Reliable] Background message received ", payload);
-
-  const notificationTitle = payload.notification?.title || payload.webpush?.notification?.title || "إشعار جديد";
-  const notificationBody = payload.notification?.body || payload.webpush?.notification?.body || "لديك إشعار جديد.";
-  const notificationIcon = payload.webpush?.notification?.icon || '/icons/Icon-192.png';
-  const notificationBadge = payload.webpush?.notification?.badge || '/2.png'; // أيقونة شريط الحالة
-  const notificationSound = payload.webpush?.notification?.sound || '/1.mp3'; // النغمة
-
-  // إعدادات الإشعار (تتضمن الصوت)
+  console.log('[firebase-messaging-sw.js] Received background message ', payload);
+  
+  // ✅ الحيلة هنا: إذا لم يكن هناك عنوان، نضع اسم المدرسة
+  const notificationTitle = payload.notification.title || "مدرسة المعرفة";
+  
   const notificationOptions = {
-    body: notificationBody,
-    icon: notificationIcon,   // الأيقونة الكبيرة
-    badge: notificationBadge,  // الأيقونة الصغيرة (شريط الحالة)
-    sound: notificationSound,  // <-- الصوت سيعمل مع الإشعار
-    requireInteraction: payload.webpush?.notification?.requireInteraction || true, // يبقى دائماً
-    tag: 'elm3refa-' + Date.now() // يبقى فريداً لمنع الاستبدال
+    body: payload.notification.body,
+    icon: '/icons/Icon-192.png', // أيقونة الإشعار
+    badge: '/icons/Icon-192.png', // أيقونة شريط الحالة الصغيرة
+    
+    data: payload.data,
+    
+    // خصائص مهمة للتنبيه
+    requireInteraction: true, // يبقي الإشعار حتى يتفاعل المستخدم
+    silent: false
   };
 
-  console.log("[SW - Reliable] Attempting to show notification with options:", notificationOptions);
+  return self.registration.showNotification(notificationTitle, notificationOptions);
+});
 
-  // عرض الإشعار (النظام يتولى الصوت معه)
-  return self.registration.showNotification(notificationTitle, notificationOptions)
-    .then(() => {
-        console.log("[SW - Reliable] Notification shown successfully!");
+// 4. التعامل مع ضغط المستخدم على الإشعار لفتح التطبيق
+self.addEventListener('notificationclick', function(event) {
+  console.log('[firebase-messaging-sw.js] Notification click received.');
+  
+  event.notification.close(); // إغلاق الإشعار فوراً
+
+  // محاولة فتح التطبيق أو التركيز عليه
+  event.waitUntil(
+    clients.matchAll({type: 'window'}).then( windowClients => {
+      // البحث عن تبويب مفتوح لنفس الموقع
+      for (var i = 0; i < windowClients.length; i++) {
+        var client = windowClients[i];
+        if (client.url.indexOf('/') !== -1 && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // إذا لم يكن مفتوحاً، افتح تبويباً جديداً
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
     })
-    .catch((err) => {
-        console.error("[SW - Reliable] Error showing notification:", err);
-    });
-});
-
-// عند النقر على الإشعار
-self.addEventListener('notificationclick', (event) => {
-  console.log('[SW - Reliable] Notification click Received.', event.notification);
-  event.notification.close();
-  // يمكنك هنا فتح نافذة التطبيق إذا أردت
-  // event.waitUntil(clients.openWindow('/'));
-});
-
-// رسائل تشخيصية للتأكد من عمل الـ SW
-self.addEventListener('install', (event) => {
-  console.log('[SW - Reliable] Service Worker installed!');
-});
-
-self.addEventListener('activate', (event) => {
-  console.log('[SW - Reliable] Service Worker activated!');
+  );
 });

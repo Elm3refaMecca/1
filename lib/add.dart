@@ -1,7 +1,3 @@
-// add.dart
-// ✅ (MODIFIED) تم تحديث أزرار "متصل حالياً" و "الغياب" لعرض الأرقام بدلاً من الأيقونات
-// ✅ (INCLUDED) الكود كامل مع صفحة إحصائيات الغياب
-
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -46,6 +42,16 @@ class _AddPageState extends State<AddPage> {
     super.initState();
     _user = FirebaseAuth.instance.currentUser;
     _fetchUserData();
+  }
+
+  Future<void> _onRefresh() async {
+    if (kIsWeb) {
+      await Future.delayed(const Duration(milliseconds: 800));
+      html.window.location.reload();
+    } else {
+      await _fetchUserData();
+      if (mounted) setState(() {});
+    }
   }
 
   void _logoutGuestSession() {
@@ -639,7 +645,6 @@ class _AddPageState extends State<AddPage> {
 
     Widget pageContent = Scaffold(
       appBar: AppBar(
-        // ✅ (MODIFIED) اللون الأزرق السماوي الفاتح
         backgroundColor: Colors.lightBlue.shade300,
         elevation: 0,
         leading: Tooltip(
@@ -656,7 +661,6 @@ class _AddPageState extends State<AddPage> {
             ),
           ),
         ),
-        // ✅ (MODIFIED) تم إزالة الترحيب من هنا، ووضع عنوان عام أو شعار
         title: const Text(
             'لوحة التحكم',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)
@@ -711,13 +715,11 @@ class _AddPageState extends State<AddPage> {
           child: Container(
             height: 30.0,
             alignment: Alignment.center,
-            // ✅ (MODIFIED) اللون الأزرق السماوي (Cyan)
             color: Colors.cyan.shade600,
             child: SizedBox(
               width: double.infinity,
               child: AnimatedTextKit(
                 animatedTexts: [
-                  // ✅ (MODIFIED) النص الأول: المدة 1 ثانية (تقريباً)
                   RotateAnimatedText(
                     'في حالة وجود مشكلة التواصل',
                     textAlign: TextAlign.center,
@@ -729,7 +731,6 @@ class _AddPageState extends State<AddPage> {
                     ),
                     duration: const Duration(seconds: 1),
                   ),
-                  // ✅ (MODIFIED) النص الثاني: المبرمج ورقم التواصل
                   RotateAnimatedText(
                     '< > // مصطفي سعيد 966569064173',
                     textAlign: TextAlign.center,
@@ -739,11 +740,11 @@ class _AddPageState extends State<AddPage> {
                       color: Colors.white,
                       fontFamily: 'Cairo',
                     ),
-                    duration: const Duration(seconds: 3), // وقت أطول قليلاً لقراءة الرقم
+                    duration: const Duration(seconds: 3),
                   ),
                 ],
                 repeatForever: true,
-                pause: const Duration(milliseconds: 900), // توقف بسيط جداً بين التبديل
+                pause: const Duration(milliseconds: 900),
                 displayFullTextOnTap: true,
               ),
             ),
@@ -751,22 +752,27 @@ class _AddPageState extends State<AddPage> {
         ),
       ),
 
-
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _isExporting || _isMassExporting
-          ? Center(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 16),
-            Text(
-              _isExporting
-                  ? "جاري تصدير ملف الإدارة، قد يستغرق الأمر بعض الوقت..."
-                  : "جاري تجميع وتصدير الملف المجمع...",
-              textAlign: TextAlign.center,
-            )
-          ]))
-          : _buildTeacherDashboard(),
+      body: RefreshIndicator(
+        onRefresh: _onRefresh,
+        displacement: 40.0,
+        color: Colors.lightBlue.shade300,
+        backgroundColor: Colors.white,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _isExporting || _isMassExporting
+            ? Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                _isExporting
+                    ? "جاري تصدير ملف الإدارة، قد يستغرق الأمر بعض الوقت..."
+                    : "جاري تجميع وتصدير الملف المجمع...",
+                textAlign: TextAlign.center,
+              )
+            ]))
+            : _buildTeacherDashboard(),
+      ),
 
       floatingActionButton: null,
     );
@@ -788,19 +794,16 @@ class _AddPageState extends State<AddPage> {
   }
 
 
-  // ✅✅✅ دالة بناء واجهة المعلم المعدلة ✅✅✅
   Widget _buildTeacherDashboard() {
     final bool isGuest = _userProfession == 'gest';
     final bool showAdminFeatures = _isAdmin || isGuest;
     String jobTitle = _isAdmin ? 'مدير النظام' : 'معلم';
 
-    // تعريف مهلة الاتصال (70 ثانية) لحساب المتصلين
     final onlineThreshold = DateTime.now().subtract(const Duration(seconds: 70));
 
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        // --- الهيدر (التصميم العلوي) ---
         Container(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 25),
           decoration: BoxDecoration(
@@ -823,7 +826,6 @@ class _AddPageState extends State<AddPage> {
           ),
           child: Row(
             children: [
-              // الصورة الشخصية
               Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
@@ -848,7 +850,6 @@ class _AddPageState extends State<AddPage> {
                 ),
               ),
               const SizedBox(width: 12),
-              // الاسم والوظيفة
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -895,7 +896,6 @@ class _AddPageState extends State<AddPage> {
 
         const SizedBox(height: 20),
 
-        // --- شبكة الأزرار (تم دمج الأزرار الرقمية هنا) ---
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: GridView.count(
@@ -906,7 +906,6 @@ class _AddPageState extends State<AddPage> {
             mainAxisSpacing: 12,
             childAspectRatio: 0.75,
             children: [
-              // 1. زر متصل حالياً (يعرض الرقم)
               if (showAdminFeatures)
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
@@ -914,17 +913,15 @@ class _AddPageState extends State<AddPage> {
                       .where('lastSeen', isGreaterThan: Timestamp.fromDate(onlineThreshold))
                       .snapshots(),
                   builder: (context, snapshot) {
-                    // حالة الانتظار
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return _AnimatedGridButton(
                         title: 'متصل حالياً',
                         icon: Icons.wifi,
                         color: Colors.green.shade600,
                         onTap: () {},
-                        statCount: '...', // مؤشر
+                        statCount: '...',
                       );
                     }
-                    // عرض الرقم
                     final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
                     return _AnimatedGridButton(
                       title: 'متصل حالياً',
@@ -936,12 +933,11 @@ class _AddPageState extends State<AddPage> {
                           MaterialPageRoute(builder: (_) => const OnlineStudentsPage()),
                         );
                       },
-                      statCount: '$count', // تمرير الرقم
+                      statCount: '$count',
                     );
                   },
                 ),
 
-              // 2. زر الغياب (يعرض الرقم الإجمالي)
               if (showAdminFeatures)
                 FutureBuilder<AggregateQuerySnapshot>(
                   future: FirebaseFirestore.instance.collection('students').count().get(),
@@ -966,12 +962,11 @@ class _AddPageState extends State<AddPage> {
                           MaterialPageRoute(builder: (_) => const AbsenceStatsPage()),
                         );
                       },
-                      statCount: '$count', // تمرير الرقم
+                      statCount: '$count',
                     );
                   },
                 ),
 
-              // --- باقي الأزرار العادية ---
               _buildDashboardButton(
                 title: 'رصد الدرجات',
                 icon: Icons.edit_note,
@@ -1097,7 +1092,6 @@ class _AddPageState extends State<AddPage> {
   }
 
 
-  // --- ✅ استخدام الكلاس الجديد _AnimatedGridButton ---
   Widget _buildDashboardButton({
     required String title,
     required IconData icon,
@@ -1121,14 +1115,13 @@ class _AddPageState extends State<AddPage> {
   }
 }
 
-// --- ✅ الكلاس الجديد للأنيميشن والظل الناعم (معدل لدعم الأرقام) ---
 class _AnimatedGridButton extends StatefulWidget {
   final String title;
   final IconData icon;
   final String? assetPath;
   final Color color;
   final VoidCallback onTap;
-  final String? statCount; // متغير جديد لاستقبال الرقم
+  final String? statCount;
 
   const _AnimatedGridButton({
     required this.title,
@@ -1136,7 +1129,7 @@ class _AnimatedGridButton extends StatefulWidget {
     this.assetPath,
     required this.color,
     required this.onTap,
-    this.statCount, // استقبال الرقم
+    this.statCount,
   });
 
   @override
@@ -1152,7 +1145,7 @@ class _AnimatedGridButtonState extends State<_AnimatedGridButton> with SingleTic
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 100), // سرعة الانضغاط
+      duration: const Duration(milliseconds: 100),
       reverseDuration: const Duration(milliseconds: 100),
     );
     _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(
@@ -1211,12 +1204,11 @@ class _AnimatedGridButtonState extends State<_AnimatedGridButton> with SingleTic
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(18),
                   child: widget.statCount != null
-                  // --- إذا كان هناك رقم، اعرضه في المنتصف بشكل كبير ---
                       ? Center(
                     child: Text(
                       widget.statCount!,
                       style: const TextStyle(
-                          fontSize: 28, // خط كبير وواضح
+                          fontSize: 28,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                           shadows: [
@@ -1225,7 +1217,6 @@ class _AnimatedGridButtonState extends State<_AnimatedGridButton> with SingleTic
                       ),
                     ),
                   )
-                  // --- وإلا اعرض الصورة أو الأيقونة كالمعتاد ---
                       : (widget.assetPath != null
                       ? Image.asset(
                     widget.assetPath!,
@@ -1238,7 +1229,7 @@ class _AnimatedGridButtonState extends State<_AnimatedGridButton> with SingleTic
                 ),
               ),
             ),
-            const SizedBox(height: 8), // مسافة بين الأيقونة والنص
+            const SizedBox(height: 8),
             Text(
               widget.title,
               textAlign: TextAlign.center,
@@ -1256,8 +1247,6 @@ class _AnimatedGridButtonState extends State<_AnimatedGridButton> with SingleTic
     );
   }
 }
-
-// ... (باقي الكلاسات كما هي في الملف الأصلي، لا تغيير عليها)
 
 class GradeEntrySelectionPage extends StatefulWidget {
   final bool isBehaviorMode;
@@ -2670,7 +2659,6 @@ class _GradeCompletionAnalyticsPageState extends State<GradeCompletionAnalyticsP
     return classSubjectToTeacherName;
   }
 
-  // --- ✅ (تم الإصلاح) إضافة Future.delayed لمنع تجميد الواجهة ---
   Future<void> _runAnalytics() async {
     try {
       if (!mounted) return;
@@ -2694,14 +2682,12 @@ class _GradeCompletionAnalyticsPageState extends State<GradeCompletionAnalyticsP
         _loadingStatus = 'جاري تحليل البيانات وحساب النسب...';
       });
 
-      // السماح للواجهة بالتحديث
       await Future.delayed(const Duration(milliseconds: 100));
 
       final Map<String, List<SubjectCompletionResult>> finalResults = {};
 
       int processCounter = 0;
 
-      // (الحلقة الأولى: الاختبارات العادية)
       for (var groupEntry in _regularTestGroups.entries) {
         final groupName = groupEntry.key;
         final testPrefix = groupEntry.value;
@@ -2714,12 +2700,10 @@ class _GradeCompletionAnalyticsPageState extends State<GradeCompletionAnalyticsP
         };
 
         for (var student in allStudents) {
-          // --- 🔥 الحل السحري ---
           processCounter++;
           if (processCounter % 100 == 0) {
             await Future.delayed(Duration.zero);
           }
-          // --------------------
 
           final studentData = student.data() as Map<String, dynamic>;
           final classKey = "${studentData['stages']}-${studentData['grades']}-${studentData['classes']}";
@@ -2785,7 +2769,6 @@ class _GradeCompletionAnalyticsPageState extends State<GradeCompletionAnalyticsP
         finalResults[groupName] = results..sort((a, b) => b.percentage.compareTo(a.percentage));
       }
 
-      // (الحلقة الثانية: اختبارات نافس)
       processCounter = 0;
 
       for (var groupEntry in _nafesTestGroups.entries) {
@@ -2799,12 +2782,10 @@ class _GradeCompletionAnalyticsPageState extends State<GradeCompletionAnalyticsP
         };
 
         for (var student in allStudents) {
-          // --- 🔥 الحل السحري ---
           processCounter++;
           if (processCounter % 100 == 0) {
             await Future.delayed(Duration.zero);
           }
-          // --------------------
 
           final studentData = student.data() as Map<String, dynamic>;
           final grade = studentData['grades'] as String?;
@@ -3096,7 +3077,6 @@ class _GradeCompletionAnalyticsPageState extends State<GradeCompletionAnalyticsP
   }
 }
 
-// --- صفحة عرض إحصائيات الغياب (التي كانت في البطاقة سابقاً) ---
 class AbsenceStatsPage extends StatelessWidget {
   const AbsenceStatsPage({super.key});
 

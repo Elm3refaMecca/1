@@ -1,11 +1,11 @@
 // secondary_pages.dart
-// ✅ (FIXED) تم إصلاح مشكلة "الصورة المكسورة" بمعالجة بناء الرابط بشكل صحيح (استخدام & بدلاً من ? عند وجود توكن)
-// ✅ (FIXED) تم ضبط الصورة لتظهر كاملة في المنتصف (Contain) مع تصغيرها قليلاً (Padding 15)
-// ✅ (MODIFIED) الحد الأقصى 3 ميجا بايت مفعل
+// ✅ (COMPLETE) تم دمج جميع الصفحات (الجديدة والقديمة) في ملف واحد كامل
+// ✅ (MODIFIED) تم تحديث StudentProfilePage لتطابق تصميم هوية المعلم (Badge ID)
+// ✅ (MODIFIED) تم تحديث ProfilePage لتصميم الهوية الجديد مع إصلاح الصورة
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data'; // ضروري لقراءة الملفات في الويب
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:excel/excel.dart' hide Border;
@@ -20,7 +20,9 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_html/html.dart' as html;
 
-// --- 1. محتوى من: profile_page.dart (معدل بالكامل - هوية معلم) ---
+// ---------------------------------------------------------------------------
+// 1. ProfilePage (Teacher Badge ID) - هوية المعلم
+// ---------------------------------------------------------------------------
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -60,13 +62,12 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // ✅ دالة الرفع المعدلة والمصححة
   Future<void> _pickAndUploadImage() async {
     try {
       final picker = ImagePicker();
       final XFile? pickedFile = await picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 85, // جودة جيدة
+        imageQuality: 85,
         maxWidth: 800,
       );
 
@@ -76,7 +77,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
       Uint8List fileBytes = await pickedFile.readAsBytes();
 
-      // 1. التحقق من الحجم (3 ميجا)
       const int maxFileSize = 3 * 1024 * 1024;
       if (fileBytes.length > maxFileSize) {
         if (mounted) {
@@ -88,21 +88,15 @@ class _ProfilePageState extends State<ProfilePage> {
         return;
       }
 
-      // 2. الرفع (استخدام اسم ثابت للملف لتجنب التكرار)
       final String fileName = '${_user!.uid}.jpg';
       final ref = FirebaseStorage.instance.ref().child('photosT').child(fileName);
 
       await ref.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
 
-      // 3. الحصول على الرابط وتصحيحه (الحل لمشكلة الصورة المكسورة)
       String url = await ref.getDownloadURL();
-
-      // ✅✅✅ التصحيح الجوهري: نتحقق هل الرابط يحتوي على علامات استفهام مسبقاً أم لا
-      // إذا كان الرابط يحتوي على '?' فهذا يعني وجود توكن، لذا نستخدم '&' للفصل
       final String separator = url.contains('?') ? '&' : '?';
       final String uniqueUrl = '$url${separator}v=${DateTime.now().millisecondsSinceEpoch}';
 
-      // 4. الحفظ في قاعدة البيانات
       await FirebaseFirestore.instance.collection('users').doc(_user!.uid).set(
         {'photo': uniqueUrl},
         SetOptions(merge: true),
@@ -211,7 +205,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ),
 
-                          // ✅✅✅ قسم الصورة المصحح بالكامل ✅✅✅
+                          // الصورة
                           Positioned(
                             bottom: 0,
                             child: Stack(
@@ -238,12 +232,10 @@ class _ProfilePageState extends State<ProfilePage> {
                                         : (hasImage
                                         ? Container(
                                       color: Colors.white,
-                                      // ✅ Padding 15: يصغر الصورة عن الحواف فتظهر وكأنها في منتصف الدائرة البيضاء
                                       padding: const EdgeInsets.all(15.0),
                                       child: Image.network(
                                         photoUrl,
-                                        key: ValueKey(photoUrl), // تحديث عند تغيير الرابط
-                                        // ✅ Contain: يضمن ظهور الصورة كاملة دون قص أي جزء منها
+                                        key: ValueKey(photoUrl),
                                         fit: BoxFit.contain,
                                         loadingBuilder: (context, child, loadingProgress) {
                                           if (loadingProgress == null) return child;
@@ -265,7 +257,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                   ),
                                 ),
 
-                                // زر الكاميرا
                                 GestureDetector(
                                   onTap: _isUploading ? null : _pickAndUploadImage,
                                   child: Container(
@@ -286,7 +277,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     const SizedBox(height: 10),
 
-                    // باقي المعلومات
+                    // المعلومات
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Column(
@@ -486,7 +477,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
-// --- 2. محتوى من: grade_entry_page.dart ---
+// ---------------------------------------------------------------------------
+// 2. GradeEntryPage
+// ---------------------------------------------------------------------------
 
 class GradeEntryPage extends StatefulWidget {
   final String stage;
@@ -556,8 +549,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         final data = studentDoc.data() as Map<String, dynamic>?;
         final studentId = studentDoc.id;
         // Fetch the specific grade for the current test
-        final score = data?[widget.testFieldKey];
-        grades[studentId] = score; // Can be null if not graded yet
+        grades[studentId] = data?[widget.testFieldKey];
 
         // Fetch behavior counts
         likes[studentId] = data?['totalLikes'] ?? 0;
@@ -1336,7 +1328,9 @@ extension on Sheet {
   }
 }
 
-// --- 3. محتوى من: teacher_profile_view_page.dart ---
+// ---------------------------------------------------------------------------
+// 3. TeacherProfileViewPage
+// ---------------------------------------------------------------------------
 
 class TeacherProfileViewPage extends StatelessWidget {
   final String teacherId;
@@ -1398,17 +1392,17 @@ class TeacherProfileViewPage extends StatelessWidget {
                       const SizedBox(height: 20),
                       Text(name, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 24),
-                      _buildInfoRowTeacher(Icons.work_outline, 'المادة الأساسية', profession1),
+                      _buildInfoRowTeacher(context, Icons.work_outline, 'المادة الأساسية', profession1),
                       if (profession2 != null && profession2.isNotEmpty) ...[
                         const Divider(),
-                        _buildInfoRowTeacher(Icons.work_outline, 'المادة الثانية', profession2),
+                        _buildInfoRowTeacher(context, Icons.work_outline, 'المادة الثانية', profession2),
                       ],
                       if (profession3 != null && profession3.isNotEmpty) ...[
                         const Divider(),
-                        _buildInfoRowTeacher(Icons.work_outline, 'المادة الثالثة', profession3),
+                        _buildInfoRowTeacher(context, Icons.work_outline, 'المادة الثالثة', profession3),
                       ],
                       const Divider(),
-                      _buildInfoRowTeacher(Icons.phone_outlined, 'للتواصل', phoneNumber),
+                      _buildInfoRowTeacher(context, Icons.phone_outlined, 'للتواصل', phoneNumber),
                     ],
                   ),
                 ),
@@ -1420,27 +1414,25 @@ class TeacherProfileViewPage extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoRowTeacher(IconData icon, String label, String value) {
-    return Builder(
-        builder: (context) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12.0),
-            child: Row(
-              children: [
-                Icon(icon, color: Theme.of(context).primaryColor),
-                const SizedBox(width: 16),
-                Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(width: 8),
-                Expanded(child: Text(value, style: TextStyle(color: Colors.grey.shade800, fontSize: 16))),
-              ],
-            ),
-          );
-        }
+  Widget _buildInfoRowTeacher(BuildContext context, IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12.0),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).primaryColor),
+          const SizedBox(width: 16),
+          Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(width: 8),
+          Expanded(child: Text(value, style: TextStyle(color: Colors.grey.shade800, fontSize: 16))),
+        ],
+      ),
     );
   }
 }
 
-// --- 4. محتوى من: test_selection_page.dart ---
+// ---------------------------------------------------------------------------
+// 4. TestSelectionPage
+// ---------------------------------------------------------------------------
 
 class TestItem {
   final String testFieldKey;
@@ -1744,7 +1736,9 @@ class __TestTileState extends State<_TestTile> {
   }
 }
 
-// --- 5. محتوى من: online_students_page.dart ---
+// ---------------------------------------------------------------------------
+// 5. OnlineStudentsPage
+// ---------------------------------------------------------------------------
 
 class OnlineStudentsPage extends StatelessWidget {
   const OnlineStudentsPage({super.key});
@@ -2014,7 +2008,9 @@ class OnlineStudentsPage extends StatelessWidget {
   }
 }
 
-// --- 6. محتوى من: student_profile_page.dart ---
+// ---------------------------------------------------------------------------
+// 6. StudentProfilePage (Student Badge ID) - هوية الطالب
+// ---------------------------------------------------------------------------
 
 class StudentProfilePage extends StatefulWidget {
   const StudentProfilePage({super.key});
@@ -2027,6 +2023,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
   final User? _user = FirebaseAuth.instance.currentUser;
   Map<String, dynamic>? _studentData;
   bool _isLoading = true;
+  bool _isUploading = false; // في حال أردت السماح للطالب برفع صورة مستقبلاً
 
   @override
   void initState() {
@@ -2061,76 +2058,273 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final Color primaryColor = Theme.of(context).primaryColor;
+    final String? photoUrl = _studentData?['photo'];
+    final bool hasImage = photoUrl != null && photoUrl.isNotEmpty;
 
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('الملف الشخصي للطالب'),
+        title: const Text('هوية الطالب', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black87),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _user == null
-          ? const Center(child: Text('الرجاء تسجيل الدخول لعرض الملف الشخصي.'))
-          : _studentData == null
-          ? const Center(child: Text('لم يتم العثور على بيانات الطالب.'))
-          : ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: primaryColor.withOpacity(0.1),
-                    child: Icon(Icons.person_pin, size: 60, color: primaryColor),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    _studentData?['name'] ?? 'اسم غير متوفر',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    _user?.email ?? 'بريد إلكتروني غير متوفر',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 24),
-                  _buildInfoRowStudent(Icons.email_outlined, 'البريد الإلكتروني', _user?.email ?? 'غير متوفر'),
-                  const Divider(),
-                  _buildInfoRowStudent(Icons.phone_outlined, 'هاتف ولي الأمر', _studentData?['guardian_phone'] ?? 'غير متوفر'),
-                  const Divider(),
-                  _buildInfoRowStudent(Icons.layers_outlined, 'المرحلة', _studentData?['stages'] ?? 'غير متوفر'),
-                  const Divider(),
-                  _buildInfoRowStudent(Icons.school_outlined, 'الصف', _studentData?['grades'] ?? 'غير متوفر'),
-                  const Divider(),
-                  _buildInfoRowStudent(Icons.class_outlined, 'الفصل', _studentData?['classes'] ?? 'غير متوفر'),
-                ],
+          ? const Center(child: Text('الرجاء تسجيل الدخول.'))
+          : Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Column(
+            children: [
+              Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(maxWidth: 400),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      spreadRadius: 5,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // الرأس
+                    SizedBox(
+                      height: 190,
+                      child: Stack(
+                        alignment: Alignment.topCenter,
+                        children: [
+                          // الخلفية (لون مختلف قليلاً للطالب لتمييزه)
+                          Container(
+                            height: 140,
+                            decoration: BoxDecoration(
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(25),
+                                topRight: Radius.circular(25),
+                              ),
+                              gradient: LinearGradient(
+                                colors: [Colors.green.shade800, Colors.teal.shade600],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                          ),
+
+                          Positioned(
+                            right: -20,
+                            top: -20,
+                            child: Icon(Icons.school, size: 150, color: Colors.white.withOpacity(0.1)),
+                          ),
+                          const Positioned(
+                            top: 20,
+                            child: Text(
+                              "STUDENT ID",
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                                letterSpacing: 3,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+
+                          // الصورة
+                          Positioned(
+                            bottom: 0,
+                            child: Container(
+                              width: 130,
+                              height: 130,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 4),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 5),
+                                  )
+                                ],
+                              ),
+                              child: ClipOval(
+                                child: hasImage
+                                    ? Container(
+                                  color: Colors.white,
+                                  padding: const EdgeInsets.all(15.0),
+                                  child: Image.network(
+                                    photoUrl,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Icon(Icons.broken_image, size: 50, color: Colors.grey.shade400);
+                                    },
+                                  ),
+                                )
+                                    : Icon(Icons.person, size: 70, color: Colors.grey.shade400),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // المعلومات الرئيسية
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Column(
+                        children: [
+                          Text(
+                            _studentData?['name'] ?? 'الاسم غير متوفر',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              'طالب منتظم',
+                              style: TextStyle(
+                                color: Colors.green.shade800,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // التفاصيل
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        children: [
+                          _buildDetailRow(Icons.email_outlined, 'البريد الإلكتروني', _user?.email ?? '-'),
+                          const Divider(height: 24),
+                          _buildDetailRow(Icons.phone_outlined, 'هاتف ولي الأمر', _studentData?['guardian_phone'] ?? '-', canCopy: true),
+                          const Divider(height: 24),
+                          _buildDetailRow(Icons.layers_outlined, 'المرحلة الدراسية', _studentData?['stages'] ?? '-'),
+                          const Divider(height: 24),
+                          _buildDetailRow(Icons.class_outlined, 'الصف والفصل', "${_studentData?['grades'] ?? ''} - ${_studentData?['classes'] ?? ''}"),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // تذييل البطاقة
+                    Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(25),
+                          bottomRight: Radius.circular(25),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(30, (index) {
+                          return Container(
+                            width: index % 2 == 0 ? 2 : 4,
+                            height: 25,
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            color: Colors.black12,
+                          );
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 20),
+              const Text(
+                "المملكة العربية السعودية - ابتدائية المعرفة بمكة المكرمة",
+                style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildInfoRowStudent(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Row(
-        children: [
-          Icon(icon, color: Theme.of(context).primaryColor),
-          const SizedBox(width: 16),
-          Text('$label:', style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(value, style: TextStyle(color: Colors.grey.shade800, fontSize: 16))),
-        ],
-      ),
+  Widget _buildDetailRow(IconData icon, String title, String value, {bool canCopy = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: Colors.teal.shade700, size: 20),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 2),
+              InkWell(
+                onTap: canCopy ? () {
+                  if (value != '-' && value.isNotEmpty) {
+                    Clipboard.setData(ClipboardData(text: value));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('تم النسخ'), backgroundColor: Colors.green, duration: Duration(seconds: 1)),
+                    );
+                  }
+                } : null,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      value,
+                      style: const TextStyle(color: Colors.black87, fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+                    if (canCopy && value != '-' && value.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: Icon(Icons.copy, size: 14, color: Colors.teal.shade300),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-// --- 7. محتوى من: noble_student_page.dart ---
+// ---------------------------------------------------------------------------
+// 7. NobleStudentPage
+// ---------------------------------------------------------------------------
 
 class NobleStudentPage extends StatefulWidget {
   final String stage;
