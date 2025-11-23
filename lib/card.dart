@@ -1,13 +1,14 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart'; // ✅ مكتبة الباركود
 
 // ---------------------------------------------------------------------------
-// 1. اللوحة الرئيسية (Dashboard) - تخطيط شبكي متراص (Grid)
+// 1. اللوحة الرئيسية (Dashboard)
 // ---------------------------------------------------------------------------
 
 class VisaManagementPage extends StatelessWidget {
@@ -15,7 +16,6 @@ class VisaManagementPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // الألوان الباردة (Cold Theme)
     final Color appBarColor = Colors.lightBlue.shade300;
     final Color backgroundColor = const Color(0xFFE1F5FE);
 
@@ -34,16 +34,15 @@ class VisaManagementPage extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      // ✅ استخدام Directionality لضمان البدء من اليمين
       body: Directionality(
         textDirection: ui.TextDirection.rtl,
         child: Padding(
-          padding: const EdgeInsets.all(12.0), // تقليل الحواف لاستغلال المساحة
+          padding: const EdgeInsets.all(12.0),
           child: GridView.count(
-            crossAxisCount: 2, // عنصرين في كل صف
-            crossAxisSpacing: 12, // مسافة أفقية صغيرة
-            mainAxisSpacing: 12, // مسافة رأسية صغيرة
-            childAspectRatio: 1.1, // نسبة العرض للارتفاع (مربع تقريباً)
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.1,
             children: [
               _buildGridCard(
                 context,
@@ -105,7 +104,7 @@ class VisaManagementPage extends StatelessWidget {
               title,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 16, // تكبير الخط قليلاً لملء المساحة
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: Colors.grey.shade800,
               ),
@@ -328,7 +327,7 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
 }
 
 // ---------------------------------------------------------------------------
-// 3. المخزن (Store) - مع ماسح الباركود الاحترافي
+// 3. المخزن (Store) - إدارة المنتجات بالكاميرا و Firebase
 // ---------------------------------------------------------------------------
 
 class StoreManagementPage extends StatefulWidget {
@@ -339,35 +338,48 @@ class StoreManagementPage extends StatefulWidget {
 }
 
 class _StoreManagementPageState extends State<StoreManagementPage> {
+  // ✅ الاتصال بـ Firebase Firestore
   final CollectionReference _productsRef = FirebaseFirestore.instance.collection('products');
 
-  // ✅ دالة فتح الكاميرا للمسح
+  // ✅ دالة فتح الكاميرا لمسح الباركود
   Future<String?> _scanBarcode(BuildContext context) async {
-    String? code;
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: const Text('مسح الباركود'), backgroundColor: Colors.black),
-          body: MobileScanner(
-            controller: MobileScannerController(
-              detectionSpeed: DetectionSpeed.noDuplicates,
-              returnImage: false,
+    // إذا كان الويب، قد لا تعمل الكاميرا بنفس الكفاءة
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المسح بالكاميرا مدعوم بشكل أفضل على الجوال')));
+      return null;
+    }
+
+    String? scannedCode;
+    try {
+      scannedCode = await Navigator.push<String>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            appBar: AppBar(title: const Text('امسح الباركود'), backgroundColor: Colors.black, iconTheme: const IconThemeData(color: Colors.white)),
+            body: MobileScanner(
+              controller: MobileScannerController(
+                detectionSpeed: DetectionSpeed.noDuplicates,
+                returnImage: false,
+              ),
+              onDetect: (capture) {
+                final List<Barcode> barcodes = capture.barcodes;
+                if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+                  final code = barcodes.first.rawValue!;
+                  debugPrint('Barcode found! $code');
+                  Navigator.pop(context, code); // إرجاع الكود وإغلاق الكاميرا
+                }
+              },
             ),
-            onDetect: (capture) {
-              final List<Barcode> barcodes = capture.barcodes;
-              if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
-                code = barcodes.first.rawValue;
-                Navigator.pop(context); // العودة بالكود
-              }
-            },
           ),
         ),
-      ),
-    );
-    return code;
+      );
+    } catch (e) {
+      debugPrint('Error scanning barcode: $e');
+    }
+    return scannedCode;
   }
 
+  // ✅ نافذة إضافة/تعديل المنتج
   void _showProductDialog({DocumentSnapshot? product}) {
     final nameController = TextEditingController(text: product?['name']);
     final priceController = TextEditingController(text: product?['price']?.toString());
@@ -387,7 +399,7 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(product == null ? 'إضافة منتج جديد' : 'تعديل المنتج', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
+                Text(product == null ? 'إضافة منتج جديد' : 'تعديل المخزون', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
                 IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
               ],
             ),
@@ -421,8 +433,9 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                     controller: stockController,
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
-                      labelText: 'الكمية',
-                      prefixIcon: const Icon(Icons.numbers),
+                      labelText: 'العدد (الكمية)',
+                      hintText: 'الكمية المتوفرة',
+                      prefixIcon: const Icon(Icons.exposure),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
@@ -436,24 +449,28 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                   child: TextField(
                     controller: serialController,
                     decoration: InputDecoration(
-                      labelText: 'رقم السيريال / الباركود',
+                      labelText: 'الباركود (السيريال)',
                       prefixIcon: const Icon(Icons.qr_code),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
-                // ✅ زر المسح الضوئي
-                Container(
-                  decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(12)),
-                  child: IconButton(
-                    icon: const Icon(Icons.camera_alt, color: Colors.blue),
-                    onPressed: () async {
-                      String? scannedCode = await _scanBarcode(context);
-                      if (scannedCode != null) {
-                        serialController.text = scannedCode;
-                      }
-                    },
+                // ✅ زر الكاميرا لمسح الباركود
+                Tooltip(
+                  message: 'اضغط للمسح بالكاميرا',
+                  child: Container(
+                    decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(12)),
+                    child: IconButton(
+                      icon: const Icon(Icons.camera_alt, color: Colors.blue),
+                      onPressed: () async {
+                        String? scannedCode = await _scanBarcode(context);
+                        if (scannedCode != null) {
+                          serialController.text = scannedCode;
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم مسح الباركود بنجاح!'), backgroundColor: Colors.green));
+                        }
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -469,19 +486,37 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () async {
-                  if (nameController.text.isEmpty || priceController.text.isEmpty) return;
+                  if (nameController.text.isEmpty || priceController.text.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال الاسم والسعر')));
+                    return;
+                  }
+
+                  // تجهيز البيانات للرفع
                   final data = {
                     'name': nameController.text,
                     'price': double.tryParse(priceController.text) ?? 0.0,
                     'stock': int.tryParse(stockController.text) ?? 0,
-                    'serial': serialController.text,
+                    'serial': serialController.text, // الباركود
                     'updatedAt': FieldValue.serverTimestamp(),
                   };
-                  if (product == null) await _productsRef.add(data);
-                  else await _productsRef.doc(product.id).update(data);
-                  if (mounted) Navigator.pop(context);
+
+                  try {
+                    if (product == null) {
+                      // إضافة منتج جديد
+                      await _productsRef.add(data);
+                    } else {
+                      // تعديل منتج موجود
+                      await _productsRef.doc(product.id).update(data);
+                    }
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الحفظ بنجاح'), backgroundColor: Colors.green));
+                    }
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red));
+                  }
                 },
-                child: const Text('حفظ البيانات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text('حفظ المنتج', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 20),
@@ -496,7 +531,7 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFE1F5FE),
       appBar: AppBar(
-        title: const Text('إدارة المخزن'),
+        title: const Text('إدارة المخزن والمنتجات'),
         backgroundColor: Colors.lightBlue.shade400,
         elevation: 0,
       ),
@@ -510,6 +545,7 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
         textDirection: ui.TextDirection.rtl,
         child: Column(
           children: [
+            // إحصائيات سريعة
             StreamBuilder<QuerySnapshot>(
               stream: _productsRef.snapshots(),
               builder: (context, snapshot) {
@@ -536,14 +572,14 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('إجمالي المنتجات', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          const Text('إجمالي قطع المخزن', style: TextStyle(color: Colors.grey, fontSize: 12)),
                           Text('$totalItems قطعة', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         ],
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Text('قيمة المخزون', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          const Text('القيمة الإجمالية', style: TextStyle(color: Colors.grey, fontSize: 12)),
                           Text('${totalValue.toStringAsFixed(2)} ريال', style: TextStyle(color: Colors.lightBlue.shade800, fontSize: 18, fontWeight: FontWeight.bold)),
                         ],
                       ),
@@ -552,11 +588,23 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                 );
               },
             ),
+            // قائمة المنتجات من Firestore
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _productsRef.orderBy('name').snapshots(),
                 builder: (context, snapshot) {
+                  if (snapshot.hasError) return const Center(child: Text('حدث خطأ في تحميل البيانات'));
                   if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  if (snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.inventory_2_outlined, size: 60, color: Colors.grey),
+                        Text('المخزن فارغ', style: TextStyle(color: Colors.grey)),
+                      ],
+                    ));
+                  }
+
                   return ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     itemCount: snapshot.data!.docs.length,
@@ -584,20 +632,33 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                             children: [
                               const SizedBox(height: 4),
                               Text('السعر: ${data['price']} ريال', style: TextStyle(color: Colors.grey.shade700)),
-                              Text(stock < 5 ? '⚠️ الكمية منخفضة: $stock' : 'الكمية: $stock',
+                              Text(stock < 5 ? '⚠️ الكمية منخفضة: $stock' : 'المتبقي: $stock',
                                   style: TextStyle(color: stock < 5 ? Colors.red : Colors.green, fontSize: 12)),
                               if (data['serial'] != null && data['serial'].toString().isNotEmpty)
-                                Text('Barcode: ${data['serial']}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                Text('كود: ${data['serial']}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
                             ],
                           ),
                           trailing: PopupMenuButton(
                             onSelected: (value) {
                               if (value == 'edit') _showProductDialog(product: doc);
-                              if (value == 'delete') doc.reference.delete();
+                              if (value == 'delete') {
+                                // تأكيد الحذف
+                                showDialog(context: context, builder: (ctx) => AlertDialog(
+                                  title: const Text('تأكيد الحذف'),
+                                  content: Text('هل أنت متأكد من حذف ${data['name']}؟'),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                                    ElevatedButton(onPressed: () {
+                                      doc.reference.delete();
+                                      Navigator.pop(ctx);
+                                    }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('حذف')),
+                                  ],
+                                ));
+                              }
                             },
                             itemBuilder: (context) => [
-                              const PopupMenuItem(value: 'edit', child: Text('تعديل')),
-                              const PopupMenuItem(value: 'delete', child: Text('حذف', style: TextStyle(color: Colors.red))),
+                              const PopupMenuItem(value: 'edit', child: Text('تعديل / جرد')),
+                              const PopupMenuItem(value: 'delete', child: Text('حذف المنتج', style: TextStyle(color: Colors.red))),
                             ],
                           ),
                         ),
@@ -633,9 +694,8 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
   double _totalAmount = 0.0;
   bool _isLoadingStudent = false;
 
-  // ✅ مسح الفيزا بالكاميرا
   Future<void> _scanVisa(BuildContext context) async {
-    await Navigator.push(
+    final scanned = await Navigator.push<String>(
       context,
       MaterialPageRoute(
         builder: (context) => Scaffold(
@@ -645,15 +705,18 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
               final List<Barcode> barcodes = capture.barcodes;
               if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
                 final code = barcodes.first.rawValue!;
-                Navigator.pop(context);
-                _visaController.text = code;
-                _findStudentByVisa(code);
+                Navigator.pop(context, code);
               }
             },
           ),
         ),
       ),
     );
+
+    if (scanned != null) {
+      _visaController.text = scanned;
+      _findStudentByVisa(scanned);
+    }
   }
 
   Future<void> _findStudentByVisa(String code) async {
