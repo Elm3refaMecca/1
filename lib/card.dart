@@ -1,375 +1,949 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // ✅ ضروري للتحقق من كلمة المرور
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'package:mobile_scanner/mobile_scanner.dart'; // ✅ مكتبة الباركود
 
-class VisaManagementPage extends StatefulWidget {
+// ---------------------------------------------------------------------------
+// 1. اللوحة الرئيسية (Dashboard) - تخطيط شبكي متراص (Grid)
+// ---------------------------------------------------------------------------
+
+class VisaManagementPage extends StatelessWidget {
   const VisaManagementPage({super.key});
 
   @override
-  State<VisaManagementPage> createState() => _VisaManagementPageState();
+  Widget build(BuildContext context) {
+    // الألوان الباردة (Cold Theme)
+    final Color appBarColor = Colors.lightBlue.shade300;
+    final Color backgroundColor = const Color(0xFFE1F5FE);
+
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        title: const Text(
+          'نظام المقصف والفيزا',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+        ),
+        centerTitle: true,
+        backgroundColor: appBarColor,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      ),
+      // ✅ استخدام Directionality لضمان البدء من اليمين
+      body: Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0), // تقليل الحواف لاستغلال المساحة
+          child: GridView.count(
+            crossAxisCount: 2, // عنصرين في كل صف
+            crossAxisSpacing: 12, // مسافة أفقية صغيرة
+            mainAxisSpacing: 12, // مسافة رأسية صغيرة
+            childAspectRatio: 1.1, // نسبة العرض للارتفاع (مربع تقريباً)
+            children: [
+              _buildGridCard(
+                context,
+                'إصدار الفيزا',
+                Icons.qr_code_scanner_rounded,
+                Colors.cyan,
+                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VisaGenerationView())),
+              ),
+              _buildGridCard(
+                context,
+                'المخزن',
+                Icons.store_mall_directory_rounded,
+                Colors.lightBlue,
+                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StoreManagementPage())),
+              ),
+              _buildGridCard(
+                context,
+                'نقطة البيع',
+                Icons.point_of_sale_rounded,
+                Colors.teal,
+                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CanteenPOSPage())),
+              ),
+              _buildGridCard(
+                context,
+                'التقارير',
+                Icons.analytics_rounded,
+                Colors.blueGrey,
+                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VisaAnalyticsPage())),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridCard(BuildContext context, String title, IconData icon, MaterialColor color, VoidCallback onTap) {
+    return Card(
+      elevation: 3,
+      shadowColor: color.withOpacity(0.3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      color: Colors.white,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: color.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 40, color: color.shade600),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16, // تكبير الخط قليلاً لملء المساحة
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-class _VisaManagementPageState extends State<VisaManagementPage> {
-  bool _isProcessing = false;
+// ---------------------------------------------------------------------------
+// 2. صفحة إصدار الفيزا (Visa Generation)
+// ---------------------------------------------------------------------------
+
+class VisaGenerationView extends StatefulWidget {
+  const VisaGenerationView({super.key});
+
+  @override
+  State<VisaGenerationView> createState() => _VisaGenerationViewState();
+}
+
+class _VisaGenerationViewState extends State<VisaGenerationView> {
   final TextEditingController _searchController = TextEditingController();
   List<DocumentSnapshot> _searchResults = [];
   bool _isSearching = false;
+  bool _isProcessing = false;
 
-  // دالة توليد كود عشوائي (16 خانة)
   String _generateRandomVisaCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     final random = Random();
     return List.generate(16, (index) => chars[random.nextInt(chars.length)]).join();
   }
 
-  // --- الجزء الأول: التوليد الجماعي ---
   Future<void> _handleBulkGeneration() async {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(children: [Icon(Icons.groups, color: Colors.deepPurple), SizedBox(width: 8), Text('إصدار جماعي')]),
-        content: const Text(
-          'سيتم إنشاء كود فيزا (QR) لكل طالب جديد لا يملك واحداً.\n'
-              'الطلاب الذين لديهم كود مسبقاً لن يتأثروا.\n\n'
-              'هل تريد المتابعة؟',
-        ),
+        title: const Text('توليد جماعي'),
+        content: const Text('سيتم إنشاء كود فيزا لكل طالب جديد لا يملك واحداً.\nهل أنت متأكد؟'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('ابدأ المعالجة')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('تأكيد')),
         ],
       ),
     );
 
     if (confirm != true) return;
-
     setState(() => _isProcessing = true);
 
     try {
       final studentsSnapshot = await FirebaseFirestore.instance.collection('students').get();
-      final allStudents = studentsSnapshot.docs;
-      int updatedCount = 0;
-      int skippedCount = 0;
-
       WriteBatch batch = FirebaseFirestore.instance.batch();
-      int batchCounter = 0;
+      int counter = 0;
+      int updated = 0;
 
-      for (var doc in allStudents) {
-        final data = doc.data();
-        if (data['visaCode'] == null || data['visaCode'].toString().isEmpty) {
-          final String newCode = _generateRandomVisaCode();
-          batch.update(doc.reference, {'visaCode': newCode});
-          updatedCount++;
-          batchCounter++;
-        } else {
-          skippedCount++;
+      for (var doc in studentsSnapshot.docs) {
+        if (doc.data()['visaCode'] == null || doc.data()['visaCode'].toString().isEmpty) {
+          batch.update(doc.reference, {'visaCode': _generateRandomVisaCode(), 'walletBalance': 0.0});
+          updated++;
+          counter++;
         }
-
-        if (batchCounter >= 400) {
+        if (counter >= 400) {
           await batch.commit();
           batch = FirebaseFirestore.instance.batch();
-          batchCounter = 0;
+          counter = 0;
         }
       }
-
-      if (batchCounter > 0) {
-        await batch.commit();
-      }
+      if (counter > 0) await batch.commit();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تمت العملية!\nتم إصدار $updatedCount فيزا جديدة.\nتم تخطي $skippedCount طالب.'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم إصدار $updated فيزا جديدة'), backgroundColor: Colors.cyan));
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
   }
 
-  // --- الجزء الثاني: البحث والتعديل الفردي ---
   Future<void> _searchStudent(String query) async {
     if (query.isEmpty) {
-      setState(() {
-        _searchResults = [];
-        _isSearching = false;
-      });
+      setState(() { _searchResults = []; _isSearching = false; });
       return;
     }
-
     setState(() => _isSearching = true);
-
     try {
-      final nameQuery = await FirebaseFirestore.instance
+      final res = await FirebaseFirestore.instance
           .collection('students')
           .where('name', isGreaterThanOrEqualTo: query)
           .where('name', isLessThanOrEqualTo: '$query\uf8ff')
           .get();
-
-      setState(() {
-        _searchResults = nameQuery.docs;
-        _isSearching = false;
-      });
+      setState(() { _searchResults = res.docs; _isSearching = false; });
     } catch (e) {
       setState(() => _isSearching = false);
     }
   }
 
-  // ✅✅✅ التعديل الجذري هنا: التحقق من كلمة مرور الحساب ✅✅✅
-  Future<void> _showChangeCodeDialog(String studentId, String studentName) async {
-    final passwordController = TextEditingController(); // تغيير الاسم ليعكس المحتوى
-    final formKey = GlobalKey<FormState>();
-    bool isVerifying = false;
-
+  Future<void> _addMoneyToWallet(String studentId, String name, double currentBalance) async {
+    final amountController = TextEditingController();
     await showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              title: const Row(
-                children: [
-                  Icon(Icons.lock_reset, color: Colors.red),
-                  SizedBox(width: 10),
-                  Text('تأكيد أمني مطلوب', style: TextStyle(fontSize: 18)),
-                ],
-              ),
-              content: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('أنت على وشك تغيير كود الفيزا للطالب: $studentName', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'الرجاء إدخال كلمة المرور الخاصة بحسابك (الأدمن) للمتابعة.',
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: passwordController,
-                      keyboardType: TextInputType.visiblePassword, // السماح بالحروف والأرقام
-                      obscureText: true,
-                      decoration: const InputDecoration(
-                        labelText: 'كلمة مرور الحساب',
-                        hintText: 'أدخل كلمة مرور دخولك للتطبيق',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.vpn_key),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'كلمة المرور مطلوبة';
-                        return null;
-                      },
-                    ),
-                    if (isVerifying) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isVerifying ? null : () => Navigator.pop(context),
-                  child: const Text('إلغاء'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                  onPressed: isVerifying ? null : () async {
-                    if (formKey.currentState!.validate()) {
-                      setDialogState(() => isVerifying = true);
-
-                      try {
-                        // 1. الحصول على المستخدم الحالي
-                        final user = FirebaseAuth.instance.currentUser;
-                        if (user == null || user.email == null) {
-                          throw FirebaseAuthException(code: 'no-user', message: 'المستخدم غير مسجل دخول');
-                        }
-
-                        // 2. إنشاء اعتماد (Credential) بكلمة المرور المدخلة
-                        final credential = EmailAuthProvider.credential(
-                          email: user.email!,
-                          password: passwordController.text.trim(),
-                        );
-
-                        // 3. محاولة إعادة المصادقة (Re-authenticate)
-                        // إذا كانت كلمة المرور خطأ، سيتم رمي استثناء (Error) هنا
-                        await user.reauthenticateWithCredential(credential);
-
-                        // 4. إذا وصلنا هنا، فكلمة المرور صحيحة -> تنفيذ التغيير
-                        final String newCode = _generateRandomVisaCode();
-                        await FirebaseFirestore.instance.collection('students').doc(studentId).update({
-                          'visaCode': newCode,
-                        });
-
-                        if (mounted) {
-                          Navigator.pop(context); // إغلاق الديالوج
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('تم تغيير رمز الفيزا للطالب $studentName بنجاح!'), backgroundColor: Colors.green),
-                          );
-                          // تحديث القائمة
-                          if (_searchController.text.isNotEmpty) {
-                            _searchStudent(_searchController.text);
-                          }
-                        }
-
-                      } on FirebaseAuthException catch (e) {
-                        setDialogState(() => isVerifying = false);
-                        String errorMessage = 'حدث خطأ ما';
-                        if (e.code == 'wrong-password') {
-                          errorMessage = 'كلمة المرور غير صحيحة!';
-                        } else if (e.code == 'too-many-requests') {
-                          errorMessage = 'محاولات كثيرة جداً، يرجى الانتظار قليلاً';
-                        } else {
-                          errorMessage = 'خطأ: ${e.message}';
-                        }
-
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
-                          );
-                        }
-                      } catch (e) {
-                        setDialogState(() => isVerifying = false);
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ غير متوقع: $e'), backgroundColor: Colors.red));
-                        }
-                      }
-                    }
-                  },
-                  child: const Text('تأكيد وتغيير'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (context) => AlertDialog(
+        title: Text('شحن رصيد: $name'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('الرصيد الحالي: ${currentBalance.toStringAsFixed(2)} ريال'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'المبلغ', suffixText: 'ريال', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan.shade600, foregroundColor: Colors.white),
+            onPressed: () async {
+              final double? amount = double.tryParse(amountController.text);
+              if (amount != null && amount > 0) {
+                await FirebaseFirestore.instance.collection('students').doc(studentId).update({
+                  'walletBalance': FieldValue.increment(amount)
+                });
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الشحن بنجاح'), backgroundColor: Colors.cyan));
+                  _searchStudent(_searchController.text);
+                }
+              }
+            },
+            child: const Text('إضافة'),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFE0F7FA),
       appBar: AppBar(
-        title: const Text('إدارة فيزا الطلاب'),
-        backgroundColor: Colors.deepPurple,
+        title: const Text('إصدار وتعديل الفيزا'),
+        backgroundColor: Colors.cyan.shade600,
+        elevation: 0,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+      body: Directionality(
+        textDirection: ui.TextDirection.rtl,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // --- بطاقة التوليد الجماعي ---
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  children: [
-                    const Icon(Icons.qr_code_scanner, size: 50, color: Colors.deepPurple),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'إصدار فيزا للطلاب الجدد',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'تقوم هذه الميزة بفحص جميع الطلاب، وإصدار أكواد QR تلقائية فقط لمن ليس لديهم كود مسبق.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isProcessing ? null : _handleBulkGeneration,
-                        icon: _isProcessing
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white))
-                            : const Icon(Icons.play_arrow),
-                        label: Text(_isProcessing ? 'جاري المعالجة...' : 'تشغيل المعالجة التلقائية'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
+            Container(
+              padding: const EdgeInsets.all(16.0),
+              color: Colors.white,
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _isProcessing ? null : _handleBulkGeneration,
+                      icon: _isProcessing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) : const Icon(Icons.auto_fix_high),
+                      label: const Text('توليد تلقائي للطلاب الجدد'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.cyan.shade600,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      labelText: 'ابحث عن طالب...',
+                      prefixIcon: const Icon(Icons.search, color: Colors.cyan),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                      fillColor: const Color(0xFFF5F5F5),
+                    ),
+                    onChanged: _searchStudent,
+                  ),
+                ],
               ),
             ),
-
-            const SizedBox(height: 24),
-            const Divider(thickness: 1),
-            const SizedBox(height: 12),
-
-            const Text(
-              'تعديل بيانات طالب محدد',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-            ),
-            const SizedBox(height: 12),
-
-            // --- حقل البحث ---
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: 'ابحث عن اسم الطالب...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    _searchStudent('');
-                  },
-                ),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                fillColor: Colors.white,
-              ),
-              onChanged: (val) => _searchStudent(val),
-            ),
-
-            const SizedBox(height: 16),
-
-            // --- نتائج البحث ---
-            if (_isSearching)
-              const Center(child: CircularProgressIndicator())
-            else if (_searchResults.isEmpty && _searchController.text.isNotEmpty)
-              const Center(child: Text('لم يتم العثور على نتائج.', style: TextStyle(color: Colors.grey)))
-            else
-              ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
+            const SizedBox(height: 10),
+            Expanded(
+              child: _isSearching
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
                 itemCount: _searchResults.length,
+                padding: const EdgeInsets.all(16),
                 itemBuilder: (context, index) {
-                  final doc = _searchResults[index];
-                  final data = doc.data() as Map<String, dynamic>;
-                  final name = data['name'] ?? 'بدون اسم';
-                  final currentCode = data['visaCode'] ?? 'لا يوجد';
-
+                  final data = _searchResults[index].data() as Map<String, dynamic>;
+                  final balance = (data['walletBalance'] ?? 0).toDouble();
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 2,
                     child: ListTile(
-                      leading: const CircleAvatar(child: Icon(Icons.person)),
-                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('الكود الحالي: ${currentCode.toString().length > 8 ? currentCode.toString().substring(0, 8) + '...' : currentCode}'),
-                      trailing: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700),
-                        onPressed: () => _showChangeCodeDialog(doc.id, name),
-                        child: const Text('تغيير الرمز'),
+                      leading: CircleAvatar(backgroundColor: Colors.cyan.shade100, child: Icon(Icons.person, color: Colors.cyan.shade700)),
+                      title: Text(data['name'] ?? '...'),
+                      subtitle: Text('💳 ${data['visaCode'] ?? 'بدون'} | 💰 $balance ريال'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.add_circle, color: Colors.green),
+                        onPressed: () => _addMoneyToWallet(_searchResults[index].id, data['name'] ?? '', balance),
                       ),
                     ),
                   );
                 },
               ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. المخزن (Store) - مع ماسح الباركود الاحترافي
+// ---------------------------------------------------------------------------
+
+class StoreManagementPage extends StatefulWidget {
+  const StoreManagementPage({super.key});
+
+  @override
+  State<StoreManagementPage> createState() => _StoreManagementPageState();
+}
+
+class _StoreManagementPageState extends State<StoreManagementPage> {
+  final CollectionReference _productsRef = FirebaseFirestore.instance.collection('products');
+
+  // ✅ دالة فتح الكاميرا للمسح
+  Future<String?> _scanBarcode(BuildContext context) async {
+    String? code;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text('مسح الباركود'), backgroundColor: Colors.black),
+          body: MobileScanner(
+            controller: MobileScannerController(
+              detectionSpeed: DetectionSpeed.noDuplicates,
+              returnImage: false,
+            ),
+            onDetect: (capture) {
+              final List<Barcode> barcodes = capture.barcodes;
+              if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+                code = barcodes.first.rawValue;
+                Navigator.pop(context); // العودة بالكود
+              }
+            },
+          ),
+        ),
+      ),
+    );
+    return code;
+  }
+
+  void _showProductDialog({DocumentSnapshot? product}) {
+    final nameController = TextEditingController(text: product?['name']);
+    final priceController = TextEditingController(text: product?['price']?.toString());
+    final stockController = TextEditingController(text: product?['stock']?.toString());
+    final serialController = TextEditingController(text: product?['serial']);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(product == null ? 'إضافة منتج جديد' : 'تعديل المنتج', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
+                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+              ],
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: nameController,
+              decoration: InputDecoration(
+                labelText: 'اسم المنتج',
+                prefixIcon: const Icon(Icons.shopping_bag),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: priceController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'السعر',
+                      suffixText: 'ريال',
+                      prefixIcon: const Icon(Icons.attach_money),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: stockController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'الكمية',
+                      prefixIcon: const Icon(Icons.numbers),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: serialController,
+                    decoration: InputDecoration(
+                      labelText: 'رقم السيريال / الباركود',
+                      prefixIcon: const Icon(Icons.qr_code),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // ✅ زر المسح الضوئي
+                Container(
+                  decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(12)),
+                  child: IconButton(
+                    icon: const Icon(Icons.camera_alt, color: Colors.blue),
+                    onPressed: () async {
+                      String? scannedCode = await _scanBarcode(context);
+                      if (scannedCode != null) {
+                        serialController.text = scannedCode;
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.lightBlue.shade600,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () async {
+                  if (nameController.text.isEmpty || priceController.text.isEmpty) return;
+                  final data = {
+                    'name': nameController.text,
+                    'price': double.tryParse(priceController.text) ?? 0.0,
+                    'stock': int.tryParse(stockController.text) ?? 0,
+                    'serial': serialController.text,
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  };
+                  if (product == null) await _productsRef.add(data);
+                  else await _productsRef.doc(product.id).update(data);
+                  if (mounted) Navigator.pop(context);
+                },
+                child: const Text('حفظ البيانات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFE1F5FE),
+      appBar: AppBar(
+        title: const Text('إدارة المخزن'),
+        backgroundColor: Colors.lightBlue.shade400,
+        elevation: 0,
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showProductDialog(),
+        backgroundColor: Colors.lightBlue.shade600,
+        icon: const Icon(Icons.add),
+        label: const Text('منتج جديد'),
+      ),
+      body: Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: Column(
+          children: [
+            StreamBuilder<QuerySnapshot>(
+              stream: _productsRef.snapshots(),
+              builder: (context, snapshot) {
+                double totalValue = 0;
+                int totalItems = 0;
+                if (snapshot.hasData) {
+                  for (var doc in snapshot.data!.docs) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    totalValue += (data['price'] ?? 0) * (data['stock'] ?? 0);
+                    totalItems += (data['stock'] as num? ?? 0).toInt();
+                  }
+                }
+                return Container(
+                  margin: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.lightBlue.shade100),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('إجمالي المنتجات', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('$totalItems قطعة', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text('قيمة المخزون', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('${totalValue.toStringAsFixed(2)} ريال', style: TextStyle(color: Colors.lightBlue.shade800, fontSize: 18, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _productsRef.orderBy('name').snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    itemCount: snapshot.data!.docs.length,
+                    itemBuilder: (context, index) {
+                      final doc = snapshot.data!.docs[index];
+                      final data = doc.data() as Map<String, dynamic>;
+                      final int stock = data['stock'] ?? 0;
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 1,
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.all(12),
+                          leading: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: stock < 5 ? Colors.red.shade50 : Colors.lightBlue.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(Icons.inventory_2, color: stock < 5 ? Colors.red : Colors.lightBlue.shade400),
+                          ),
+                          title: Text(data['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text('السعر: ${data['price']} ريال', style: TextStyle(color: Colors.grey.shade700)),
+                              Text(stock < 5 ? '⚠️ الكمية منخفضة: $stock' : 'الكمية: $stock',
+                                  style: TextStyle(color: stock < 5 ? Colors.red : Colors.green, fontSize: 12)),
+                              if (data['serial'] != null && data['serial'].toString().isNotEmpty)
+                                Text('Barcode: ${data['serial']}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                            ],
+                          ),
+                          trailing: PopupMenuButton(
+                            onSelected: (value) {
+                              if (value == 'edit') _showProductDialog(product: doc);
+                              if (value == 'delete') doc.reference.delete();
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(value: 'edit', child: Text('تعديل')),
+                              const PopupMenuItem(value: 'delete', child: Text('حذف', style: TextStyle(color: Colors.red))),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4. نقطة البيع (POS)
+// ---------------------------------------------------------------------------
+
+class CanteenPOSPage extends StatefulWidget {
+  const CanteenPOSPage({super.key});
+
+  @override
+  State<CanteenPOSPage> createState() => _CanteenPOSPageState();
+}
+
+class _CanteenPOSPageState extends State<CanteenPOSPage> {
+  final TextEditingController _visaController = TextEditingController();
+  Map<String, dynamic>? _studentData;
+  String? _studentId;
+  List<Map<String, dynamic>> _cart = [];
+  double _totalAmount = 0.0;
+  bool _isLoadingStudent = false;
+
+  // ✅ مسح الفيزا بالكاميرا
+  Future<void> _scanVisa(BuildContext context) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text('مسح فيزا الطالب'), backgroundColor: Colors.teal),
+          body: MobileScanner(
+            onDetect: (capture) {
+              final List<Barcode> barcodes = capture.barcodes;
+              if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
+                final code = barcodes.first.rawValue!;
+                Navigator.pop(context);
+                _visaController.text = code;
+                _findStudentByVisa(code);
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _findStudentByVisa(String code) async {
+    setState(() { _isLoadingStudent = true; _studentData = null; _studentId = null; });
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('students')
+          .where('visaCode', isEqualTo: code.trim())
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        setState(() {
+          _studentData = snapshot.docs.first.data();
+          _studentId = snapshot.docs.first.id;
+        });
+      } else {
+        if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لم يتم العثور على طالب')));
+      }
+    } finally {
+      setState(() => _isLoadingStudent = false);
+    }
+  }
+
+  void _addToCart(Map<String, dynamic> product, String docId) {
+    setState(() {
+      final index = _cart.indexWhere((item) => item['id'] == docId);
+      if (index >= 0) {
+        if (_cart[index]['qty'] < product['stock']) {
+          _cart[index]['qty']++;
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('نفذت الكمية')));
+        }
+      } else {
+        _cart.add({
+          'id': docId,
+          'name': product['name'],
+          'price': product['price'],
+          'qty': 1,
+          'maxStock': product['stock']
+        });
+      }
+      _calculateTotal();
+    });
+  }
+
+  void _calculateTotal() {
+    double total = 0;
+    for (var item in _cart) {
+      total += item['price'] * item['qty'];
+    }
+    setState(() => _totalAmount = total);
+  }
+
+  Future<void> _processPayment() async {
+    if (_studentId == null || _cart.isEmpty) return;
+    double currentBalance = (_studentData!['walletBalance'] ?? 0).toDouble();
+    if (currentBalance < _totalAmount) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرصيد غير كافٍ!'), backgroundColor: Colors.red));
+      return;
+    }
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        transaction.update(FirebaseFirestore.instance.collection('students').doc(_studentId), {
+          'walletBalance': currentBalance - _totalAmount
+        });
+        for (var item in _cart) {
+          DocumentReference prodRef = FirebaseFirestore.instance.collection('products').doc(item['id']);
+          transaction.update(prodRef, {'stock': FieldValue.increment(-item['qty'])});
+        }
+        DocumentReference invoiceRef = FirebaseFirestore.instance.collection('transactions').doc();
+        transaction.set(invoiceRef, {
+          'studentId': _studentId,
+          'studentName': _studentData!['name'],
+          'items': _cart,
+          'total': _totalAmount,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      });
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم البيع بنجاح'), backgroundColor: Colors.teal));
+        setState(() { _cart.clear(); _totalAmount = 0; _visaController.clear(); _studentData = null; _studentId = null; });
+      }
+    } catch (e) {
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFE0F2F1),
+      appBar: AppBar(title: const Text('نقطة البيع'), backgroundColor: Colors.teal.shade400, elevation: 0),
+      body: Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: Colors.white,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: TextField(controller: _visaController, decoration: const InputDecoration(labelText: 'كود الفيزا', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10)), onSubmitted: (val) => _findStudentByVisa(val))),
+                      const SizedBox(width: 10),
+                      IconButton(icon: const Icon(Icons.qr_code_scanner, size: 30, color: Colors.teal), onPressed: () => _scanVisa(context))
+                    ],
+                  ),
+                  if (_studentData != null)
+                    Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8)),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(_studentData!['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text('الرصيد: ${(_studentData!['walletBalance'] ?? 0).toStringAsFixed(2)} ريال', style: TextStyle(color: Colors.teal.shade700, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance.collection('products').where('stock', isGreaterThan: 0).snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(8),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, childAspectRatio: 0.75, crossAxisSpacing: 8, mainAxisSpacing: 8),
+                          itemCount: snapshot.data!.docs.length,
+                          itemBuilder: (context, index) {
+                            final prod = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                            return InkWell(
+                              onTap: () => _addToCart(prod, snapshot.data!.docs[index].id),
+                              child: Card(
+                                elevation: 2,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.fastfood_rounded, size: 30, color: Colors.orange.shade300),
+                                    const SizedBox(height: 4),
+                                    Text(prod['name'], textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    Text('${prod['price']} ريال', style: const TextStyle(fontSize: 11, color: Colors.teal)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  Container(width: 1, color: Colors.grey.shade300),
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      children: [
+                        Container(padding: const EdgeInsets.all(8), color: Colors.grey.shade100, child: const Center(child: Text('السلة', style: TextStyle(fontWeight: FontWeight.bold)))),
+                        Expanded(
+                          child: ListView.builder(
+                            itemCount: _cart.length,
+                            itemBuilder: (ctx, i) => ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                              title: Text(_cart[i]['name'], style: const TextStyle(fontSize: 12)),
+                              subtitle: Text('${_cart[i]['qty']}x', style: const TextStyle(fontSize: 11)),
+                              trailing: IconButton(icon: const Icon(Icons.close, size: 16, color: Colors.red), onPressed: () { setState(() { _cart.removeAt(i); _calculateTotal(); }); }),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          color: Colors.white,
+                          child: Column(
+                            children: [
+                              Text('المجموع: ${_totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              const SizedBox(height: 8),
+                              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: (_studentId != null && _cart.isNotEmpty) ? _processPayment : null, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade400, foregroundColor: Colors.white), child: const Text('دفع'))),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5. التقارير (Analytics)
+// ---------------------------------------------------------------------------
+
+class VisaAnalyticsPage extends StatelessWidget {
+  const VisaAnalyticsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFECEFF1),
+      appBar: AppBar(title: const Text('التقارير المالية'), backgroundColor: Colors.blueGrey.shade400, elevation: 0),
+      body: Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('transactions').snapshots(),
+                builder: (context, snapshot) {
+                  double totalSales = 0;
+                  int count = 0;
+                  if (snapshot.hasData) {
+                    count = snapshot.data!.docs.length;
+                    for (var doc in snapshot.data!.docs) {
+                      totalSales += (doc.data() as Map<String, dynamic>)['total'] ?? 0;
+                    }
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: _buildStatBox('المبيعات', '${totalSales.toStringAsFixed(2)} ريال', Colors.blueGrey)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildStatBox('العمليات', '$count', Colors.teal)),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+              const Align(alignment: Alignment.centerRight, child: Text('آخر العمليات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+              const SizedBox(height: 10),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance.collection('transactions').orderBy('timestamp', descending: true).limit(20).snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                    if (snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد بيانات'));
+
+                    return ListView.builder(
+                      itemCount: snapshot.data!.docs.length,
+                      itemBuilder: (context, index) {
+                        final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                        final date = (data['timestamp'] as Timestamp?)?.toDate();
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: ListTile(
+                            leading: const Icon(Icons.receipt_long, color: Colors.blueGrey),
+                            title: Text(data['studentName'] ?? 'طالب'),
+                            subtitle: Text(date != null ? DateFormat('MM/dd hh:mm a').format(date) : ''),
+                            trailing: Text('${data['total']} ريال', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatBox(String title, String value, MaterialColor color) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.shade100),
+      ),
+      child: Column(
+        children: [
+          Text(title, style: TextStyle(color: Colors.grey.shade600)),
+          const SizedBox(height: 8),
+          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color.shade700)),
+        ],
       ),
     );
   }
