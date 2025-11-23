@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:almarefamecca/add1.dart'; // ✅ استيراد الملف الجديد للربط
+import 'package:almarefamecca/add1.dart';
+import 'package:almarefamecca/card.dart'; // ✅ تم إضافة استيراد ملف الفيزا الجديد
 import 'package:almarefamecca/secondary_pages.dart';
 import 'package:almarefamecca/student_view.dart';
 import 'package:badges/badges.dart' as badges;
@@ -11,6 +12,7 @@ import 'package:excel/excel.dart' hide Border;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -30,12 +32,11 @@ class _AddPageState extends State<AddPage> {
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
   bool _isExporting = false;
-  bool _isMassExporting = false;
+  // تم حذف _isMassExporting لأنها انتقلت للملف الآخر
   bool _isAdmin = false;
   User? _user;
 
   String _userProfession = '';
-
   Timer? _sessionTimer;
 
   @override
@@ -47,8 +48,8 @@ class _AddPageState extends State<AddPage> {
 
   Future<void> _onRefresh() async {
     if (kIsWeb) {
-      await Future.delayed(const Duration(milliseconds: 800));
-      html.window.location.reload();
+      await _fetchUserData();
+      if (mounted) setState(() {});
     } else {
       await _fetchUserData();
       if (mounted) setState(() {});
@@ -72,13 +73,11 @@ class _AddPageState extends State<AddPage> {
   void _resetGuestSessionTimer() {
     _sessionTimer?.cancel();
     _sessionTimer = Timer(const Duration(minutes: 3), _logoutGuestSession);
-    debugPrint("Guest session timer reset (3 minutes).");
   }
 
   void _stopGuestSessionTimer() {
     _sessionTimer?.cancel();
     _sessionTimer = null;
-    debugPrint("Guest session timer stopped.");
   }
 
   Future<void> _fetchUserData() async {
@@ -364,6 +363,11 @@ class _AddPageState extends State<AddPage> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // ⛔️ تم حذف دوال _generateRandomVisaCode و _generateBulkStudentVisas من هنا
+  // ⛔️ ونقلها إلى ملف card.dart
+  // ---------------------------------------------------------------------------
+
   Future<void> _launchEduFormsUrl() async {
     final Uri url = Uri.parse('https://edu-forms.com/');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -639,147 +643,167 @@ class _AddPageState extends State<AddPage> {
     }
   }
 
+  void _showComingSoonSnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('هذه الميزة ستكون متاحة قريباً!')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isGuest = _userProfession == 'gest';
 
-    Widget pageContent = Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.lightBlue.shade300,
-        elevation: 0,
-        leading: Tooltip(
-          message: 'تحديث الصفحة للحصول على آخر التعديلات',
-          child: GestureDetector(
-            onTap: () {
-              if (kIsWeb) {
-                html.window.location.reload();
-              }
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Image.asset('assets/2.png'),
+    Widget pageContent = PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) {
+          return;
+        }
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('للحفاظ على التطبيق مفتوحاً، استخدم زر القائمة الرئيسية (Home) للخروج.', textAlign: TextAlign.center),
+            duration: Duration(seconds: 3),
+            backgroundColor: Colors.blueGrey,
+          ),
+        );
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.lightBlue.shade300,
+          elevation: 0,
+          leading: Tooltip(
+            message: 'تحديث الصفحة للحصول على آخر التعديلات',
+            child: GestureDetector(
+              onTap: () {
+                if (kIsWeb) {
+                  html.window.location.reload();
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Image.asset('assets/2.png'),
+              ),
             ),
           ),
-        ),
-        title: const Text(
-            'لوحة التحكم',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)
-        ),
-        centerTitle: true,
-        actions: [
-          StreamBuilder<QuerySnapshot>(
-            stream: _user == null
-                ? null
-                : FirebaseFirestore.instance
-                .collection('users')
-                .doc(_user!.uid)
-                .collection('notifications')
-                .where('isRead', isEqualTo: false)
-                .snapshots(),
-            builder: (context, snapshot) {
-              final count = snapshot.data?.docs.length ?? 0;
-              return badges.Badge(
-                showBadge: count > 0,
-                badgeContent: Text('$count', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                position: badges.BadgePosition.topEnd(top: 4, end: 4),
-                child: IconButton(
-                  icon: const Icon(Icons.notifications),
-                  tooltip: 'الإشعارات',
-                  onPressed: _showNotifications,
+          title: const Text(
+              'لوحة التحكم',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)
+          ),
+          centerTitle: true,
+          actions: [
+            StreamBuilder<QuerySnapshot>(
+              stream: _user == null
+                  ? null
+                  : FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(_user!.uid)
+                  .collection('notifications')
+                  .where('isRead', isEqualTo: false)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                final count = snapshot.data?.docs.length ?? 0;
+                return badges.Badge(
+                  showBadge: count > 0,
+                  badgeContent: Text('$count', style: const TextStyle(color: Colors.white, fontSize: 10)),
+                  position: badges.BadgePosition.topEnd(top: 4, end: 4),
+                  child: IconButton(
+                    icon: const Icon(Icons.notifications),
+                    tooltip: 'الإشعارات',
+                    onPressed: _showNotifications,
+                  ),
+                );
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.person_outline),
+              tooltip: 'الملف الشخصي',
+              onPressed: () {
+                if (isGuest) {
+                  _showGuestError();
+                } else {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'تسجيل الخروج',
+              onPressed: () async {
+                await FirebaseAuth.instance.signOut();
+              },
+            ),
+          ],
+          automaticallyImplyLeading: false,
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(30.0),
+            child: Container(
+              height: 30.0,
+              alignment: Alignment.center,
+              color: Colors.cyan.shade600,
+              child: SizedBox(
+                width: double.infinity,
+                child: AnimatedTextKit(
+                  animatedTexts: [
+                    RotateAnimatedText(
+                      'في حالة وجود مشكلة التواصل',
+                      textAlign: TextAlign.center,
+                      textStyle: const TextStyle(
+                        fontSize: 13.0,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontFamily: 'Cairo',
+                      ),
+                      duration: const Duration(seconds: 1),
+                    ),
+                    RotateAnimatedText(
+                      '< > // مصطفي سعيد 966569064173',
+                      textAlign: TextAlign.center,
+                      textStyle: const TextStyle(
+                        fontSize: 13.0,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontFamily: 'Cairo',
+                      ),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  ],
+                  repeatForever: true,
+                  pause: const Duration(milliseconds: 900),
+                  displayFullTextOnTap: true,
                 ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            tooltip: 'الملف الشخصي',
-            onPressed: () {
-              if (isGuest) {
-                _showGuestError();
-              } else {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage()));
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'تسجيل الخروج',
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-            },
-          ),
-        ],
-        automaticallyImplyLeading: false,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(30.0),
-          child: Container(
-            height: 30.0,
-            alignment: Alignment.center,
-            color: Colors.cyan.shade600,
-            child: SizedBox(
-              width: double.infinity,
-              child: AnimatedTextKit(
-                animatedTexts: [
-                  RotateAnimatedText(
-                    'في حالة وجود مشكلة التواصل',
-                    textAlign: TextAlign.center,
-                    textStyle: const TextStyle(
-                      fontSize: 13.0,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontFamily: 'Cairo',
-                    ),
-                    duration: const Duration(seconds: 1),
-                  ),
-                  RotateAnimatedText(
-                    '< > // مصطفي سعيد 966569064173',
-                    textAlign: TextAlign.center,
-                    textStyle: const TextStyle(
-                      fontSize: 13.0,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      fontFamily: 'Cairo',
-                    ),
-                    duration: const Duration(seconds: 3),
-                  ),
-                ],
-                repeatForever: true,
-                pause: const Duration(milliseconds: 900),
-                displayFullTextOnTap: true,
               ),
             ),
           ),
         ),
-      ),
 
-      body: RefreshIndicator(
-        onRefresh: _onRefresh,
-        displacement: 40.0,
-        color: Colors.lightBlue.shade300,
-        backgroundColor: Colors.white,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _isExporting || _isMassExporting
-            ? Center(
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(
-                _isExporting
-                    ? "جاري تصدير ملف الإدارة، قد يستغرق الأمر بعض الوقت..."
-                    : "جاري تجميع وتصدير الملف المجمع...",
-                textAlign: TextAlign.center,
-              )
-            ]))
-            : ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            _buildTeacherDashboard(),
-          ],
+        body: RefreshIndicator(
+          onRefresh: _onRefresh,
+          displacement: 40.0,
+          color: Colors.lightBlue.shade300,
+          backgroundColor: Colors.white,
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _isExporting
+              ? const Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  "جاري تصدير ملف الإدارة، قد يستغرق الأمر بعض الوقت...",
+                  textAlign: TextAlign.center,
+                )
+              ]))
+              : ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              _buildTeacherDashboard(),
+            ],
+          ),
         ),
-      ),
 
-      floatingActionButton: null,
+        floatingActionButton: null,
+      ),
     );
 
     if (isGuest) {
@@ -1086,6 +1110,21 @@ class _AddPageState extends State<AddPage> {
                   color: Colors.amber.shade700,
                   onTap: _showBroadcastNotificationDialog,
                 ),
+              // ✅✅✅ زر إدارة فيزا الطلاب (للمدير فقط) ✅✅✅
+              if (_isAdmin)
+                _buildDashboardButton(
+                  title: 'إضافة فيزا الطلاب',
+                  icon: Icons.credit_card,
+                  assetPath: 'assets/a2.png', // تأكد من وجود الأيقونة
+                  color: Colors.deepPurple.shade600,
+                  onTap: () {
+                    // الانتقال لصفحة إدارة الفيزا في الملف الآخر
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const VisaManagementPage()),
+                    );
+                  },
+                ),
             ],
           ),
         ),
@@ -1110,7 +1149,7 @@ class _AddPageState extends State<AddPage> {
     );
   }
 
-  void _showComingSoonSnackBar() {
+  void showComingSoonSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('هذه الميزة ستكون متاحة قريباً!')),
     );
@@ -1263,6 +1302,13 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
   bool _isLoading = false;
   String _searchStatus = 'أدخل اسم الطالب للبحث...';
 
+  // دالة توليد كود الفيزا العشوائي
+  String _generateRandomVisaCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = Random();
+    return List.generate(16, (index) => chars[random.nextInt(chars.length)]).join();
+  }
+
   Widget _buildLastSeenWidget(Timestamp? lastSeenTimestamp) {
     if (lastSeenTimestamp == null) {
       return const Text(
@@ -1367,6 +1413,136 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
     }
   }
 
+  // ✅✅✅ دالة إعادة تعيين رمز الفيزا (عملية حساسة) ✅✅✅
+  Future<void> _handleVisaReset(String studentId, String studentName) async {
+    // 1. التأكيد الأول
+    final bool? confirm1 = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('تغيير رمز الفيزا'),
+        content: Text('هل تريد تغيير رمز الفيزا للطالب: $studentName؟\nالرمز القديم سيتوقف عن العمل فوراً.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('نعم، متابعة')),
+        ],
+      ),
+    );
+
+    if (confirm1 != true) return;
+
+    // 2. التأكيد الثاني (تحذير أحمر)
+    final bool? confirm2 = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(children: [Icon(Icons.warning_amber_rounded, color: Colors.red), SizedBox(width: 8), Text('تحذير هام')]),
+        content: const Text(
+          'هذه العملية لا يمكن التراجع عنها.\nسيتم فقدان الرمز السابق نهائياً.\nهل أنت متأكد تماماً؟',
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('تراجع')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('نعم، أنا متأكد'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm2 != true) return;
+
+    // 3. التأكيد الثالث (إدخال PIN الأدمن)
+    final pinController = TextEditingController();
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
+    final bool? pinConfirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        bool isChecking = false;
+        return StatefulBuilder(builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('تأكيد الأمان'),
+            content: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('الرجاء إدخال الرقم السري للأدمن لإتمام العملية:'),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: pinController,
+                    keyboardType: TextInputType.number,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'رمز الأدمن (PIN)',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) return 'مطلوب';
+                      return null;
+                    },
+                  ),
+                  if (isChecking) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator()),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: isChecking ? null : () => Navigator.pop(context, false),
+                  child: const Text('إلغاء')
+              ),
+              ElevatedButton(
+                onPressed: isChecking ? null : () async {
+                  if (formKey.currentState!.validate()) {
+                    setDialogState(() => isChecking = true);
+                    try {
+                      // التحقق من الرمز من الفايربيز
+                      final doc = await FirebaseFirestore.instance.collection('settings').doc('guest_access').get();
+                      final String correctPin = doc.data()?['admin_pin']?.toString() ?? '010';
+
+                      if (pinController.text.trim() == correctPin) {
+                        if (mounted) Navigator.pop(context, true);
+                      } else {
+                        setDialogState(() => isChecking = false);
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز غير صحيح!'), backgroundColor: Colors.red));
+                      }
+                    } catch (e) {
+                      setDialogState(() => isChecking = false);
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
+                    }
+                  }
+                },
+                child: const Text('تأكيد وتغيير'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+
+    if (pinConfirmed == true) {
+      try {
+        final String newCode = _generateRandomVisaCode();
+        await FirebaseFirestore.instance.collection('students').doc(studentId).update({
+          'visaCode': newCode,
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('تم تغيير رمز الفيزا للطالب $studentName بنجاح!'), backgroundColor: Colors.green),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('فشل التحديث: $e'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1420,7 +1596,51 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
                     leading: const Icon(Icons.person),
                     title: Text(name),
                     subtitle: Text('$grade / $className'),
-                    trailing: _buildLastSeenWidget(lastSeen),
+                    // ✅ تعديل هنا لإضافة زر الخيارات
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildLastSeenWidget(lastSeen),
+                        const SizedBox(width: 8),
+                        PopupMenuButton<String>(
+                          onSelected: (value) {
+                            if (value == 'reset_visa') {
+                              _handleVisaReset(student.id, name);
+                            } else if (value == 'view_profile') {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => StudentViewPage(studentId: student.id),
+                                ),
+                              );
+                            }
+                          },
+                          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                            const PopupMenuItem<String>(
+                              value: 'view_profile',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.visibility, color: Colors.blue),
+                                  SizedBox(width: 8),
+                                  Text('عرض الملف'),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'reset_visa',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.refresh, color: Colors.red),
+                                  SizedBox(width: 8),
+                                  Text('تغيير رمز الفيزا'),
+                                ],
+                              ),
+                            ),
+                          ],
+                          icon: const Icon(Icons.more_vert),
+                        ),
+                      ],
+                    ),
                     onTap: () {
                       Navigator.push(
                         context,

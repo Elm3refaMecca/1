@@ -1,10 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth, Persistence, User, AuthWrapper, FirebaseAuthException;
 import 'package:almarefamecca/firebase_options.dart';
 import 'dart:js' as js;
-import 'package:flutter/gestures.dart'; // ضروري لضبط اللمس والماوس
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/services.dart'; // ضروري للخروج النظامي
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'dart:math' as math;
 import 'dart:async';
@@ -24,7 +25,7 @@ import 'package:lottie/lottie.dart';
 import 'package:almarefamecca/add.dart';
 import 'package:almarefamecca/student_view.dart';
 
-// ✅✅✅ 1. الكلاس المسؤول عن تعميم "الشعور" (الفيزياء المطاطية) في كل التطبيق ✅✅✅
+// ✅ 1. إعدادات السكرول (التمرير)
 class GlobalScrollBehavior extends MaterialScrollBehavior {
   @override
   Set<PointerDeviceKind> get dragDevices => {
@@ -35,9 +36,79 @@ class GlobalScrollBehavior extends MaterialScrollBehavior {
 
   @override
   ScrollPhysics getScrollPhysics(BuildContext context) {
-    // ✅ BouncingScrollPhysics: هو المسؤول عن حركة "المطاط" (السحب والإرجاع)
-    // ✅ AlwaysScrollable: يضمن عمل السحب حتى لو الصفحة قصيرة
     return const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+  }
+}
+
+// ✅✅✅ 2. غلاف الحماية (قائمة الخروج المنبثقة) ✅✅✅
+class ExitPopupWrapper extends StatelessWidget {
+  final Widget child;
+  const ExitPopupWrapper({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    // PopScope هي الأداة الوحيدة التي يمكنها اعتراض زر الرجوع
+    return PopScope(
+      canPop: false, // ⛔️ نمنع الرجوع التلقائي نهائياً
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+
+        // 🔥 إظهار القائمة المنبثقة للإجبار على الاختيار
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false, // يمنع إغلاق النافذة بالضغط خارجها
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            elevation: 10,
+            backgroundColor: Colors.white,
+            title: const Row(
+              children: [
+                Icon(Icons.power_settings_new, color: Colors.red, size: 28),
+                SizedBox(width: 10),
+                Text('تنبيه الخروج', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: const Text(
+              'هل تريد فعلاً الخروج من التطبيق؟',
+              style: TextStyle(fontSize: 16),
+            ),
+            actionsPadding: const EdgeInsets.all(16),
+            actionsAlignment: MainAxisAlignment.spaceEvenly, // توزيع الأزرار
+            actions: [
+              // زر البقاء
+              ElevatedButton.icon(
+                onPressed: () => Navigator.of(context).pop(false),
+                icon: const Icon(Icons.cancel_outlined, size: 18),
+                label: const Text('تراجع (بقاء)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey.shade200,
+                  foregroundColor: Colors.black87,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              // زر الخروج
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop(true);
+                  // أمر الخروج النهائي
+                  SystemNavigator.pop();
+                },
+                icon: const Icon(Icons.exit_to_app, size: 18),
+                label: const Text('خروج نهائي'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade600,
+                  foregroundColor: Colors.white,
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      child: child,
+    );
   }
 }
 
@@ -159,7 +230,6 @@ class TeacherLoginApp extends StatelessWidget {
     return MaterialApp(
       title: 'بوابة ابدائية المعرفة الاهلية',
       debugShowCheckedModeBanner: false,
-      // ✅✅✅ 2. تطبيق السلوك العام هنا ليغطي كل الصفحات ✅✅✅
       scrollBehavior: GlobalScrollBehavior(),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
@@ -244,12 +314,14 @@ class TeacherLoginApp extends StatelessWidget {
           indicatorColor: Colors.white,
         ),
       ),
+      // ✅ تغليف البناء الأساسي
       builder: (context, child) => _GlobalFabStack(child: child),
       initialRoute: '/',
       routes: {
         '/': (context) => const AuthWrapper(),
-        '/add': (context) => const AddPage(),
-        '/student_view': (context) => const StudentViewPage(),
+        // ✅✅✅ تطبيق غلاف القائمة المنبثقة على الصفحات الرئيسية ✅✅✅
+        '/add': (context) => const ExitPopupWrapper(child: AddPage()),
+        '/student_view': (context) => const ExitPopupWrapper(child: StudentViewPage()),
         '/login': (context) {
           final args = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
           final accountType = args?['accountType'] ?? 'student';
@@ -260,6 +332,7 @@ class TeacherLoginApp extends StatelessWidget {
   }
 }
 
+// ✅✅✅ 3. تعديل الزر العائم (تصغيره وتغيير وظيفته) ✅✅✅
 class _GlobalFabStack extends StatefulWidget {
   final Widget? child;
   const _GlobalFabStack({this.child});
@@ -268,17 +341,22 @@ class _GlobalFabStack extends StatefulWidget {
 }
 
 class _GlobalFabStackState extends State<_GlobalFabStack> {
-  Offset _aiFabOffset = const Offset(20, 40);
+  Offset _fabOffset = const Offset(20, 40);
   bool _isOffsetInitialized = false;
+
+  // الحجم الأصلي للزر هو 56.0
+  // تصغير بنسبة 23% يعني الحجم الجديد حوالي 43.0
+  final double _fabSize = 43.0;
 
   @override
   Widget build(BuildContext context) {
     final padding = MediaQuery.of(context).padding;
+    final size = MediaQuery.of(context).size;
 
     if (!_isOffsetInitialized) {
-      final size = MediaQuery.of(context).size;
-      _aiFabOffset = Offset(
-          size.width - 56 - 24,
+      // تعديل الإزاحة بناءً على الحجم الجديد
+      _fabOffset = Offset(
+          size.width - _fabSize - 24,
           padding.top + 24
       );
       _isOffsetInitialized = true;
@@ -289,30 +367,33 @@ class _GlobalFabStackState extends State<_GlobalFabStack> {
         if (widget.child != null) widget.child!,
 
         Positioned(
-          left: _aiFabOffset.dx,
-          top: _aiFabOffset.dy,
+          left: _fabOffset.dx,
+          top: _fabOffset.dy,
           child: GestureDetector(
             onPanUpdate: (details) {
               setState(() {
-                _aiFabOffset = Offset(
-                  (_aiFabOffset.dx + details.delta.dx).clamp(8.0, MediaQuery.of(context).size.width - 56 - 8),
-                  (_aiFabOffset.dy + details.delta.dy).clamp(padding.top + 8.0, MediaQuery.of(context).size.height - 56 - 8),
+                // تحديث حدود السحب بناءً على الحجم الجديد
+                _fabOffset = Offset(
+                  (_fabOffset.dx + details.delta.dx).clamp(8.0, size.width - _fabSize - 8),
+                  (_fabOffset.dy + details.delta.dy).clamp(padding.top + 8.0, size.height - _fabSize - 8),
                 );
               });
             },
-            child: FloatingActionButton(
-              heroTag: 'ai-fab',
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('✨ خدمة المساعد الذكي (AI) قادمة قريباً!', textAlign: TextAlign.right),
-                    backgroundColor: Colors.redAccent,
-                  ),
-                );
-              },
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white54,
-              child: const Icon(Icons.auto_awesome),
+            child: SizedBox(
+              width: _fabSize,
+              height: _fabSize,
+              child: FloatingActionButton(
+                heroTag: 'back-fab',
+                onPressed: () {
+                  // ✅ وظيفة الرجوع خطوة واحدة
+                  Navigator.of(context).maybePop();
+                },
+                backgroundColor: Colors.black,
+                foregroundColor: Colors.white,
+                elevation: 6,
+                // ✅ أيقونة الرجوع
+                child: const Icon(Icons.arrow_back, size: 20),
+              ),
             ),
           ),
         ),
@@ -451,25 +532,26 @@ class _AuthWrapperState extends State<AuthWrapper> {
                     body: LoadingLottie());
               }
 
+              // ✅✅✅ تغليف الصفحة الرئيسية بـ ExitPopupWrapper ✅✅✅
               if (roleSnapshot.hasError) {
-                return const WelcomePage();
+                return const ExitPopupWrapper(child: WelcomePage());
               }
 
               switch (roleSnapshot.data) {
                 case 'teacher':
-                  return const AddPage();
+                  return const ExitPopupWrapper(child: AddPage());
                 case 'student':
-                  return const StudentViewPage();
+                  return const ExitPopupWrapper(child: StudentViewPage());
                 case 'unauthorized':
-                  return const WelcomePage();
+                  return const ExitPopupWrapper(child: WelcomePage());
                 default:
-                  return const WelcomePage();
+                  return const ExitPopupWrapper(child: WelcomePage());
               }
             },
           );
         }
 
-        return const WelcomePage();
+        return const ExitPopupWrapper(child: WelcomePage());
       },
     );
   }
@@ -640,19 +722,12 @@ class _WelcomePageState extends State<WelcomePage> {
     }
   }
 
-  // ✅✅✅ 3. دالة الريفرش البسيطة والقوية ✅✅✅
-  // التفسير: RefreshIndicator يعمل فقط عندما يتم إكمال السحب وإفلات الإصبع.
-  // إذا قمت بالسحب ثم الإرجاع دون إفلات (Cancel)، فإن هذه الدالة لن تُستدعى تلقائياً من قبل فلاتر.
-  // وهذا هو السلوك الذي تريده بالضبط.
   Future<void> _onRefresh() async {
-    // تأخير بسيط جداً لكي تظهر الدائرة
     await Future.delayed(const Duration(seconds: 1));
 
     if (kIsWeb) {
-      // إعادة تحميل الصفحة بالكامل
       html.window.location.reload();
     } else {
-      // للجوال
       _setupPwaListeners();
       _checkNotificationPermission();
       if (mounted) {
@@ -868,12 +943,11 @@ class _WelcomePageState extends State<WelcomePage> {
   }
 
   Widget _buildMobileLayout() {
-    // ✅ 4. استخدام RefreshIndicator فقط. السلوك (السحب والإلغاء) مضمون بفضل GlobalScrollBehavior.
     return RefreshIndicator(
       onRefresh: _onRefresh,
       color: Theme.of(context).primaryColor,
       backgroundColor: Colors.white,
-      displacement: 40.0, // المسافة القياسية
+      displacement: 40.0,
       child: CustomScrollView(
         slivers: [
           SliverPadding(

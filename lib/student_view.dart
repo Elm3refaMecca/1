@@ -1,5 +1,6 @@
 // student_view.dart
 // ✅ (FIXED) تم إصلاح مشكلة القفز للأعلى عند تصفح النتائج بإزالة السكرول المتداخل
+// ✅ (ADDED) تم تفعيل زر فيزا الطلاب وإضافة صفحة العرض الخاصة بها
 
 import 'dart:math' as math;
 import 'dart:async';
@@ -828,13 +829,19 @@ class _StudentViewPageState extends State<StudentViewPage>
         },
         isWorking: true,
       ),
+      // ✅✅✅ زر فيزا الطلاب المفعل ✅✅✅
       _DashboardButtonData(
         title: 'فيزا الطلاب',
         icon: Icons.credit_card,
         assetPath: imageMap['فيزا الطلاب'],
         color: Colors.deepPurple.shade500,
-        onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا جدا'),
-        isWorking: false,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => StudentVisaPage(studentData: _studentData!)),
+          );
+        },
+        isWorking: true,
       ),
       _DashboardButtonData(
         title: 'الاحتفالات',
@@ -2796,5 +2803,160 @@ class SchoolBooksPage extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+// ✅✅✅ صفحة عرض الفيزا للطلاب (جديد) ✅✅✅
+class StudentVisaPage extends StatelessWidget {
+  final Map<String, dynamic> studentData;
+
+  const StudentVisaPage({super.key, required this.studentData});
+
+  @override
+  Widget build(BuildContext context) {
+    final String? visaCode = studentData['visaCode'];
+    final String studentName = studentData['name'] ?? 'طالب';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('فيزا الطلاب الرقمية'),
+        backgroundColor: Colors.deepPurple.shade600,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (visaCode != null && visaCode.isNotEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.deepPurple.shade800, Colors.deepPurple.shade400],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8)),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Icon(Icons.nfc, color: Colors.white54, size: 30),
+                            Image.asset('assets/m1.png', width: 40, color: Colors.white.withOpacity(0.8)),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          // استخدام رابط API موثوق لعرض QR Code لضمان العمل بدون مكتبات خارجية معقدة
+                          child: Image.network(
+                            'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=$visaCode',
+                            width: 180,
+                            height: 180,
+                            fit: BoxFit.cover,
+                            loadingBuilder: (context, child, loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return const SizedBox(
+                                height: 180,
+                                width: 180,
+                                child: Center(child: CircularProgressIndicator()),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              return const SizedBox(
+                                height: 180,
+                                width: 180,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.error_outline, color: Colors.red),
+                                    Text("تعذر تحميل الرمز"),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          _formatVisaCode(visaCode),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('STUDENT NAME', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                                Text(studentName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const Icon(Icons.credit_card, color: Colors.white70, size: 35),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 30),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.copy),
+                  label: const Text('نسخ رقم الفيزا'),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: visaCode));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('تم نسخ الكود بنجاح!'), backgroundColor: Colors.green),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  ),
+                ),
+              ] else ...[
+                const Icon(Icons.credit_card_off, size: 80, color: Colors.grey),
+                const SizedBox(height: 20),
+                const Text(
+                  'عفواً، لم يتم إصدار فيزا لك بعد.',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'يرجى مراجعة إدارة المدرسة لتفعيل حسابك.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ]
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatVisaCode(String code) {
+    // تقسيم الكود إلى مجموعات من 4 أحرف
+    if (code.length != 16) return code;
+    return '${code.substring(0, 4)}  ${code.substring(4, 8)}  ${code.substring(8, 12)}  ${code.substring(12, 16)}';
   }
 }
