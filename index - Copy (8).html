@@ -1,21 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <base href="/">
+  <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   
   <meta name="description" content="موقع مدرسة المعرفة الأهلية بمكة المكرمة (القسم الابتدائي).">
+  
   <meta name="keywords" content="المعرفة الاهلية, مدرسة المعرفة الاهلية بمكة, المعرفة, ابتدائية المعرفة الاهلية, ابتدائية المعرفة, مدارس المعرفة, مجمع المعرفة">
-  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="ابتدائية المعرفة">
-  
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="ابتدائية المعرفة بمكة المكرمة">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <title>ابتدائية المعرفة الأهلية بمكة المكرمة</title>
@@ -41,7 +39,7 @@
           Promise.allSettled(unregisterPromises).then(() => {
             console.log('All old service workers unregistered. Setting flag and reloading.');
             localStorage.setItem('sw_kill_switch_applied_v3', 'true');
-            window.location.reload(true);
+            window.location.reload(true); // إعادة تحميل قسري
           });
         } else {
           localStorage.setItem('sw_kill_switch_applied_v3', 'true');
@@ -53,13 +51,11 @@
       });
     }
   </script>
-
   <style>
     body {
-      background-color: #FFFFFF; /* خلفية بيضاء لتتطابق مع اللوتي */
+      background-color: #f5f5f5;
       margin: 0;
       padding: 0;
-      overflow: hidden; /* منع التمرير أثناء التحميل */
     }
     .loader-container {
       display: flex;
@@ -70,11 +66,12 @@
       top: 0;
       left: 0;
       width: 100%;
-      background-color: #FFFFFF; /* تغطية كاملة */
-      z-index: 99999;
+      background-color: #ffffff; /* خلفية بيضاء كما طلبت */
+      z-index: 9999;
       opacity: 1;
       transition: opacity 0.5s ease-out;
     }
+    /* تم إزالة CSS الخاص بالدائرة الدوارة واستبداله بتنسيق مشغل لوتي أدناه */
     lottie-player {
       width: 300px;
       height: 300px;
@@ -94,7 +91,7 @@
   </div>
 
   <script>
-    // دالة إخفاء شاشة الانتظار
+    // دالة لإخفاء شاشة الانتظار
     function hideLoader() {
       var loader = document.getElementById('loader');
       if (loader && loader.style.display !== 'none') {
@@ -105,20 +102,23 @@
       }
     }
 
-    // مراقب لاكتشاف متى ينتهي فلاتر من التحميل لإخفاء اللوتي
+    // مراقب ذكي (MutationObserver) يكتشف متى يبدأ تطبيق Flutter بالرسم على الشاشة
+    // الهدف: إخفاء شاشة الانتظار فوراً بمجرد عمل التطبيق لعدم إضاعة الوقت
     const observer = new MutationObserver((mutationsList, observer) => {
+        // التحقق من وجود عناصر Flutter الرئيسية في الصفحة
         if (document.querySelector('flt-glass-pane') || document.querySelector('flutter-view') || document.querySelector('canvas')) {
             hideLoader();
-            observer.disconnect();
+            observer.disconnect(); // إيقاف المراقبة بعد نجاح العملية
         }
     });
     
+    // البدء بمراقبة التغييرات في جسم الصفحة
     observer.observe(document.body, { childList: true, subtree: true });
-    
-    // أمان: إخفاء اللوتي بعد 15 ثانية في حال حدوث خطأ
+
+    // أمان إضافي: في حال تأخر التطبيق جداً أو حدث خطأ في المراقب، يتم الاخفاء بعد 15 ثانية كحد أقصى
+    // (يمكنك إلغاء هذا الجزء إذا كنت واثقاً أن التطبيق سيعمل دائماً)
     setTimeout(hideLoader, 15000);
 
-    // كود تثبيت التطبيق PWA
     let deferredPrompt;
     window.isInstallable = false;
 
@@ -135,6 +135,8 @@
         deferredPrompt.userChoice.then((choiceResult) => {
           if (choiceResult.outcome === 'accepted') {
             console.log('User accepted the A2HS prompt');
+          } else {
+            console.log('User dismissed the A2HS prompt');
           }
           deferredPrompt = null;
           window.isInstallable = false;
@@ -143,30 +145,19 @@
       }
     }
 
-    // تسجيل Service Worker للإشعارات
+    // --- تسجيل ملف Firebase Service Worker (للإشعارات) ---
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('firebase-messaging-sw.js');
+        navigator.serviceWorker.register('firebase-messaging-sw.js').then(function (registration) {
+          console.log('Firebase MS SW registered: ', registration);
+        }).catch(function (err) {
+          console.log('Firebase MS SW registration failed: ', err);
+        });
       });
     }
-  </script>
 
-  <script>
-    // 1. عند تحميل الصفحة، نضيف "حالة وهمية" لتاريخ المتصفح
-    window.addEventListener('load', function() {
-      window.history.pushState({ noBack: true }, "");
-    });
-
-    // 2. عندما يضغط المستخدم زر الرجوع (popstate event)
-    window.addEventListener('popstate', function(event) {
-      // نعيد إضافة الحالة الوهمية فوراً لنمنع المتصفح من الخروج
-      window.history.pushState({ noBack: true }, "");
-      
-      // هذا الإجراء يجعل المتصفح "يبقى" في مكانه،
-      // وفي نفس الوقت يلتقط Flutter الحدث ويظهر القائمة المنبثقة التي برمجناها في main.dart
-    });
   </script>
 
   <script src="flutter_bootstrap.js" data-service-worker-version="none" async></script>
-</body>
+  </body>
 </html>
