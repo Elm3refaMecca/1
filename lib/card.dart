@@ -341,26 +341,21 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
   // ✅ الاتصال بـ Firebase Firestore
   final CollectionReference _productsRef = FirebaseFirestore.instance.collection('products');
 
-  // ✅ دالة فتح الكاميرا لمسح الباركود
+  // ✅ دالة فتح الكاميرا لمسح الباركود (تمت إزالة الحظر عن الويب)
   Future<String?> _scanBarcode(BuildContext context) async {
-    // إذا كان الويب، قد لا تعمل الكاميرا بنفس الكفاءة
-    if (kIsWeb) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المسح بالكاميرا مدعوم بشكل أفضل على الجوال')));
-      return null;
-    }
-
     String? scannedCode;
     try {
       scannedCode = await Navigator.push<String>(
         context,
         MaterialPageRoute(
           builder: (context) => Scaffold(
-            appBar: AppBar(title: const Text('امسح الباركود'), backgroundColor: Colors.black, iconTheme: const IconThemeData(color: Colors.white)),
+            appBar: AppBar(
+              title: const Text('امسح الباركود'),
+              backgroundColor: Colors.black,
+              iconTheme: const IconThemeData(color: Colors.white),
+            ),
             body: MobileScanner(
-              controller: MobileScannerController(
-                detectionSpeed: DetectionSpeed.noDuplicates,
-                returnImage: false,
-              ),
+              // تم استخدام الإعدادات الافتراضية لضمان التوافق
               onDetect: (capture) {
                 final List<Barcode> barcodes = capture.barcodes;
                 if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
@@ -375,6 +370,11 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
       );
     } catch (e) {
       debugPrint('Error scanning barcode: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ أثناء فتح الكاميرا: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
     return scannedCode;
   }
