@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 final List<IconData> marketingIcons = [
   Icons.local_grocery_store,
@@ -1381,6 +1385,176 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
     }
   }
 
+  Future<void> _generatePdf({List<DocumentSnapshot>? students, DocumentSnapshot? singleStudent}) async {
+    setState(() => _isProcessing = true);
+    final pdf = pw.Document();
+    final font = await PdfGoogleFonts.cairoRegular();
+    final boldFont = await PdfGoogleFonts.cairoBold();
+
+    List<DocumentSnapshot> targets = [];
+    if (singleStudent != null) {
+      targets.add(singleStudent);
+    } else if (students != null) {
+      targets = students;
+    } else {
+      final snapshot = await FirebaseFirestore.instance.collection('students').where('visaCode', isNull: false).get();
+      targets = snapshot.docs;
+    }
+
+    targets = targets.where((d) => d['visaCode'] != null && d['visaCode'].toString().isNotEmpty).toList();
+
+    if (targets.isEmpty) {
+      setState(() => _isProcessing = false);
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا توجد بيانات للطباعة')));
+      return;
+    }
+
+    for (var doc in targets) {
+      final data = doc.data() as Map<String, dynamic>;
+      final name = data['name'] ?? 'Student';
+      final code = data['visaCode'];
+      final balance = (data['walletBalance'] ?? 0).toDouble();
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          theme: pw.ThemeData.withFont(base: font, bold: boldFont),
+          build: (pw.Context context) {
+            return pw.Center(
+              child: _buildPdfCard(name, code, balance, font, boldFont),
+            );
+          },
+        ),
+      );
+    }
+
+    await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+    setState(() => _isProcessing = false);
+  }
+
+  pw.Widget _buildPdfCard(String name, String code, double balance, pw.Font font, pw.Font boldFont) {
+    return pw.Container(
+      width: 400,
+      height: 250,
+      decoration: pw.BoxDecoration(
+        borderRadius: pw.BorderRadius.circular(16),
+        gradient: const pw.LinearGradient(
+          colors: [PdfColors.blue900, PdfColors.blue700, PdfColors.blue800],
+          begin: pw.Alignment.topLeft,
+          end: pw.Alignment.bottomRight,
+        ),
+      ),
+      child: pw.Stack(
+        children: [
+          _buildWatermark(font),
+          pw.Padding(
+            padding: const pw.EdgeInsets.all(20),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text("ALMAREFA SCHOOL", style: pw.TextStyle(color: PdfColors.white, fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                        pw.Text("ابتدائية المعرفة الأهلية", textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: boldFont, color: PdfColors.amber, fontSize: 14)),
+                      ],
+                    ),
+                    pw.Container(
+                      width: 50, height: 50,
+                      decoration: const pw.BoxDecoration(
+                        color: PdfColors.grey200,
+                        shape: pw.BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ),
+                pw.Spacer(),
+                pw.Row(
+                  children: [
+                    pw.Container(
+                      width: 45, height: 35,
+                      decoration: pw.BoxDecoration(
+                        color: PdfColors.amber,
+                        borderRadius: pw.BorderRadius.circular(6),
+                      ),
+                    ),
+                    pw.SizedBox(width: 10),
+                  ],
+                ),
+                pw.Spacer(),
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            _formatVisaCode(code),
+                            style: pw.TextStyle(color: PdfColors.white, fontSize: 18, fontWeight: pw.FontWeight.bold, letterSpacing: 2),
+                          ),
+                          pw.SizedBox(height: 8),
+                          pw.Text(
+                            name,
+                            textDirection: pw.TextDirection.rtl,
+                            style: pw.TextStyle(font: boldFont, color: PdfColors.white, fontSize: 14),
+                          ),
+                          pw.Text(
+                            '${balance.toStringAsFixed(2)} SAR',
+                            style: pw.TextStyle(color: PdfColors.white, fontSize: 12, fontWeight: pw.FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                    pw.Container(
+                      padding: const pw.EdgeInsets.all(4),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColors.white,
+                        borderRadius: pw.BorderRadius.circular(8),
+                      ),
+                      child: pw.BarcodeWidget(
+                        barcode: pw.Barcode.qrCode(),
+                        data: code,
+                        width: 85,
+                        height: 85,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildWatermark(pw.Font font) {
+    return pw.Opacity(
+      opacity: 0.05,
+      child: pw.Wrap(
+        spacing: 40,
+        runSpacing: 40,
+        children: List.generate(15, (index) {
+          return pw.Transform.rotate(
+            angle: -0.5,
+            child: pw.Text("ابتدائية المعرفة الأهلية", textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: font, fontSize: 14, color: PdfColors.white)),
+          );
+        }),
+      ),
+    );
+  }
+
+  String _formatVisaCode(String code) {
+    if (code.length != 16) return code;
+    return '${code.substring(0, 4)} ${code.substring(4, 8)} ${code.substring(8, 12)} ${code.substring(12, 16)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1399,25 +1573,32 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
               color: Colors.white,
               child: Column(
                 children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isProcessing ? null : _handleBulkGeneration,
-                      icon: _isProcessing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) : const Icon(Icons.auto_fix_high),
-                      label: const Text('توليد تلقائي للطلاب الجدد (بدون كود)'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.cyan.shade600,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _isProcessing ? null : _handleBulkGeneration,
+                          icon: _isProcessing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white)) : const Icon(Icons.auto_fix_high),
+                          label: const Text('توليد للجدد'),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _isProcessing ? null : () => _generatePdf(),
+                          icon: const Icon(Icons.print),
+                          label: const Text('طباعة الكل (PDF)'),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      labelText: 'ابحث عن طالب لتغيير كوده...',
+                      labelText: 'ابحث عن طالب...',
                       prefixIcon: const Icon(Icons.search, color: Colors.cyan),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       filled: true,
@@ -1452,10 +1633,20 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
                       ),
                       title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text('الكود الحالي: $visaCode', style: const TextStyle(fontFamily: 'monospace')),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.refresh, color: Colors.orange),
-                        tooltip: 'تغيير الكود (يتطلب كلمة مرور)',
-                        onPressed: () => _handleSingleVisaReset(_searchResults[index].id, name),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.print, color: Colors.indigo),
+                            tooltip: 'طباعة فيزا الطالب',
+                            onPressed: () => _generatePdf(singleStudent: _searchResults[index]),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh, color: Colors.orange),
+                            tooltip: 'تغيير الكود (أمان)',
+                            onPressed: () => _handleSingleVisaReset(_searchResults[index].id, name),
+                          ),
+                        ],
                       ),
                     ),
                   );
