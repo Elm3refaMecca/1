@@ -167,6 +167,11 @@
     });
   </script>
 
-  <script src="flutter_bootstrap.js" data-service-worker-version="none" async></script>
-</body>
+<script>
+  window.flutterConfiguration = {
+    renderer: "html"
+  };
+</script>
+
+<script src="flutter_bootstrap.js" data-service-worker-version="none" async></script></body>
 </html>
