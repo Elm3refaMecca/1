@@ -8,6 +8,32 @@ import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart'; // ✅ مكتبة الباركود
 
 // ---------------------------------------------------------------------------
+// قائمة الرموز التسويقية (مخصصة للمقصف/البقالة) 🛒
+// ---------------------------------------------------------------------------
+final List<IconData> marketingIcons = [
+  Icons.local_grocery_store,
+  Icons.water_drop,
+  Icons.local_drink,
+  Icons.cookie,
+  Icons.cake,
+  Icons.takeout_dining,
+  Icons.icecream,
+  Icons.lunch_dining,
+  Icons.apple,
+  Icons.fastfood,
+  Icons.local_cafe,
+  Icons.local_pizza,
+  Icons.breakfast_dining,
+  Icons.emoji_food_beverage,
+  Icons.set_meal,
+  Icons.shopping_bag,
+  Icons.restaurant,
+  Icons.favorite,
+  Icons.star,
+  Icons.verified,
+];
+
+// ---------------------------------------------------------------------------
 // 1. اللوحة الرئيسية (Dashboard)
 // ---------------------------------------------------------------------------
 
@@ -17,60 +43,123 @@ class VisaManagementPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final Color appBarColor = Colors.lightBlue.shade300;
-    final Color backgroundColor = const Color(0xFFE1F5FE);
+    final Color backgroundColor = const Color(0xFFFAFAFA); // خلفية نظيفة
 
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
         title: const Text(
           'نظام المقصف والفيزا',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 20),
         ),
         centerTitle: true,
         backgroundColor: appBarColor,
         elevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: Directionality(
         textDirection: ui.TextDirection.rtl,
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: GridView.count(
-            crossAxisCount: 2,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.1,
+        child: SingleChildScrollView( // لجعل الشاشة قابلة للتمرير إذا زادت العناصر
+          child: Column(
             children: [
-              _buildGridCard(
-                context,
-                'إصدار الفيزا',
-                Icons.qr_code_scanner_rounded,
-                Colors.cyan,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VisaGenerationView())),
+              // ✅ كارت الخزنة
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('transactions').snapshots(),
+                builder: (context, snapshot) {
+                  double totalVault = 0;
+                  if (snapshot.hasData) {
+                    for (var doc in snapshot.data!.docs) {
+                      totalVault += (doc.data() as Map<String, dynamic>)['total'] ?? 0;
+                    }
+                  }
+                  return Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green.shade700, Colors.green.shade400],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(color: Colors.green.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5)),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 28),
+                            SizedBox(width: 12),
+                            Text('خزنة المبيعات', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        Text(
+                          '${totalVault.toStringAsFixed(2)} ﷼',
+                          style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'Arial'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
-              _buildGridCard(
-                context,
-                'المخزن',
-                Icons.store_mall_directory_rounded,
-                Colors.lightBlue,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StoreManagementPage())),
-              ),
-              _buildGridCard(
-                context,
-                'نقطة البيع',
-                Icons.point_of_sale_rounded,
-                Colors.teal,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CanteenPOSPage())),
-              ),
-              _buildGridCard(
-                context,
-                'التقارير',
-                Icons.analytics_rounded,
-                Colors.blueGrey,
-                    () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VisaAnalyticsPage())),
+
+              // ✅✅✅ التوزيع الجديد (بدون شبكة Grid) ✅✅✅
+              // استخدام Wrap لرص العناصر بجانب بعضها بمسافات محددة
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Wrap(
+                  direction: Axis.horizontal,
+                  alignment: WrapAlignment.start, // يبدأ من اليمين (بسبب Directionality RTL)
+                  spacing: 40.0, // ✅ المسافة الأفقية بين كل أيقونة والأخرى (بحجم أيقونة تقريباً)
+                  runSpacing: 40.0, // ✅ المسافة الرأسية بين الأسطر
+                  children: [
+                    _buildFreeIcon(
+                      context,
+                      'الفيزا',
+                      Icons.qr_code_2_rounded,
+                      Colors.cyan,
+                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VisaGenerationView())),
+                    ),
+                    _buildFreeIcon(
+                      context,
+                      'المخزن',
+                      Icons.inventory_2_rounded,
+                      Colors.blue,
+                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StoreManagementPage())),
+                    ),
+                    _buildFreeIcon(
+                      context,
+                      'نقطة البيع',
+                      Icons.point_of_sale_rounded,
+                      Colors.teal,
+                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CanteenPOSPage())),
+                    ),
+                    _buildFreeIcon(
+                      context,
+                      'التقارير',
+                      Icons.bar_chart_rounded,
+                      Colors.indigo,
+                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VisaAnalyticsPage())),
+                    ),
+                    _buildFreeIcon(
+                      context,
+                      'التقويم',
+                      Icons.calendar_month_rounded,
+                      Colors.orange,
+                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SalesCalendarPage())),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -79,38 +168,43 @@ class VisaManagementPage extends StatelessWidget {
     );
   }
 
-  Widget _buildGridCard(BuildContext context, String title, IconData icon, MaterialColor color, VoidCallback onTap) {
-    return Card(
-      elevation: 3,
-      shadowColor: color.withOpacity(0.3),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      color: Colors.white,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                color: color.shade50,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 40, color: color.shade600),
+  // ✅ تصميم العنصر الحر (Free Icon)
+  Widget _buildFreeIcon(BuildContext context, String title, IconData icon, MaterialColor color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min, // يأخذ أقل مساحة ممكنة
+        children: [
+          // الدائرة الملونة
+          Container(
+            width: 65,
+            height: 65,
+            decoration: BoxDecoration(
+              color: color.shade50, // خلفية فاتحة جداً
+              shape: BoxShape.circle,
+              border: Border.all(color: color.shade100, width: 1.5), // حدود ناعمة
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.15),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4), // ظل خفيف للأسفل
+                )
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey.shade800,
-              ),
+            child: Icon(icon, size: 30, color: color.shade700),
+          ),
+          const SizedBox(height: 10), // مسافة بين الأيقونة والنص
+          // النص
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade800,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -248,7 +342,7 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE0F7FA),
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         title: const Text('إصدار وتعديل الفيزا'),
         backgroundColor: Colors.cyan.shade600,
@@ -327,7 +421,7 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
 }
 
 // ---------------------------------------------------------------------------
-// 3. المخزن (Store) - إدارة المنتجات بالكاميرا و Firebase
+// 3. المخزن (Store) - إدارة المنتجات + نظام السجلات
 // ---------------------------------------------------------------------------
 
 class StoreManagementPage extends StatefulWidget {
@@ -338,10 +432,8 @@ class StoreManagementPage extends StatefulWidget {
 }
 
 class _StoreManagementPageState extends State<StoreManagementPage> {
-  // ✅ الاتصال بـ Firebase Firestore
   final CollectionReference _productsRef = FirebaseFirestore.instance.collection('products');
 
-  // ✅ دالة فتح الكاميرا لمسح الباركود (تمت إزالة الحظر عن الويب)
   Future<String?> _scanBarcode(BuildContext context) async {
     String? scannedCode;
     try {
@@ -349,19 +441,13 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
         context,
         MaterialPageRoute(
           builder: (context) => Scaffold(
-            appBar: AppBar(
-              title: const Text('امسح الباركود'),
-              backgroundColor: Colors.black,
-              iconTheme: const IconThemeData(color: Colors.white),
-            ),
+            appBar: AppBar(title: const Text('امسح الباركود'), backgroundColor: Colors.black, iconTheme: const IconThemeData(color: Colors.white)),
             body: MobileScanner(
-              // تم استخدام الإعدادات الافتراضية لضمان التوافق
               onDetect: (capture) {
                 final List<Barcode> barcodes = capture.barcodes;
                 if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
                   final code = barcodes.first.rawValue!;
-                  debugPrint('Barcode found! $code');
-                  Navigator.pop(context, code); // إرجاع الكود وإغلاق الكاميرا
+                  Navigator.pop(context, code);
                 }
               },
             ),
@@ -369,158 +455,308 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
         ),
       );
     } catch (e) {
-      debugPrint('Error scanning barcode: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ أثناء فتح الكاميرا: $e'), backgroundColor: Colors.red),
-        );
-      }
+      debugPrint('Error: $e');
     }
     return scannedCode;
   }
 
-  // ✅ نافذة إضافة/تعديل المنتج
+  // ✅ نافذة عرض سجل الحركات (Logs)
+  void _showProductLogs(String productId, String productName) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        builder: (_, controller) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text("سجل حركة: $productName", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ),
+            const Divider(),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: _productsRef.doc(productId).collection('stock_logs').orderBy('timestamp', descending: true).snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("لا توجد حركات مسجلة"));
+
+                  return ListView.builder(
+                    controller: controller,
+                    itemCount: snapshot.data!.docs.length,
+                    itemBuilder: (context, index) {
+                      final log = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                      final bool isAdd = log['type'] == 'add';
+                      final date = (log['timestamp'] as Timestamp?)?.toDate();
+                      final formattedDate = date != null ? DateFormat('yyyy/MM/dd HH:mm').format(date) : '-';
+
+                      return ListTile(
+                        leading: Icon(
+                          isAdd ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                          color: isAdd ? Colors.green : Colors.red,
+                        ),
+                        title: Text(
+                          isAdd ? "توريد (إضافة)" : "تالف/صرف (خصم)",
+                          style: TextStyle(color: isAdd ? Colors.green.shade800 : Colors.red.shade800, fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text("${log['reason'] ?? 'بدون سبب'} | $formattedDate"),
+                        trailing: Text(
+                          "${isAdd ? '+' : '-'}${log['amount']}",
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isAdd ? Colors.green : Colors.red),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ نافذة إضافة/تعديل المنتج (الاحترافية)
   void _showProductDialog({DocumentSnapshot? product}) {
     final nameController = TextEditingController(text: product?['name']);
     final priceController = TextEditingController(text: product?['price']?.toString());
-    final stockController = TextEditingController(text: product?['stock']?.toString());
+    // إذا منتج جديد نعرض حقل الكمية، إذا موجود نعرض حقل التعديل
+    final stockController = TextEditingController(text: product == null ? '' : '');
     final serialController = TextEditingController(text: product?['serial']);
+    final reasonController = TextEditingController(); // سبب التعديل
+
+    int selectedIconIndex = product?['iconIndex'] ?? 0;
+    String operationType = 'add'; // add or remove
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 20, right: 20, top: 20),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(product == null ? 'إضافة منتج جديد' : 'تعديل المخزون', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
-                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-              ],
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: nameController,
-              decoration: InputDecoration(
-                labelText: 'اسم المنتج',
-                prefixIcon: const Icon(Icons.shopping_bag),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: priceController,
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'السعر',
-                      suffixText: 'ريال',
-                      prefixIcon: const Icon(Icons.attach_money),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(product == null ? 'منتج جديد' : 'إدارة المخزون', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue)),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+                const SizedBox(height: 15),
+
+                // 1. اختيار الأيقونة
+                SizedBox(
+                  height: 60,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: marketingIcons.length,
+                    separatorBuilder: (c, i) => const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      final isSelected = index == selectedIconIndex;
+                      return GestureDetector(
+                        onTap: () => setModalState(() => selectedIconIndex = index),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? Colors.blue.shade100 : Colors.grey.shade100,
+                            border: isSelected ? Border.all(color: Colors.blue, width: 2) : null,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(marketingIcons[index], color: isSelected ? Colors.blue : Colors.grey),
+                        ),
+                      );
+                    },
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
+                const SizedBox(height: 15),
+
+                // 2. البيانات الأساسية
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(labelText: 'اسم المنتج', prefixIcon: const Icon(Icons.shopping_bag), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: priceController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(labelText: 'السعر', suffixText: 'ريال', prefixIcon: const Icon(Icons.attach_money), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: serialController,
+                        decoration: InputDecoration(
+                          labelText: 'الباركود',
+                          prefixIcon: IconButton(
+                            icon: const Icon(Icons.camera_alt, color: Colors.blue),
+                            onPressed: () async {
+                              String? code = await _scanBarcode(context);
+                              if (code != null) serialController.text = code;
+                            },
+                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // 3. قسم المخزون (المهم جداً)
+                if (product == null) ...[
+                  // منتج جديد: إدخال مباشر
+                  TextField(
                     controller: stockController,
                     keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'العدد (الكمية)',
-                      hintText: 'الكمية المتوفرة',
-                      prefixIcon: const Icon(Icons.exposure),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    decoration: InputDecoration(labelText: 'الرصيد الافتتاحي', prefixIcon: const Icon(Icons.inventory), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+                  ),
+                ] else ...[
+                  // منتج موجود: عمليات إضافة/خصم
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("المتوفر حالياً: ${product['stock']} قطعة", style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: RadioListTile<String>(
+                                title: const Text("توريد (+)", style: TextStyle(fontSize: 12)),
+                                value: 'add',
+                                groupValue: operationType,
+                                activeColor: Colors.green,
+                                contentPadding: EdgeInsets.zero,
+                                onChanged: (val) => setModalState(() => operationType = val!),
+                              ),
+                            ),
+                            Expanded(
+                              child: RadioListTile<String>(
+                                title: const Text("تالف/صرف (-)", style: TextStyle(fontSize: 12)),
+                                value: 'remove',
+                                groupValue: operationType,
+                                activeColor: Colors.red,
+                                contentPadding: EdgeInsets.zero,
+                                onChanged: (val) => setModalState(() => operationType = val!),
+                              ),
+                            ),
+                          ],
+                        ),
+                        TextField(
+                          controller: stockController,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: 'الكمية (التغيير)',
+                            hintText: 'أدخل العدد هنا',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: reasonController,
+                          decoration: InputDecoration(
+                            labelText: 'ملاحظة / سبب التعديل',
+                            hintText: 'مثال: فاتورة رقم 101',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: serialController,
-                    decoration: InputDecoration(
-                      labelText: 'الباركود (السيريال)',
-                      prefixIcon: const Icon(Icons.qr_code),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ],
+
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // ✅ زر الكاميرا لمسح الباركود
-                Tooltip(
-                  message: 'اضغط للمسح بالكاميرا',
-                  child: Container(
-                    decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(12)),
-                    child: IconButton(
-                      icon: const Icon(Icons.camera_alt, color: Colors.blue),
-                      onPressed: () async {
-                        String? scannedCode = await _scanBarcode(context);
-                        if (scannedCode != null) {
-                          serialController.text = scannedCode;
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم مسح الباركود بنجاح!'), backgroundColor: Colors.green));
+                    onPressed: () async {
+                      if (nameController.text.isEmpty || priceController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إكمال البيانات')));
+                        return;
+                      }
+
+                      int stockChange = int.tryParse(stockController.text) ?? 0;
+
+                      final basicData = {
+                        'name': nameController.text,
+                        'price': double.tryParse(priceController.text) ?? 0.0,
+                        'serial': serialController.text,
+                        'iconIndex': selectedIconIndex,
+                        'updatedAt': FieldValue.serverTimestamp(),
+                      };
+
+                      try {
+                        if (product == null) {
+                          // إضافة منتج جديد
+                          basicData['stock'] = stockChange; // Initial stock
+                          await _productsRef.add(basicData);
+                        } else {
+                          // تعديل منتج موجود
+                          final docRef = _productsRef.doc(product.id);
+                          final batch = FirebaseFirestore.instance.batch();
+
+                          // تحديث البيانات الأساسية
+                          batch.update(docRef, basicData);
+
+                          // منطق المخزون المتقدم
+                          if (stockChange > 0) {
+                            int finalChange = operationType == 'add' ? stockChange : -stockChange;
+
+                            // تحديث العدد باستخدام increment (آمن من التداخل)
+                            batch.update(docRef, {'stock': FieldValue.increment(finalChange)});
+
+                            // إضافة سجل في الـ Logs
+                            final logRef = docRef.collection('stock_logs').doc();
+                            batch.set(logRef, {
+                              'amount': stockChange,
+                              'type': operationType,
+                              'reason': reasonController.text.isEmpty ? 'تحديث يدوي' : reasonController.text,
+                              'timestamp': FieldValue.serverTimestamp(),
+                            });
+                          }
+
+                          await batch.commit();
                         }
-                      },
-                    ),
+
+                        if (mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت العملية بنجاح'), backgroundColor: Colors.green));
+                        }
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
+                      }
+                    },
+                    child: Text(product == null ? 'إنشاء المنتج' : 'حفظ التعديلات', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
                 ),
+                const SizedBox(height: 20),
               ],
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.lightBlue.shade600,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () async {
-                  if (nameController.text.isEmpty || priceController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال الاسم والسعر')));
-                    return;
-                  }
-
-                  // تجهيز البيانات للرفع
-                  final data = {
-                    'name': nameController.text,
-                    'price': double.tryParse(priceController.text) ?? 0.0,
-                    'stock': int.tryParse(stockController.text) ?? 0,
-                    'serial': serialController.text, // الباركود
-                    'updatedAt': FieldValue.serverTimestamp(),
-                  };
-
-                  try {
-                    if (product == null) {
-                      // إضافة منتج جديد
-                      await _productsRef.add(data);
-                    } else {
-                      // تعديل منتج موجود
-                      await _productsRef.doc(product.id).update(data);
-                    }
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الحفظ بنجاح'), backgroundColor: Colors.green));
-                    }
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red));
-                  }
-                },
-                child: const Text('حفظ المنتج', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
       ),
     );
@@ -529,7 +765,7 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE1F5FE),
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
         title: const Text('إدارة المخزن والمنتجات'),
         backgroundColor: Colors.lightBlue.shade400,
@@ -545,16 +781,16 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
         textDirection: ui.TextDirection.rtl,
         child: Column(
           children: [
-            // إحصائيات سريعة
+            // إحصائيات المخزون (قيمة البضاعة فقط)
             StreamBuilder<QuerySnapshot>(
               stream: _productsRef.snapshots(),
               builder: (context, snapshot) {
-                double totalValue = 0;
+                double totalStockValue = 0;
                 int totalItems = 0;
                 if (snapshot.hasData) {
                   for (var doc in snapshot.data!.docs) {
                     final data = doc.data() as Map<String, dynamic>;
-                    totalValue += (data['price'] ?? 0) * (data['stock'] ?? 0);
+                    totalStockValue += (data['price'] ?? 0) * (data['stock'] ?? 0);
                     totalItems += (data['stock'] as num? ?? 0).toInt();
                   }
                 }
@@ -572,15 +808,15 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('إجمالي قطع المخزن', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          const Text('عدد الأصناف', style: TextStyle(color: Colors.grey, fontSize: 12)),
                           Text('$totalItems قطعة', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         ],
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Text('القيمة الإجمالية', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                          Text('${totalValue.toStringAsFixed(2)} ريال', style: TextStyle(color: Colors.lightBlue.shade800, fontSize: 18, fontWeight: FontWeight.bold)),
+                          const Text('قيمة البضاعة بالمخزن', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('${totalStockValue.toStringAsFixed(2)} ريال', style: TextStyle(color: Colors.blue.shade800, fontSize: 18, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ],
@@ -588,7 +824,7 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                 );
               },
             ),
-            // قائمة المنتجات من Firestore
+            // قائمة المنتجات
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _productsRef.orderBy('name').snapshots(),
@@ -612,6 +848,13 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                       final doc = snapshot.data!.docs[index];
                       final data = doc.data() as Map<String, dynamic>;
                       final int stock = data['stock'] ?? 0;
+                      final int iconIdx = data['iconIndex'] ?? 0;
+
+                      // التأكد من أن مؤشر الأيقونة صالح
+                      final IconData prodIcon = (iconIdx >= 0 && iconIdx < marketingIcons.length)
+                          ? marketingIcons[iconIdx]
+                          : Icons.shopping_bag;
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 10),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -621,10 +864,10 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                           leading: Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: stock < 5 ? Colors.red.shade50 : Colors.lightBlue.shade50,
+                              color: stock < 5 ? Colors.red.shade50 : Colors.blue.shade50,
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Icon(Icons.inventory_2, color: stock < 5 ? Colors.red : Colors.lightBlue.shade400),
+                            child: Icon(prodIcon, color: stock < 5 ? Colors.red : Colors.blue.shade600, size: 28),
                           ),
                           title: Text(data['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Column(
@@ -634,31 +877,38 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                               Text('السعر: ${data['price']} ريال', style: TextStyle(color: Colors.grey.shade700)),
                               Text(stock < 5 ? '⚠️ الكمية منخفضة: $stock' : 'المتبقي: $stock',
                                   style: TextStyle(color: stock < 5 ? Colors.red : Colors.green, fontSize: 12)),
-                              if (data['serial'] != null && data['serial'].toString().isNotEmpty)
-                                Text('كود: ${data['serial']}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
                             ],
                           ),
-                          trailing: PopupMenuButton(
-                            onSelected: (value) {
-                              if (value == 'edit') _showProductDialog(product: doc);
-                              if (value == 'delete') {
-                                // تأكيد الحذف
-                                showDialog(context: context, builder: (ctx) => AlertDialog(
-                                  title: const Text('تأكيد الحذف'),
-                                  content: Text('هل أنت متأكد من حذف ${data['name']}؟'),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-                                    ElevatedButton(onPressed: () {
-                                      doc.reference.delete();
-                                      Navigator.pop(ctx);
-                                    }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('حذف')),
-                                  ],
-                                ));
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              const PopupMenuItem(value: 'edit', child: Text('تعديل / جرد')),
-                              const PopupMenuItem(value: 'delete', child: Text('حذف المنتج', style: TextStyle(color: Colors.red))),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.history, color: Colors.grey),
+                                tooltip: 'سجل الحركة',
+                                onPressed: () => _showProductLogs(doc.id, data['name']),
+                              ),
+                              PopupMenuButton(
+                                onSelected: (value) {
+                                  if (value == 'edit') _showProductDialog(product: doc);
+                                  if (value == 'delete') {
+                                    showDialog(context: context, builder: (ctx) => AlertDialog(
+                                      title: const Text('تأكيد الحذف'),
+                                      content: Text('هل أنت متأكد من حذف ${data['name']}؟'),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                                        ElevatedButton(onPressed: () {
+                                          doc.reference.delete();
+                                          Navigator.pop(ctx);
+                                        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.red), child: const Text('حذف')),
+                                      ],
+                                    ));
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(value: 'edit', child: Text('تعديل / إدارة')),
+                                  const PopupMenuItem(value: 'delete', child: Text('حذف المنتج', style: TextStyle(color: Colors.red))),
+                                ],
+                              ),
                             ],
                           ),
                         ),
@@ -786,6 +1036,15 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
         for (var item in _cart) {
           DocumentReference prodRef = FirebaseFirestore.instance.collection('products').doc(item['id']);
           transaction.update(prodRef, {'stock': FieldValue.increment(-item['qty'])});
+
+          // تسجيل حركة الصرف في المخزون
+          DocumentReference logRef = prodRef.collection('stock_logs').doc();
+          transaction.set(logRef, {
+            'amount': item['qty'],
+            'type': 'remove',
+            'reason': 'مبيعات POS',
+            'timestamp': FieldValue.serverTimestamp(),
+          });
         }
         DocumentReference invoiceRef = FirebaseFirestore.instance.collection('transactions').doc();
         transaction.set(invoiceRef, {
@@ -857,6 +1116,9 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
                           itemCount: snapshot.data!.docs.length,
                           itemBuilder: (context, index) {
                             final prod = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                            final int iconIdx = prod['iconIndex'] ?? 0;
+                            final IconData prodIcon = (iconIdx >= 0 && iconIdx < marketingIcons.length) ? marketingIcons[iconIdx] : Icons.fastfood;
+
                             return InkWell(
                               onTap: () => _addToCart(prod, snapshot.data!.docs[index].id),
                               child: Card(
@@ -864,7 +1126,7 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.fastfood_rounded, size: 30, color: Colors.orange.shade300),
+                                    Icon(prodIcon, size: 30, color: Colors.orange.shade300),
                                     const SizedBox(height: 4),
                                     Text(prod['name'], textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                     Text('${prod['price']} ريال', style: const TextStyle(fontSize: 11, color: Colors.teal)),
@@ -928,8 +1190,8 @@ class VisaAnalyticsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFECEFF1),
-      appBar: AppBar(title: const Text('التقارير المالية'), backgroundColor: Colors.blueGrey.shade400, elevation: 0),
+      backgroundColor: const Color(0xFFF5F7FA),
+      appBar: AppBar(title: const Text('التقارير المالية'), backgroundColor: Colors.indigo.shade400, elevation: 0),
       body: Directionality(
         textDirection: ui.TextDirection.rtl,
         child: Padding(
@@ -949,9 +1211,9 @@ class VisaAnalyticsPage extends StatelessWidget {
                   }
                   return Row(
                     children: [
-                      Expanded(child: _buildStatBox('المبيعات', '${totalSales.toStringAsFixed(2)} ريال', Colors.blueGrey)),
+                      Expanded(child: _buildStatBox('المبيعات (الخزنة)', '${totalSales.toStringAsFixed(2)} ريال', Colors.green)),
                       const SizedBox(width: 16),
-                      Expanded(child: _buildStatBox('العمليات', '$count', Colors.teal)),
+                      Expanded(child: _buildStatBox('عدد العمليات', '$count', Colors.teal)),
                     ],
                   );
                 },
@@ -1000,6 +1262,7 @@ class VisaAnalyticsPage extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.shade100),
+        boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 5, offset: const Offset(0, 2))],
       ),
       child: Column(
         children: [
@@ -1007,6 +1270,129 @@ class VisaAnalyticsPage extends StatelessWidget {
           const SizedBox(height: 8),
           Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color.shade700)),
         ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 6. صفحة تقويم المبيعات (Sales Calendar)
+// ---------------------------------------------------------------------------
+
+class SalesCalendarPage extends StatefulWidget {
+  const SalesCalendarPage({super.key});
+
+  @override
+  State<SalesCalendarPage> createState() => _SalesCalendarPageState();
+}
+
+class _SalesCalendarPageState extends State<SalesCalendarPage> {
+  DateTime _selectedDate = DateTime.now();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
+      appBar: AppBar(
+        title: const Text('تقويم المبيعات'),
+        backgroundColor: Colors.orange.shade700,
+        elevation: 0,
+      ),
+      body: Directionality(
+        textDirection: ui.TextDirection.rtl,
+        child: Column(
+          children: [
+            Container(
+              color: Colors.white,
+              child: CalendarDatePicker(
+                initialDate: _selectedDate,
+                firstDate: DateTime(2024),
+                lastDate: DateTime(2030),
+                onDateChanged: (date) {
+                  setState(() {
+                    _selectedDate = date;
+                  });
+                },
+              ),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('transactions')
+                    .orderBy('timestamp', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text('لا توجد بيانات'));
+                  }
+
+                  final dayDocs = snapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final ts = data['timestamp'] as Timestamp?;
+                    if (ts == null) return false;
+                    final date = ts.toDate();
+                    return date.year == _selectedDate.year &&
+                        date.month == _selectedDate.month &&
+                        date.day == _selectedDate.day;
+                  }).toList();
+
+                  if (dayDocs.isEmpty) {
+                    return const Center(child: Text('لا توجد مبيعات في هذا اليوم'));
+                  }
+
+                  double dayTotal = 0;
+                  for (var doc in dayDocs) {
+                    dayTotal += (doc.data() as Map<String, dynamic>)['total'] ?? 0;
+                  }
+
+                  return Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade100,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('إجمالي اليوم:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            Text('${dayTotal.toStringAsFixed(2)} ريال', style: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold, fontSize: 18)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: dayDocs.length,
+                          itemBuilder: (context, index) {
+                            final data = dayDocs[index].data() as Map<String, dynamic>;
+                            final date = (data['timestamp'] as Timestamp).toDate();
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ListTile(
+                                leading: const Icon(Icons.receipt, color: Colors.orange),
+                                title: Text(data['studentName'] ?? 'طالب'),
+                                subtitle: Text(DateFormat('hh:mm a').format(date)),
+                                trailing: Text('${data['total']} ريال', style: const TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
