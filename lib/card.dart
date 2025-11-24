@@ -167,6 +167,87 @@ Future<void> _logAuditAction({
 class VisaManagementPage extends StatelessWidget {
   const VisaManagementPage({super.key});
 
+  Future<void> _checkVisaAccess(BuildContext context) async {
+    final pinController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool isChecking = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('مطلوب رمز الأمان'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('للدخول إلى إعدادات الفيزا، الرجاء إدخال الرمز السري الخاص.'),
+                    const SizedBox(height: 15),
+                    TextFormField(
+                      controller: pinController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'الرمز السري',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.vpn_key),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'مطلوب';
+                        return null;
+                      },
+                    ),
+                    if (isChecking) const Padding(padding: EdgeInsets.only(top: 10), child: LinearProgressIndicator())
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: isChecking ? null : () => Navigator.pop(context), child: const Text('إلغاء')),
+                ElevatedButton(
+                  onPressed: isChecking ? null : () async {
+                    if (formKey.currentState!.validate()) {
+                      setState(() => isChecking = true);
+                      try {
+                        final doc = await FirebaseFirestore.instance.collection('settings').doc('visa_security').get();
+                        String serverPin = 'asdasdasd01000';
+                        if (doc.exists && doc.data() != null && doc.data()!.containsKey('pin')) {
+                          serverPin = doc.data()!['pin'];
+                        } else {
+                          await FirebaseFirestore.instance.collection('settings').doc('visa_security').set({'pin': 'asdasdasd01000'});
+                        }
+
+                        if (pinController.text.trim() == serverPin) {
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => const VisaGenerationView()));
+                          }
+                        } else {
+                          setState(() => isChecking = false);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز غير صحيح'), backgroundColor: Colors.red));
+                          }
+                        }
+                      } catch (e) {
+                        setState(() => isChecking = false);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
+                        }
+                      }
+                    }
+                  },
+                  child: const Text('دخول'),
+                )
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Color appBarColor = Colors.lightBlue.shade300;
@@ -279,7 +360,7 @@ class VisaManagementPage extends StatelessWidget {
                       'تعديل الفيزا',
                       Icons.qr_code_scanner_rounded,
                       Colors.cyan,
-                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VisaGenerationView())),
+                          () => _checkVisaAccess(context),
                     ),
                     _buildFreeIcon(
                       context,
@@ -1385,6 +1466,23 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
     }
   }
 
+  int _getGradeRank(String? grade) {
+    if (grade == null) return 999;
+    if (grade.contains('الأول') && !grade.contains('المتوسط') && !grade.contains('الثانوي')) return 1;
+    if (grade.contains('الثاني') && !grade.contains('المتوسط') && !grade.contains('الثانوي')) return 2;
+    if (grade.contains('الثالث') && !grade.contains('المتوسط') && !grade.contains('الثانوي')) return 3;
+    if (grade.contains('الرابع')) return 4;
+    if (grade.contains('الخامس')) return 5;
+    if (grade.contains('السادس')) return 6;
+    if (grade.contains('الأول المتوسط')) return 7;
+    if (grade.contains('الثاني المتوسط')) return 8;
+    if (grade.contains('الثالث المتوسط')) return 9;
+    if (grade.contains('الأول الثانوي')) return 10;
+    if (grade.contains('الثاني الثانوي')) return 11;
+    if (grade.contains('الثالث الثانوي')) return 12;
+    return 99;
+  }
+
   Future<void> _generatePdf({List<DocumentSnapshot>? students, DocumentSnapshot? singleStudent}) async {
     setState(() => _isProcessing = true);
     final pdf = pw.Document();
@@ -1409,11 +1507,33 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
       return;
     }
 
+    targets.sort((a, b) {
+      final dataA = a.data() as Map<String, dynamic>;
+      final dataB = b.data() as Map<String, dynamic>;
+
+      final gradeRankA = _getGradeRank(dataA['grades']);
+      final gradeRankB = _getGradeRank(dataB['grades']);
+      if (gradeRankA != gradeRankB) return gradeRankA.compareTo(gradeRankB);
+
+      final classA = dataA['classes'] ?? '';
+      final classB = dataB['classes'] ?? '';
+      final int compClass = classA.compareTo(classB);
+      if (compClass != 0) return compClass;
+
+      return (dataA['name'] ?? '').compareTo(dataB['name'] ?? '');
+    });
+
     for (var doc in targets) {
       final data = doc.data() as Map<String, dynamic>;
       final name = data['name'] ?? 'Student';
       final code = data['visaCode'];
       final balance = (data['walletBalance'] ?? 0).toDouble();
+      final email = data['email'] ?? '';
+      String studentNumber = '';
+      if (email.toString().contains('@')) {
+        studentNumber = email.toString().split('@')[0];
+      }
+      final className = "${data['grades'] ?? ''} - ${data['classes'] ?? ''}";
 
       pdf.addPage(
         pw.Page(
@@ -1421,7 +1541,7 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
           theme: pw.ThemeData.withFont(base: font, bold: boldFont),
           build: (pw.Context context) {
             return pw.Center(
-              child: _buildPdfCard(name, code, balance, font, boldFont),
+              child: _buildPdfCard(name, code, balance, studentNumber, className, font, boldFont),
             );
           },
         ),
@@ -1432,10 +1552,10 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
     setState(() => _isProcessing = false);
   }
 
-  pw.Widget _buildPdfCard(String name, String code, double balance, pw.Font font, pw.Font boldFont) {
+  pw.Widget _buildPdfCard(String name, String code, double balance, String studentNumber, String className, pw.Font font, pw.Font boldFont) {
     return pw.Container(
-      width: 400,
-      height: 250,
+      width: 420,
+      height: 265,
       decoration: pw.BoxDecoration(
         borderRadius: pw.BorderRadius.circular(16),
         gradient: const pw.LinearGradient(
@@ -1460,14 +1580,20 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
                         pw.Text("ALMAREFA SCHOOL", style: pw.TextStyle(color: PdfColors.white, fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                        pw.Text("ابتدائية المعرفة الأهلية", textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: boldFont, color: PdfColors.amber, fontSize: 14)),
+                        pw.Text("ابتدائية المعرفة الأهلية", textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: boldFont, color: PdfColors.amber, fontSize: 16)),
                       ],
                     ),
                     pw.Container(
-                      width: 50, height: 50,
+                      width: 60, height: 60,
                       decoration: const pw.BoxDecoration(
                         color: PdfColors.grey200,
                         shape: pw.BoxShape.circle,
+                      ),
+                      child: pw.Center(
+                        child: pw.Text(
+                          studentNumber,
+                          style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
+                        ),
                       ),
                     ),
                   ],
@@ -1475,13 +1601,7 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
                 pw.Spacer(),
                 pw.Row(
                   children: [
-                    pw.Container(
-                      width: 45, height: 35,
-                      decoration: pw.BoxDecoration(
-                        color: PdfColors.amber,
-                        borderRadius: pw.BorderRadius.circular(6),
-                      ),
-                    ),
+                    _buildRealisticChip(),
                     pw.SizedBox(width: 10),
                   ],
                 ),
@@ -1496,14 +1616,20 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
                         children: [
                           pw.Text(
                             _formatVisaCode(code),
-                            style: pw.TextStyle(color: PdfColors.white, fontSize: 18, fontWeight: pw.FontWeight.bold, letterSpacing: 2),
+                            style: pw.TextStyle(color: PdfColors.white, fontSize: 20, fontWeight: pw.FontWeight.bold, letterSpacing: 2),
                           ),
                           pw.SizedBox(height: 8),
                           pw.Text(
                             name,
                             textDirection: pw.TextDirection.rtl,
-                            style: pw.TextStyle(font: boldFont, color: PdfColors.white, fontSize: 14),
+                            style: pw.TextStyle(font: boldFont, color: PdfColors.white, fontSize: 16),
                           ),
+                          pw.Text(
+                            className,
+                            textDirection: pw.TextDirection.rtl,
+                            style: pw.TextStyle(font: font, color: PdfColors.amber, fontSize: 12),
+                          ),
+                          pw.SizedBox(height: 4),
                           pw.Text(
                             '${balance.toStringAsFixed(2)} SAR',
                             style: pw.TextStyle(color: PdfColors.white, fontSize: 12, fontWeight: pw.FontWeight.bold),
@@ -1520,8 +1646,8 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
                       child: pw.BarcodeWidget(
                         barcode: pw.Barcode.qrCode(),
                         data: code,
-                        width: 85,
-                        height: 85,
+                        width: 95,
+                        height: 95,
                       ),
                     ),
                   ],
@@ -1534,13 +1660,49 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
     );
   }
 
+  pw.Widget _buildRealisticChip() {
+    return pw.Container(
+      width: 50, height: 38,
+      decoration: pw.BoxDecoration(
+        color: PdfColors.amber300,
+        borderRadius: pw.BorderRadius.circular(6),
+        border: pw.Border.all(color: PdfColors.amber100, width: 0.5),
+      ),
+      child: pw.Stack(
+        children: [
+          pw.Positioned(
+            left: 0, right: 0, top: 19,
+            child: pw.Container(height: 0.5, color: PdfColors.grey800),
+          ),
+          pw.Positioned(
+            top: 0, bottom: 0, left: 16,
+            child: pw.Container(width: 0.5, color: PdfColors.grey800),
+          ),
+          pw.Positioned(
+            top: 0, bottom: 0, right: 16,
+            child: pw.Container(width: 0.5, color: PdfColors.grey800),
+          ),
+          pw.Center(
+            child: pw.Container(
+              width: 14, height: 10,
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey800, width: 0.5),
+                borderRadius: pw.BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   pw.Widget _buildWatermark(pw.Font font) {
     return pw.Opacity(
       opacity: 0.05,
       child: pw.Wrap(
-        spacing: 40,
-        runSpacing: 40,
-        children: List.generate(15, (index) {
+        spacing: 30,
+        runSpacing: 30,
+        children: List.generate(20, (index) {
           return pw.Transform.rotate(
             angle: -0.5,
             child: pw.Text("ابتدائية المعرفة الأهلية", textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: font, fontSize: 14, color: PdfColors.white)),
