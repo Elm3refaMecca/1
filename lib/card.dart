@@ -9,9 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-// ---------------------------------------------------------------------------
-// قائمة الرموز التسويقية
-// ---------------------------------------------------------------------------
 final List<IconData> marketingIcons = [
   Icons.local_grocery_store,
   Icons.water_drop,
@@ -34,10 +31,6 @@ final List<IconData> marketingIcons = [
   Icons.star,
   Icons.verified,
 ];
-
-// ---------------------------------------------------------------------------
-// دوال مساعدة للأمان والسجلات
-// ---------------------------------------------------------------------------
 
 Future<bool> _confirmWithPassword(BuildContext context) async {
   final passwordController = TextEditingController();
@@ -63,7 +56,7 @@ Future<bool> _confirmWithPassword(BuildContext context) async {
               children: [
                 Icon(Icons.security, color: Colors.red),
                 SizedBox(width: 10),
-                Text('تأكيد الهوية'),
+                Text('تأكيد أمني مطلوب'),
               ],
             ),
             content: Form(
@@ -72,7 +65,7 @@ Future<bool> _confirmWithPassword(BuildContext context) async {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'إجراء حساس: يرجى إدخال كلمة المرور الخاصة بحسابك لتأكيد العملية.',
+                    'هذا الإجراء حساس ولا يمكن التراجع عنه. يرجى إدخال كلمة مرور حسابك للتأكيد.',
                     style: TextStyle(fontSize: 13, color: Colors.grey),
                   ),
                   const SizedBox(height: 16),
@@ -135,7 +128,7 @@ Future<bool> _confirmWithPassword(BuildContext context) async {
                     }
                   }
                 },
-                child: const Text('تأكيد', style: TextStyle(color: Colors.white)),
+                child: const Text('تأكيد الحذف', style: TextStyle(color: Colors.white)),
               ),
             ],
           );
@@ -166,10 +159,6 @@ Future<void> _logAuditAction({
     'timestamp': FieldValue.serverTimestamp(),
   });
 }
-
-// ---------------------------------------------------------------------------
-// 1. اللوحة الرئيسية (Dashboard)
-// ---------------------------------------------------------------------------
 
 class VisaManagementPage extends StatelessWidget {
   const VisaManagementPage({super.key});
@@ -202,7 +191,6 @@ class VisaManagementPage extends StatelessWidget {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // كارت الخزنة
               StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance.collection('transactions').snapshots(),
                 builder: (context, snapshot) {
@@ -212,42 +200,68 @@ class VisaManagementPage extends StatelessWidget {
                       totalVault += (doc.data() as Map<String, dynamic>)['total'] ?? 0;
                     }
                   }
-                  return Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.green.shade700, Colors.green.shade400],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(color: Colors.green.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5)),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 28),
-                            SizedBox(width: 12),
-                            Text('خزنة المبيعات', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        Text(
-                          '${totalVault.toStringAsFixed(2)} ﷼',
-                          style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, fontFamily: 'Arial'),
-                        ),
-                      ],
-                    ),
+                  return StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance.collection('withdrawals').snapshots(),
+                      builder: (context, withdrawSnapshot) {
+                        double totalWithdrawn = 0;
+                        if (withdrawSnapshot.hasData) {
+                          for (var doc in withdrawSnapshot.data!.docs) {
+                            totalWithdrawn += (doc.data() as Map<String, dynamic>)['amount'] ?? 0;
+                          }
+                        }
+                        double netVault = totalVault - totalWithdrawn;
+
+                        return Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.green.shade800, Colors.green.shade600],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(color: Colors.green.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5)),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Row(
+                                    children: [
+                                      Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 28),
+                                      SizedBox(width: 12),
+                                      Text('صافي الخزنة', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                  Text(
+                                    '${netVault.toStringAsFixed(2)} ﷼',
+                                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, fontFamily: 'Arial'),
+                                  ),
+                                ],
+                              ),
+                              if (totalWithdrawn > 0) ...[
+                                const Divider(color: Colors.white24, height: 20),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('المسحوبات السابقة', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                    Text('${totalWithdrawn.toStringAsFixed(2)} ﷼', style: const TextStyle(color: Colors.orangeAccent, fontSize: 14, fontWeight: FontWeight.bold)),
+                                  ],
+                                )
+                              ]
+                            ],
+                          ),
+                        );
+                      }
                   );
                 },
               ),
 
-              // القائمة الرئيسية
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Wrap(
@@ -293,10 +307,10 @@ class VisaManagementPage extends StatelessWidget {
                     ),
                     _buildFreeIcon(
                       context,
-                      'التقويم',
-                      Icons.calendar_month_rounded,
-                      Colors.orange,
-                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SalesCalendarPage())),
+                      'المسحوبات',
+                      Icons.money_off_rounded,
+                      Colors.red,
+                          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WithdrawalsLogPage())),
                     ),
                   ],
                 ),
@@ -347,10 +361,6 @@ class VisaManagementPage extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 2. المخزن (Store) - نسخة محسنة جداً مع سجلات تفصيلية
-// ---------------------------------------------------------------------------
-
 class StoreManagementPage extends StatefulWidget {
   const StoreManagementPage({super.key});
 
@@ -361,7 +371,6 @@ class StoreManagementPage extends StatefulWidget {
 class _StoreManagementPageState extends State<StoreManagementPage> {
   final CollectionReference _productsRef = FirebaseFirestore.instance.collection('products');
 
-  // دالة قراءة الباركود
   Future<String?> _scanBarcode(BuildContext context) async {
     String? scannedCode;
     try {
@@ -372,7 +381,6 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
             backgroundColor: Colors.black,
             appBar: AppBar(title: const Text('امسح الباركود'), backgroundColor: Colors.teal),
             body: MobileScanner(
-
               onDetect: (capture) {
                 final List<Barcode> barcodes = capture.barcodes;
                 if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
@@ -389,17 +397,70 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
     return scannedCode;
   }
 
-  // دالة إضافة/تعديل منتج مع إدارة التكاليف
+  void _showWithdrawDialog() {
+    final amountController = TextEditingController();
+    final noteController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('سحب أموال من الخزنة'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'المبلغ المراد سحبه', suffixText: 'ريال', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: noteController,
+              decoration: const InputDecoration(labelText: 'ملاحظات (اختياري)', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              final amount = double.tryParse(amountController.text);
+              if (amount == null || amount <= 0) return;
+
+              Navigator.pop(ctx);
+              bool authorized = await _confirmWithPassword(context);
+
+              if (authorized) {
+                try {
+                  await FirebaseFirestore.instance.collection('withdrawals').add({
+                    'amount': amount,
+                    'note': noteController.text,
+                    'admin': FirebaseAuth.instance.currentUser?.email ?? 'Admin',
+                    'timestamp': FieldValue.serverTimestamp(),
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم سحب المبلغ بنجاح'), backgroundColor: Colors.green));
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل العملية: $e')));
+                }
+              }
+            },
+            child: const Text('تأكيد السحب'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showProductDialog({DocumentSnapshot? product}) {
     final nameController = TextEditingController(text: product?['name']);
     final sellingPriceController = TextEditingController(text: product?['price']?.toString());
-    final costPriceController = TextEditingController(text: product != null ? '' : ''); // سعر التكلفة للكمية الجديدة
+    final costPriceController = TextEditingController(text: product != null ? '' : '');
     final stockController = TextEditingController();
     final serialController = TextEditingController(text: product?['serial']);
     final reasonController = TextEditingController();
 
     int selectedIconIndex = product?['iconIndex'] ?? 0;
-    String operationType = 'add'; // 'add' (Supply) or 'remove' (Damage/Usage)
+    String operationType = 'add';
 
     showModalBottomSheet(
       context: context,
@@ -425,7 +486,6 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                   ],
                 ),
                 const SizedBox(height: 15),
-                // اختيار الأيقونة
                 SizedBox(
                   height: 60,
                   child: ListView.separated(
@@ -450,7 +510,6 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                   ),
                 ),
                 const SizedBox(height: 15),
-                // الحقول الأساسية
                 TextField(
                   controller: nameController,
                   decoration: InputDecoration(labelText: 'اسم المنتج', prefixIcon: const Icon(Icons.shopping_bag_outlined), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
@@ -486,9 +545,7 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // منطق المخزون والتكلفة
                 if (product == null) ...[
-                  // منتج جديد
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade200)),
@@ -519,7 +576,6 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                     ),
                   ),
                 ] else ...[
-                  // تعديل منتج موجود (توريد أو صرف)
                   Container(
                     padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
@@ -530,7 +586,6 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text("المتوفر حالياً: ${product['stock']} قطعة", style: const TextStyle(fontWeight: FontWeight.bold)),
-                            // عرض متوسط التكلفة الحالي
                             Text("متوسط التكلفة: ${((product['total_cost_value'] ?? 0) / (product['stock'] == 0 ? 1 : product['stock'])).toStringAsFixed(2)} ريال",
                                 style: const TextStyle(fontSize: 12, color: Colors.grey)),
                           ],
@@ -624,10 +679,9 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                       double sellPrice = double.tryParse(sellingPriceController.text) ?? 0.0;
                       double costPrice = double.tryParse(costPriceController.text) ?? 0.0;
 
-                      // الحقول الأساسية للتحديث
                       final Map<String, dynamic> data = {
                         'name': nameController.text,
-                        'price': sellPrice, // سعر البيع
+                        'price': sellPrice,
                         'serial': serialController.text,
                         'iconIndex': selectedIconIndex,
                         'updatedAt': FieldValue.serverTimestamp(),
@@ -637,23 +691,23 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                         final batch = FirebaseFirestore.instance.batch();
 
                         if (product == null) {
-                          // منتج جديد
                           if (stockController.text.isNotEmpty && costPriceController.text.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال سعر التكلفة للكمية الافتتاحية')));
                             return;
                           }
                           data['stock'] = qty;
-                          data['total_cost_value'] = qty * costPrice; // إجمالي رأس المال في هذا المنتج
+                          data['total_cost_value'] = qty * costPrice;
+                          data['sold_count'] = 0;
+                          data['total_profit'] = 0.0;
 
                           DocumentReference newDoc = _productsRef.doc();
                           batch.set(newDoc, data);
 
-                          // سجل افتتاحي
                           if (qty > 0) {
                             DocumentReference logRef = newDoc.collection('stock_logs').doc();
                             batch.set(logRef, {
                               'amount': qty,
-                              'type': 'supply', // توريد
+                              'type': 'supply',
                               'cost_per_unit': costPrice,
                               'reason': 'رصيد افتتاحي',
                               'timestamp': FieldValue.serverTimestamp(),
@@ -661,21 +715,18 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                             });
                           }
                         } else {
-                          // تحديث منتج
                           DocumentReference docRef = _productsRef.doc(product.id);
-                          batch.update(docRef, data); // تحديث الاسم والسعر والباركود
+                          batch.update(docRef, data);
 
                           if (qty > 0) {
                             double currentTotalCost = (product['total_cost_value'] ?? 0).toDouble();
                             int currentStock = (product['stock'] ?? 0).toInt();
 
                             if (operationType == 'add') {
-                              // توريد
                               if (costPriceController.text.isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال سعر الشراء')));
                                 return;
                               }
-                              // معادلة متوسط التكلفة: نزيد الكمية ونزيد إجمالي المبلغ المدفوع
                               batch.update(docRef, {
                                 'stock': FieldValue.increment(qty),
                                 'total_cost_value': FieldValue.increment(qty * costPrice),
@@ -692,21 +743,20 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                               });
 
                             } else {
-                              // تالف أو صرف (نقلل الكمية ونقلل من قيمة رأس المال بناء على المتوسط الحالي)
                               if (currentStock > 0) {
-                                double avgCost = currentTotalCost / currentStock; // متوسط تكلفة القطعة الواحدة حالياً
+                                double avgCost = currentTotalCost / currentStock;
                                 double valueReduced = qty * avgCost;
 
                                 batch.update(docRef, {
                                   'stock': FieldValue.increment(-qty),
-                                  'total_cost_value': FieldValue.increment(-valueReduced), // تقليل قيمة المخزون
+                                  'total_cost_value': FieldValue.increment(-valueReduced),
                                 });
 
                                 DocumentReference logRef = docRef.collection('stock_logs').doc();
                                 batch.set(logRef, {
                                   'amount': qty,
-                                  'type': 'damage', // تالف/صرف
-                                  'cost_per_unit': avgCost, // التكلفة وقت الصرف
+                                  'type': 'damage',
+                                  'cost_per_unit': avgCost,
                                   'reason': reasonController.text.isEmpty ? 'صرف/تالف' : reasonController.text,
                                   'timestamp': FieldValue.serverTimestamp(),
                                   'admin': FirebaseAuth.instance.currentUser?.email ?? 'Admin',
@@ -736,7 +786,6 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
     );
   }
 
-  // عرض سجلات المنتج
   void _showProductHistory(BuildContext context, DocumentSnapshot product) {
     showModalBottomSheet(
       context: context,
@@ -767,9 +816,8 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                         itemCount: snapshot.data!.docs.length,
                         itemBuilder: (context, index) {
                           final log = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-                          final type = log['type']; // supply, damage, sale (from POS)
+                          final type = log['type'];
                           final isSupply = type == 'supply';
-                          final isSale = type == 'remove' && log['reason'] == 'مبيعات POS'; // افتراضاً من POS
 
                           IconData icon = Icons.info;
                           Color color = Colors.grey;
@@ -783,7 +831,7 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                             icon = Icons.delete_forever;
                             color = Colors.red;
                             title = 'تالف / صرف';
-                          } else if (type == 'remove') { // مبيعات او غيره
+                          } else if (type == 'remove') {
                             icon = Icons.shopping_cart;
                             color = Colors.blue;
                             title = 'مبيعات / خصم';
@@ -817,18 +865,37 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
     );
   }
 
+  Future<void> _deleteProduct(String productId) async {
+    bool authorized = await _confirmWithPassword(context);
+    if (authorized) {
+      try {
+        await _productsRef.doc(productId).delete();
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف المنتج نهائياً'), backgroundColor: Colors.redAccent));
+      } catch(e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ في الحذف: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: const Text('إدارة المخزن والمنتجات'),
-        backgroundColor: Colors.blueAccent,
+        title: const Text('إدارة المخزن والأرباح'),
+        backgroundColor: Colors.indigoAccent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.money_off, color: Colors.white),
+            tooltip: 'سحب أرباح',
+            onPressed: _showWithdrawDialog,
+          )
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showProductDialog(),
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: Colors.indigoAccent,
         icon: const Icon(Icons.add),
         label: const Text('منتج جديد'),
       ),
@@ -836,50 +903,44 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
         textDirection: ui.TextDirection.rtl,
         child: Column(
           children: [
-            // ملخص القيمة
             StreamBuilder<QuerySnapshot>(
               stream: _productsRef.snapshots(),
               builder: (context, snapshot) {
-                double totalInventoryValue = 0; // التكلفة (المبلغ المدفوع)
-                int totalItems = 0;
+                double totalCapital = 0;
+                double totalProfit = 0;
+                int totalSold = 0;
+
                 if (snapshot.hasData) {
                   for (var doc in snapshot.data!.docs) {
                     final data = doc.data() as Map<String, dynamic>;
-                    totalInventoryValue += (data['total_cost_value'] ?? 0);
-                    totalItems += (data['stock'] as num? ?? 0).toInt();
+                    totalCapital += (data['total_cost_value'] ?? 0);
+                    totalProfit += (data['total_profit'] ?? 0);
+                    totalSold += (data['sold_count'] as num? ?? 0).toInt();
                   }
                 }
                 return Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(20),
+                  margin: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [Colors.indigo.shade700, Colors.indigo.shade400]),
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))],
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 2))],
+                    border: Border.all(color: Colors.indigo.shade50),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      Column(
-                        children: [
-                          const Text("إجمالي المبلغ المدفوع (رأس المال)", style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          Text("${totalInventoryValue.toStringAsFixed(2)} ريال", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      Container(height: 40, width: 1, color: Colors.white24),
-                      Column(
-                        children: [
-                          const Text("عدد القطع", style: TextStyle(color: Colors.white70, fontSize: 12)),
-                          Text("$totalItems", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
+                      _buildThinStat('رأس المال', '${totalCapital.toStringAsFixed(0)} ريال', Colors.blueGrey),
+                      Container(height: 30, width: 1, color: Colors.grey.shade300),
+                      _buildThinStat('إجمالي المبيعات', '$totalSold قطعة', Colors.blue),
+                      Container(height: 30, width: 1, color: Colors.grey.shade300),
+                      _buildThinStat('الأرباح', '${totalProfit.toStringAsFixed(0)} ريال', Colors.green),
                     ],
                   ),
                 );
               },
             ),
 
-            // قائمة المنتجات
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _productsRef.orderBy('name').snapshots(),
@@ -898,75 +959,60 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                       final data = doc.data() as Map<String, dynamic>;
                       final int stock = data['stock'] ?? 0;
                       final int iconIdx = data['iconIndex'] ?? 0;
-                      final double totalCost = (data['total_cost_value'] ?? 0).toDouble();
-                      final double avgCost = stock > 0 ? totalCost / stock : 0;
+                      final double productProfit = (data['total_profit'] ?? 0).toDouble();
+                      final int soldCount = data['sold_count'] ?? 0;
+                      final int totalStockEver = stock + soldCount;
 
                       final IconData prodIcon = (iconIdx >= 0 && iconIdx < marketingIcons.length)
                           ? marketingIcons[iconIdx]
                           : Icons.shopping_bag;
 
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                        elevation: 2,
+                        margin: const EdgeInsets.only(bottom: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 1,
                         child: Padding(
                           padding: const EdgeInsets.all(12.0),
                           child: Row(
                             children: [
                               Container(
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
                                   color: stock < 5 ? Colors.red.shade50 : Colors.blue.shade50,
-                                  borderRadius: BorderRadius.circular(12),
+                                  shape: BoxShape.circle,
                                 ),
-                                child: Icon(prodIcon, color: stock < 5 ? Colors.red : Colors.blue.shade700, size: 30),
+                                child: Icon(prodIcon, color: stock < 5 ? Colors.red : Colors.blue.shade700, size: 24),
                               ),
-                              const SizedBox(width: 15),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(data['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    Text(data['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                                     const SizedBox(height: 4),
                                     Row(
                                       children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4)),
-                                          child: Text('بيع: ${data['price']} ريال', style: TextStyle(color: Colors.green.shade800, fontSize: 12, fontWeight: FontWeight.bold)),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text('تكلفة: ${avgCost.toStringAsFixed(2)}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                        Text('بيع: ${soldCount} من أصل $totalStockEver', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                        const SizedBox(width: 10),
+                                        Text('المكسب: ${productProfit.toStringAsFixed(1)} ريال', style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
                                       ],
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text('المدفوع (القيمة): ${totalCost.toStringAsFixed(2)} ريال', style: const TextStyle(fontSize: 11, color: Colors.blueGrey, fontWeight: FontWeight.bold)),
                                   ],
                                 ),
                               ),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  Text('$stock', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: stock < 5 ? Colors.red : Colors.black87)),
-                                  const Text('قطعة', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                                  const SizedBox(height: 8),
+                                  Text('${data['price']} ريال', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                  Text('متبقي: $stock', style: TextStyle(fontSize: 11, color: stock < 5 ? Colors.red : Colors.grey)),
+                                  const SizedBox(height: 4),
                                   Row(
                                     children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.history, color: Colors.orange),
-                                        tooltip: 'سجل الحركة',
-                                        constraints: const BoxConstraints(),
-                                        padding: EdgeInsets.zero,
-                                        onPressed: () => _showProductHistory(context, doc),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      IconButton(
-                                        icon: const Icon(Icons.edit_note, color: Colors.blue),
-                                        tooltip: 'تعديل/توريد',
-                                        constraints: const BoxConstraints(),
-                                        padding: EdgeInsets.zero,
-                                        onPressed: () => _showProductDialog(product: doc),
-                                      ),
+                                      InkWell(child: const Icon(Icons.history, size: 18, color: Colors.grey), onTap: () => _showProductHistory(context, doc)),
+                                      const SizedBox(width: 8),
+                                      InkWell(child: const Icon(Icons.edit, size: 18, color: Colors.blue), onTap: () => _showProductDialog(product: doc)),
+                                      const SizedBox(width: 8),
+                                      InkWell(child: const Icon(Icons.delete, size: 18, color: Colors.red), onTap: () => _deleteProduct(doc.id)),
                                     ],
                                   )
                                 ],
@@ -985,11 +1031,17 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
       ),
     );
   }
-}
 
-// ---------------------------------------------------------------------------
-// 3. صفحة العمليات المالية (إيداع/خصم)
-// ---------------------------------------------------------------------------
+  Widget _buildThinStat(String title, String val, Color color) {
+    return Column(
+      children: [
+        Text(title, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.w300)),
+        const SizedBox(height: 2),
+        Text(val, style: TextStyle(fontSize: 14, color: color, fontWeight: FontWeight.w400)),
+      ],
+    );
+  }
+}
 
 class AdminDepositPage extends StatefulWidget {
   const AdminDepositPage({super.key});
@@ -1002,7 +1054,7 @@ class _AdminDepositPageState extends State<AdminDepositPage> {
   final TextEditingController _searchController = TextEditingController();
   List<DocumentSnapshot> _searchResults = [];
   bool _isSearching = false;
-  String _operationType = 'deposit'; // 'deposit' or 'deduction'
+  String _operationType = 'deposit';
 
   Future<void> _searchStudent(String query) async {
     if (query.isEmpty) {
@@ -1197,10 +1249,6 @@ class _AdminDepositPageState extends State<AdminDepositPage> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// 4. صفحة إصدار وتعديل الفيزا
-// ---------------------------------------------------------------------------
 
 class VisaGenerationView extends StatefulWidget {
   const VisaGenerationView({super.key});
@@ -1421,10 +1469,6 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 5. نقطة البيع (POS) مع إصلاح الكاميرا
-// ---------------------------------------------------------------------------
-
 class CanteenPOSPage extends StatefulWidget {
   const CanteenPOSPage({super.key});
 
@@ -1440,7 +1484,6 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
   double _totalAmount = 0.0;
   bool _isLoadingStudent = false;
 
-  // الكود الجديد للكاميرا المتوافق مع الويب
   Future<void> _scanVisa(BuildContext context) async {
     final scanned = await Navigator.push<String>(
       context,
@@ -1565,12 +1608,10 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
     }
     try {
       await FirebaseFirestore.instance.runTransaction((transaction) async {
-        // 1. خصم الرصيد من الطالب
         transaction.update(FirebaseFirestore.instance.collection('students').doc(_studentId), {
           'walletBalance': currentBalance - _totalAmount
         });
 
-        // 2. تحديث المخزون
         for (var item in _cart) {
           DocumentReference prodRef = FirebaseFirestore.instance.collection('products').doc(item['id']);
           DocumentSnapshot prodSnap = await transaction.get(prodRef);
@@ -1580,13 +1621,15 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
             int currentStock = (prodSnap['stock'] ?? 0).toInt();
             int qtySold = item['qty'];
 
-            // حساب تكلفة البضاعة المباعة لخصمها من رأس المال (Average Cost)
             double avgCost = currentStock > 0 ? currentTotalCost / currentStock : 0;
             double costOfSoldGoods = qtySold * avgCost;
+            double profit = (item['price'] * qtySold) - costOfSoldGoods;
 
             transaction.update(prodRef, {
               'stock': FieldValue.increment(-qtySold),
               'total_cost_value': FieldValue.increment(-costOfSoldGoods),
+              'sold_count': FieldValue.increment(qtySold),
+              'total_profit': FieldValue.increment(profit),
             });
 
             DocumentReference logRef = prodRef.collection('stock_logs').doc();
@@ -1599,7 +1642,6 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
           }
         }
 
-        // 3. تسجيل الفاتورة
         DocumentReference invoiceRef = FirebaseFirestore.instance.collection('transactions').doc();
         transaction.set(invoiceRef, {
           'studentId': _studentId,
@@ -1642,27 +1684,27 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(8),
               color: Colors.white,
               child: Column(
                 children: [
                   Row(
                     children: [
-                      Expanded(child: TextField(controller: _visaController, decoration: const InputDecoration(labelText: 'كود الفيزا', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10)), onSubmitted: (val) => _findStudentByVisa(val))),
+                      Expanded(child: TextField(controller: _visaController, decoration: const InputDecoration(labelText: 'كود الفيزا', isDense: true, border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)), onSubmitted: (val) => _findStudentByVisa(val))),
                       const SizedBox(width: 10),
                       IconButton(icon: const Icon(Icons.camera_alt, size: 30, color: Colors.teal), onPressed: () => _scanVisa(context))
                     ],
                   ),
                   if (_studentData != null)
                     Container(
-                      margin: const EdgeInsets.only(top: 10),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8)),
+                      margin: const EdgeInsets.only(top: 5),
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(4)),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(_studentData!['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text('الرصيد: ${(_studentData!['walletBalance'] ?? 0).toStringAsFixed(2)} ريال', style: TextStyle(color: Colors.teal.shade700, fontWeight: FontWeight.bold)),
+                          Text('رصيد: ${(_studentData!['walletBalance'] ?? 0).toStringAsFixed(1)} ﷼', style: TextStyle(color: Colors.teal.shade700, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -1673,14 +1715,19 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
               child: Row(
                 children: [
                   Expanded(
-                    flex: 2,
+                    flex: 3,
                     child: StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance.collection('products').where('stock', isGreaterThan: 0).snapshots(),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                         return GridView.builder(
-                          padding: const EdgeInsets.all(8),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, childAspectRatio: 0.75, crossAxisSpacing: 8, mainAxisSpacing: 8),
+                          padding: const EdgeInsets.all(4),
+                          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 110,
+                            childAspectRatio: 0.8,
+                            crossAxisSpacing: 4,
+                            mainAxisSpacing: 4,
+                          ),
                           itemCount: snapshot.data!.docs.length,
                           itemBuilder: (context, index) {
                             final prod = snapshot.data!.docs[index].data() as Map<String, dynamic>;
@@ -1690,14 +1737,18 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
                             return InkWell(
                               onTap: () => _addToCart(prod, snapshot.data!.docs[index].id),
                               child: Card(
-                                elevation: 2,
+                                elevation: 1,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(prodIcon, size: 30, color: Colors.orange.shade300),
+                                    Icon(prodIcon, size: 24, color: Colors.orange.shade700),
                                     const SizedBox(height: 4),
-                                    Text(prod['name'], textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                    Text('${prod['price']} ريال', style: const TextStyle(fontSize: 11, color: Colors.teal)),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                                      child: Text(prod['name'], textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                    ),
+                                    Text('${prod['price']} ﷼', style: const TextStyle(fontSize: 10, color: Colors.teal, fontWeight: FontWeight.w900)),
                                   ],
                                 ),
                               ),
@@ -1709,56 +1760,56 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
                   ),
                   Container(width: 1, color: Colors.grey.shade300),
                   Expanded(
-                    flex: 1,
+                    flex: 2,
                     child: Column(
                       children: [
-                        Container(padding: const EdgeInsets.all(8), color: Colors.grey.shade100, child: const Center(child: Text('السلة', style: TextStyle(fontWeight: FontWeight.bold)))),
+                        Container(padding: const EdgeInsets.all(4), color: Colors.grey.shade200, width: double.infinity, child: const Center(child: Text('الفاتورة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
                         Expanded(
                           child: ListView.builder(
                             itemCount: _cart.length,
-                            itemBuilder: (ctx, i) => ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                              title: Text(_cart[i]['name'], style: const TextStyle(fontSize: 12)),
-                              subtitle: Text('${_cart[i]['price']} ريال', style: const TextStyle(fontSize: 11)),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.remove_circle_outline, size: 20, color: Colors.red),
-                                    onPressed: () => _decreaseQty(i),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                                    child: Text('${_cart[i]['qty']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.add_circle_outline, size: 20, color: Colors.green),
-                                    onPressed: () {
-                                      if (_cart[i]['qty'] < _cart[i]['maxStock']) {
-                                        setState(() {
-                                          _cart[i]['qty']++;
-                                          _calculateTotal();
-                                        });
-                                      }
-                                    },
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                  ),
-                                ],
+                            itemBuilder: (ctx, i) => Container(
+                              color: i % 2 == 0 ? Colors.white : Colors.grey.shade50,
+                              child: ListTile(
+                                dense: true,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                                title: Text(_cart[i]['name'], style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                subtitle: Text('${_cart[i]['price']} ﷼', style: const TextStyle(fontSize: 10)),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    InkWell(onTap: () => _decreaseQty(i), child: const Icon(Icons.remove_circle, size: 20, color: Colors.redAccent)),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                                      child: Text('${_cart[i]['qty']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                    ),
+                                    InkWell(
+                                      onTap: () {
+                                        if (_cart[i]['qty'] < _cart[i]['maxStock']) {
+                                          setState(() { _cart[i]['qty']++; _calculateTotal(); });
+                                        }
+                                      },
+                                      child: const Icon(Icons.add_circle, size: 20, color: Colors.green),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(8),
                           color: Colors.white,
                           child: Column(
                             children: [
-                              Text('المجموع: ${_totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              const SizedBox(height: 8),
-                              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: (_studentId != null && _cart.isNotEmpty) ? _processPayment : null, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade400, foregroundColor: Colors.white), child: const Text('دفع'))),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('المجموع:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                  Text('${_totalAmount.toStringAsFixed(2)} ﷼', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.teal)),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              SizedBox(width: double.infinity, child: ElevatedButton(onPressed: (_studentId != null && _cart.isNotEmpty) ? _processPayment : null, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 10)), child: const Text('دفع وتأكيد'))),
                             ],
                           ),
                         )
@@ -1774,10 +1825,6 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// 6. صفحة عصا الليزر (Kiosk / Laser Mode)
-// ---------------------------------------------------------------------------
 
 class LaserPosPage extends StatefulWidget {
   const LaserPosPage({super.key});
@@ -1934,10 +1981,13 @@ class _LaserPosPageState extends State<LaserPosPage> {
             int currentStock = (prodSnap['stock'] ?? 0).toInt();
             double avgCost = currentStock > 0 ? currentTotalCost / currentStock : 0;
             double costOfSoldGoods = qtySold * avgCost;
+            double profit = (item['price'] * qtySold) - costOfSoldGoods;
 
             transaction.update(prodRef, {
               'stock': FieldValue.increment(-qtySold),
               'total_cost_value': FieldValue.increment(-costOfSoldGoods),
+              'sold_count': FieldValue.increment(qtySold),
+              'total_profit': FieldValue.increment(profit),
             });
 
             DocumentReference logRef = prodRef.collection('stock_logs').doc();
@@ -2073,10 +2123,6 @@ class _LaserPosPageState extends State<LaserPosPage> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// 7. التقارير والتقويم
-// ---------------------------------------------------------------------------
 
 class VisaAnalyticsPage extends StatelessWidget {
   const VisaAnalyticsPage({super.key});
@@ -2285,11 +2331,47 @@ class _SalesCalendarPageState extends State<SalesCalendarPage> {
         ),
       ),
     );
-
   }
+}
 
+class WithdrawalsLogPage extends StatelessWidget {
+  const WithdrawalsLogPage({super.key});
 
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('سجل المسحوبات'), backgroundColor: Colors.redAccent),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('withdrawals').orderBy('timestamp', descending: true).snapshots(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد مسحوبات'));
 
-
-
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: snapshot.data!.docs.length,
+            itemBuilder: (ctx, i) {
+              final data = snapshot.data!.docs[i].data() as Map<String, dynamic>;
+              final date = (data['timestamp'] as Timestamp?)?.toDate();
+              return Card(
+                elevation: 2,
+                child: ListTile(
+                  leading: const CircleAvatar(backgroundColor: Colors.red, child: Icon(Icons.arrow_upward, color: Colors.white)),
+                  title: Text('${data['amount']} ريال', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('بواسطة: ${data['admin']}'),
+                      Text(date != null ? DateFormat('yyyy/MM/dd hh:mm a').format(date) : '-'),
+                      if (data['note'] != null && data['note'].isNotEmpty) Text('ملاحظة: ${data['note']}'),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 }
