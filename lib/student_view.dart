@@ -1,10 +1,7 @@
-// student_view.dart
-// ✅ (FIXED) تم إصلاح مشكلة القفز للأعلى عند تصفح النتائج بإزالة السكرول المتداخل
-// ✅ (ADDED) تم تفعيل زر فيزا الطلاب وإضافة صفحة العرض الخاصة بها
-
 import 'dart:math' as math;
 import 'dart:async';
 import 'dart:ui' as ui;
+import 'dart:io'; // للإلتقاط الصور
 
 import 'package:almarefamecca/student_results_view.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
@@ -20,9 +17,11 @@ import 'package:almarefamecca/secondary_pages.dart';
 import 'package:badges/badges.dart' as badges;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart'; // للتخزين
+import 'package:image_picker/image_picker.dart'; // لاختيار الصور
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Required for PDF fonts/images
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -51,7 +50,7 @@ class _DashboardButtonData {
   final String? assetPath;
   final Color color;
   final VoidCallback onTap;
-  final int count;
+  final String? badgeText; // للنصوص (مثل الرصيد)
   final bool isWorking;
 
   _DashboardButtonData({
@@ -60,7 +59,7 @@ class _DashboardButtonData {
     this.assetPath,
     required this.color,
     required this.onTap,
-    this.count = 0,
+    this.badgeText,
     this.isWorking = true,
   });
 }
@@ -109,14 +108,12 @@ class _StudentViewPageState extends State<StudentViewPage>
     _initializeData();
   }
 
-  // ✅✅✅ دالة التحديث الموحدة ✅✅✅
   Future<void> _onRefresh() async {
-    // انتظار بسيط لرؤية الأيقونة
     if (kIsWeb) {
       await Future.delayed(const Duration(milliseconds: 800));
       html.window.location.reload();
     } else {
-      _initializeData(); // إعادة تحميل البيانات
+      _initializeData();
       if (mounted) setState(() {});
     }
   }
@@ -464,94 +461,10 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
-  Future<void> _generateAndSavePdf() async {
-    if (_isPrinting) return;
-    setState(() => _isPrinting = true);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('جاري تحضير ملف PDF...')),
-    );
-
-    try {
-      debugPrint("PDF: Loading fonts...");
-      pw.Font regularFont;
-      pw.Font boldFont;
-      try {
-        regularFont = await PdfGoogleFonts.cairoRegular();
-        boldFont = await PdfGoogleFonts.cairoBold();
-      } catch (fontError) {
-        debugPrint("PDF: Font loading failed: $fontError. Using fallback.");
-        regularFont = pw.Font.helvetica();
-        boldFont = pw.Font.helveticaBold();
-      }
-      debugPrint("PDF: Fonts loaded.");
-      final theme = pw.ThemeData.withFont(base: regularFont, bold: boldFont);
-
-      debugPrint("PDF: Capturing widget image...");
-      debugPrint("PDF: Widget captured.");
-
-      final doc = pw.Document(theme: theme);
-
-      final studentName = _studentData?['name'] ?? 'طالب';
-      final studentClass = "${_studentData?['stages'] ?? ''} / ${_studentData?['grades'] ?? ''} / ${_studentData?['classes'] ?? ''}";
-
-      doc.addPage(
-        pw.MultiPage(
-          pageTheme: const pw.PageTheme(
-            pageFormat: PdfPageFormat.a4,
-            textDirection: pw.TextDirection.rtl,
-            margin: pw.EdgeInsets.all(32),
-          ),
-          header: (context) => pw.Container(
-            alignment: pw.Alignment.center,
-            margin: const pw.EdgeInsets.only(bottom: 20.0),
-            child: pw.Column(
-                children: [
-                  pw.Text('تقرير الأداء الأكاديمي', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 22)),
-                  pw.Text('الطالب: $studentName', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
-                  pw.Text(studentClass, style: const pw.TextStyle(fontSize: 16)),
-                  pw.Divider(color: PdfColors.grey)
-                ]
-            ),
-          ),
-          footer: (context) => pw.Container(
-            alignment: pw.Alignment.center,
-            margin: const pw.EdgeInsets.only(top: 10.0),
-            child: pw.Text(
-              'صفحة ${context.pageNumber} من ${context.pagesCount}',
-              style: const pw.TextStyle(color: PdfColors.grey, fontSize: 10),
-            ),
-          ),
-          build: (context) => [
-          ],
-        ),
-      );
-      debugPrint("PDF: Page added.");
-
-      debugPrint("PDF: Saving layout...");
-      await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => doc.save(),
-      );
-      debugPrint("PDF: Save complete.");
-
-    } catch (e, s) {
-      debugPrint("------- Error generating PDF from widget capture -------");
-      debugPrint("Error: $e");
-      debugPrint("Stacktrace: $s");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('فشل إنشاء ملف PDF: $e'), backgroundColor: Colors.red),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isPrinting = false);
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
-      // ✅ تغليف المحتوى بـ RefreshIndicator
       body: RefreshIndicator(
         onRefresh: _onRefresh,
         displacement: 40.0,
@@ -559,7 +472,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         backgroundColor: Colors.white,
         child: Stack(
           children: [
-            _buildBody(), // الآن _buildBody يضمن إرجاع قوائم قابلة للسحب
+            _buildBody(),
             if (_isPrinting)
               Container(
                 color: Colors.black.withOpacity(0.5),
@@ -639,7 +552,7 @@ class _StudentViewPageState extends State<StudentViewPage>
       foregroundColor: Theme.of(context).primaryColor,
       elevation: 1.0,
       title: titleWidget,
-      centerTitle: true, // دائما توسيط العنوان
+      centerTitle: true,
       leading: (_isTeacherView && isDashboard) || !isDashboard
           ? IconButton(
         icon: Icon(Icons.arrow_back_ios, color: Theme.of(context).primaryColor),
@@ -703,11 +616,10 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // ✅ تعديل هنا لضمان أن كل صفحة ترجع قائمة قابلة للسحب
   Widget _buildBody() {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     if (_studentData == null) {
-      return ListView( // ✅ استخدام ListView بدلاً من Center ليقبل السحب
+      return ListView(
           children: [
             SizedBox(height: MediaQuery.of(context).size.height * 0.4),
             Center(
@@ -730,7 +642,6 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     switch (_currentView) {
       case StudentView.results:
-      // ✅✅✅ الإصلاح: إزالة SingleChildScrollView هنا لأن صفحة النتائج تحتوي عليه بالفعل ✅✅✅
         return StudentResultsView(
           studentData: _studentData!,
           allTestsMap: _allTestsMap,
@@ -746,7 +657,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       case StudentView.teacherComplaints:
         return _buildTeacherComplaintsView();
       default:
-      // الداشبورد هو ListView أصلاً
         return _buildDashboard();
     }
   }
@@ -757,10 +667,11 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // ✅✅✅ دالة بناء الداشبورد المعدلة (مع الهيدر) ✅✅✅
   Widget _buildDashboard() {
     final int totalLikes = _studentData?['totalLikes'] ?? 0;
     final int totalDislikes = _studentData?['totalDislikes'] ?? 0;
+    // ✅ جلب الرصيد
+    final double walletBalance = (_studentData?['walletBalance'] ?? 0).toDouble();
 
     final Map<String, String> imageMap = {
       'النتائج والتحليل': 'assets/a13.png',
@@ -789,7 +700,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         icon: Icons.thumb_up,
         assetPath: imageMap['الطالب المنضبط'],
         color: Colors.blue.shade700,
-        count: totalLikes,
+        badgeText: totalLikes > 0 ? '$totalLikes' : null,
         onTap: () => setState(() => _currentView = StudentView.noble),
         isWorking: true,
       ),
@@ -798,7 +709,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         icon: Icons.report_problem_outlined,
         assetPath: imageMap['الملاحظات السلوكية'],
         color: Colors.red.shade700,
-        count: totalDislikes,
+        badgeText: totalDislikes > 0 ? '$totalDislikes' : null,
         onTap: _promptForParentPassword,
         isWorking: true,
       ),
@@ -829,12 +740,13 @@ class _StudentViewPageState extends State<StudentViewPage>
         },
         isWorking: true,
       ),
-      // ✅✅✅ زر فيزا الطلاب المفعل ✅✅✅
+      // ✅ زر فيزا الطلاب مع عرض الرصيد
       _DashboardButtonData(
         title: 'فيزا الطلاب',
         icon: Icons.credit_card,
         assetPath: imageMap['فيزا الطلاب'],
         color: Colors.deepPurple.shade500,
+        badgeText: '${walletBalance.toStringAsFixed(2)} ﷼',
         onTap: () {
           Navigator.push(
             context,
@@ -877,7 +789,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       ),
     ];
 
-    // ✅✅✅ الهيدر المطابق لحساب المعلم ✅✅✅
     Widget buildHeader() {
       return Container(
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 25),
@@ -901,7 +812,6 @@ class _StudentViewPageState extends State<StudentViewPage>
         ),
         child: Row(
           children: [
-            // الصورة الشخصية للطالب (أو أيقونة افتراضية)
             Container(
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
@@ -926,7 +836,6 @@ class _StudentViewPageState extends State<StudentViewPage>
               ),
             ),
             const SizedBox(width: 12),
-            // الاسم والصف
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -952,7 +861,6 @@ class _StudentViewPageState extends State<StudentViewPage>
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      // عرض الصف والفصل بدلاً من المسمى الوظيفي
                       '${_studentData?['grades'] ?? ''} - ${_studentData?['classes'] ?? ''}',
                       style: const TextStyle(
                         color: Colors.white,
@@ -974,11 +882,10 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
 
     return ListView(
-      padding: EdgeInsets.zero, // إزالة الحشو الافتراضي ليلتصق الهيدر بالأعلى
+      padding: EdgeInsets.zero,
       children: [
         buildHeader(),
         const SizedBox(height: 10),
-        // عرض شبكة الأزرار
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: AnimationLimiter(
@@ -1012,7 +919,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                                 assetPath: data.assetPath,
                                 color: data.color,
                                 onTap: data.onTap,
-                                count: data.count,
+                                badgeText: data.badgeText,
                                 isWorking: data.isWorking,
                               ),
                             ),
@@ -1051,7 +958,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     String? assetPath,
     required Color color,
     required VoidCallback onTap,
-    int count = 0,
+    String? badgeText,
     required bool isWorking,
   }) {
     return _AnimatedScaleButton(
@@ -1093,30 +1000,36 @@ class _StudentViewPageState extends State<StudentViewPage>
                 child: Icon(icon, size: 40, color: Colors.white),
               ),
             ),
-            if (count > 0)
+            if (badgeText != null)
               Positioned(
-                top: -5,
-                right: -5,
-                child: Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: color, width: 2),
-                  ),
-                  child: Text(
-                    '$count',
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
+                top: -8,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: color, width: 2),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 4, offset: const Offset(0, 2)),
+                      ],
+                    ),
+                    child: Text(
+                      badgeText,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        fontFamily: 'Arial',
+                      ),
                     ),
                   ),
                 ),
               ),
 
-            // مؤشر الحالة (صح أزرق أو ترس انتظار)
             Positioned(
               bottom: 10,
               left: 10,
@@ -1145,51 +1058,15 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // --- ✅✅✅ معايير الطالب المنضبط (مع إصلاح قص النصوص) ✅✅✅ ---
   Widget _buildNobleCriteriaSlider() {
     final List<Map<String, dynamic>> nobleCriteria = [
-      {
-        'title': 'السمت الحسن والصلاة',
-        'icon': Icons.mosque,
-        'color': Colors.teal,
-        'desc': 'المحافظة على الصلاة في وقتها والتحلي بالوقار.'
-      },
-      {
-        'title': 'أدب الحوار وخفض الصوت',
-        'icon': Icons.record_voice_over,
-        'color': Colors.indigo,
-        'desc': 'الحديث بأدب وعدم رفع الصوت فوق صوت المعلم.'
-      },
-      {
-        'title': 'الاحترام والأخوة',
-        'icon': Icons.handshake,
-        'color': Colors.blue,
-        'desc': 'احترام المعلمين والزملاء وتقديرهم.'
-      },
-      {
-        'title': 'بيئتي مسؤوليتي',
-        'icon': Icons.cleaning_services,
-        'color': Colors.green,
-        'desc': 'المحافظة الدائمة على نظافة الفصل والممتلكات.'
-      },
-      {
-        'title': 'الهدوء والسكينة',
-        'icon': Icons.self_improvement,
-        'color': Colors.purple,
-        'desc': 'الالتزام بالهدوء وتجنب الفوضى داخل الصف.'
-      },
-      {
-        'title': 'التعاون والإيثار',
-        'icon': Icons.volunteer_activism,
-        'color': Colors.redAccent,
-        'desc': 'مساعدة الزملاء وتفضيل المصلحة العامة.'
-      },
-      {
-        'title': 'الجدية والاجتهاد',
-        'icon': Icons.edit_note,
-        'color': Colors.orange,
-        'desc': 'إنجاز المهام والواجبات والمشاركة الفاعلة.'
-      },
+      {'title': 'السمت الحسن والصلاة', 'icon': Icons.mosque, 'color': Colors.teal, 'desc': 'المحافظة على الصلاة في وقتها والتحلي بالوقار.'},
+      {'title': 'أدب الحوار وخفض الصوت', 'icon': Icons.record_voice_over, 'color': Colors.indigo, 'desc': 'الحديث بأدب وعدم رفع الصوت فوق صوت المعلم.'},
+      {'title': 'الاحترام والأخوة', 'icon': Icons.handshake, 'color': Colors.blue, 'desc': 'احترام المعلمين والزملاء وتقديرهم.'},
+      {'title': 'بيئتي مسؤوليتي', 'icon': Icons.cleaning_services, 'color': Colors.green, 'desc': 'المحافظة الدائمة على نظافة الفصل والممتلكات.'},
+      {'title': 'الهدوء والسكينة', 'icon': Icons.self_improvement, 'color': Colors.purple, 'desc': 'الالتزام بالهدوء وتجنب الفوضى داخل الصف.'},
+      {'title': 'التعاون والإيثار', 'icon': Icons.volunteer_activism, 'color': Colors.redAccent, 'desc': 'مساعدة الزملاء وتفضيل المصلحة العامة.'},
+      {'title': 'الجدية والاجتهاد', 'icon': Icons.edit_note, 'color': Colors.orange, 'desc': 'إنجاز المهام والواجبات والمشاركة الفاعلة.'},
     ];
 
     final double screenWidth = MediaQuery.of(context).size.width;
@@ -1315,7 +1192,6 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 
   Widget _buildNobleStudentView() {
-    // ✅ دمج المحتوى في Column
     return Column(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -1330,13 +1206,12 @@ class _StudentViewPageState extends State<StudentViewPage>
             ),
           ),
         ),
-        // ✅ (MODIFIED) جرس التنبيهات الخاص للطالب المنضبط
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('students')
-              .doc(_studentDocId) // تأكد أن متغير رقم الطالب متاح هنا
+              .doc(_studentDocId)
               .collection('notifications')
-              .where('isRead', isEqualTo: false) // نعد فقط غير المقروء
+              .where('isRead', isEqualTo: false)
               .snapshots(),
           builder: (context, snapshot) {
             int unreadCount = 0;
@@ -1347,8 +1222,8 @@ class _StudentViewPageState extends State<StudentViewPage>
             return Stack(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.notifications, size: 30, color: Colors.blue), // لون أزرق
-                  onPressed: () => _showNotifications(1), // ✅ فتح على تبويب الإشعارات الخاصة (1)
+                  icon: const Icon(Icons.notifications, size: 30, color: Colors.blue),
+                  onPressed: () => _showNotifications(1),
                 ),
                 if (unreadCount > 0)
                   Positioned(
@@ -1357,7 +1232,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: const BoxDecoration(
-                        color: Colors.blue, // ✅ لون أزرق للتناسق
+                        color: Colors.blue,
                         shape: BoxShape.circle,
                       ),
                       constraints: const BoxConstraints(
@@ -1502,7 +1377,6 @@ class _StudentViewPageState extends State<StudentViewPage>
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        // ✅ تحويل الحالة الفارغة إلى قائمة قابلة للسحب
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return ListView(
             children: [
@@ -1548,33 +1422,29 @@ class _StudentViewPageState extends State<StudentViewPage>
     final Color iconColor = Theme.of(context).primaryColor;
 
     return [
-      // ✅ 1. أيقونة الإشعارات العامة (خضراء بالكامل)
       StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('broadcast_notifications')
             .orderBy('timestamp', descending: true)
-            .limit(10) // تتبع آخر 10 فقط
+            .limit(10)
             .snapshots(),
         builder: (context, snapshot) {
           final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
-          // (يمكن تحسين المنطق لعد "غير المقروء" فقط إذا تم حفظ حالة القراءة محلياً)
-          // هنا نعرض نقطة إذا كان هناك تعاميم حديثة (كمثال)
           return badges.Badge(
             showBadge: count > 0,
-            badgeContent: Text('!', // رمز تنبيه
+            badgeContent: Text('!',
                 style: const TextStyle(color: Colors.white, fontSize: 10)),
-            badgeStyle: badges.BadgeStyle(badgeColor: Colors.green), // ✅ لون الشارة أخضر
+            badgeStyle: badges.BadgeStyle(badgeColor: Colors.green),
             position: badges.BadgePosition.topEnd(top: 4, end: 4),
             child: IconButton(
-              icon: Icon(Icons.notifications_active, color: Colors.green.shade600), // ✅ لون الأيقونة أخضر
+              icon: Icon(Icons.notifications_active, color: Colors.green.shade600),
               tooltip: 'التعاميم العامة',
-              onPressed: () => _showNotifications(0), // فتح تبويب التعاميم (0)
+              onPressed: () => _showNotifications(0),
             ),
           );
         },
       ),
 
-      // ✅ 2. أيقونة الإشعارات الخاصة (زرقاء بالكامل)
       StreamBuilder<QuerySnapshot>(
         stream: _studentDocId == null
             ? null
@@ -1590,12 +1460,12 @@ class _StudentViewPageState extends State<StudentViewPage>
             showBadge: count > 0,
             badgeContent: Text('$count',
                 style: const TextStyle(color: Colors.white, fontSize: 10)),
-            badgeStyle: badges.BadgeStyle(badgeColor: Colors.blue), // ✅ لون الشارة أزرق
+            badgeStyle: badges.BadgeStyle(badgeColor: Colors.blue),
             position: badges.BadgePosition.topEnd(top: 4, end: 4),
             child: IconButton(
-              icon: Icon(Icons.notifications, color: iconColor), // ✅ لون الأيقونة أزرق (primary)
+              icon: Icon(Icons.notifications, color: iconColor),
               tooltip: 'إشعاراتي',
-              onPressed: () => _showNotifications(1), // فتح تبويب إشعارات خاصة (1)
+              onPressed: () => _showNotifications(1),
             ),
           );
         },
@@ -1614,7 +1484,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     ];
   }
 
-  // ✅ تعديل الدالة لتقبل initialIndex
   void _showNotifications(int initialIndex) {
     showModalBottomSheet(
       context: context,
@@ -1622,17 +1491,14 @@ class _StudentViewPageState extends State<StudentViewPage>
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
-        // استخدام DefaultTabController للتبديل بين الإشعارات العامة والخاصة
         return DefaultTabController(
           length: 2,
-          initialIndex: initialIndex, // تحديد التبويب المختار
+          initialIndex: initialIndex,
           child: DraggableScrollableSheet(
             expand: false,
             initialChildSize: 0.6,
             maxChildSize: 0.9,
             builder: (_, scrollController) {
-              // عند فتح القائمة، نعتبر الإشعارات الخاصة مقروءة إذا كنا في التبويب الخاص
-              // (للبساطة هنا نقوم بذلك عند الفتح)
               _markNotificationsAsRead();
 
               return Column(
@@ -1642,30 +1508,27 @@ class _StudentViewPageState extends State<StudentViewPage>
                     child: Text("مركز الإشعارات",
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   ),
-                  // شريط التبويب
                   const TabBar(
                     labelColor: Colors.blue,
                     unselectedLabelColor: Colors.grey,
                     tabs: [
-                      Tab(text: "تعاميم عامة"), // تبويب 0
-                      Tab(text: "إشعارات خاصة"), // تبويب 1
+                      Tab(text: "تعاميم عامة"),
+                      Tab(text: "إشعارات خاصة"),
                     ],
                   ),
                   Expanded(
                     child: TabBarView(
                       children: [
-                        // 1. تبويب الإشعارات العامة (المصدر: broadcast_notifications)
                         _buildNotificationList(
                           stream: FirebaseFirestore.instance
                               .collection('broadcast_notifications')
                               .orderBy('timestamp', descending: true)
-                              .limit(50) // آخر 50 إشعار فقط
+                              .limit(50)
                               .snapshots(),
                           isPublic: true,
                           scrollController: scrollController,
                         ),
 
-                        // 2. تبويب الإشعارات الخاصة (المصدر: students -> notifications)
                         _buildNotificationList(
                           stream: _studentDocId == null
                               ? const Stream.empty()
@@ -1690,7 +1553,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-  // دالة مساعدة لبناء القائمة (أضفها داخل الكلاس _StudentViewPageState)
   Widget _buildNotificationList({required Stream<QuerySnapshot> stream, required bool isPublic, required ScrollController scrollController}) {
     return StreamBuilder<QuerySnapshot>(
       stream: stream,
@@ -1726,7 +1588,6 @@ class _StudentViewPageState extends State<StudentViewPage>
                 ? intl.DateFormat('yyyy/MM/dd - hh:mm a', 'ar').format(ts.toDate())
                 : '..';
 
-            // تحديد العنوان والنص بناء على نوع الإشعار
             String title = isPublic ? (data['title'] ?? 'إشعار عام') : 'تنبيه';
             String body = isPublic ? (data['body'] ?? '...') : (data['message'] ?? '...');
             String senderName = isPublic ? (data['senderName'] ?? 'الإدارة') : 'النظام';
@@ -2339,7 +2200,6 @@ class TokkatsuViewPage extends StatefulWidget {
 }
 
 class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
-  // قائمة البيانات
   final List<TokkatsuItem> tokkatsuItems = const [
     TokkatsuItem(
       imagePath: 'assets/m1.png',
@@ -2395,13 +2255,11 @@ class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
 
   @override
   Widget build(BuildContext context) {
-    // تحديد عرض الشاشة
     final double screenWidth = MediaQuery.of(context).size.width;
-    // تحديد هل نحن على شاشة واسعة أم لا
     final bool isWideScreen = screenWidth > 800;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50], // خلفية هادئة جداً
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text(
           'أنشطة التوكاتسو',
@@ -2415,16 +2273,15 @@ class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      // ✅ الحل السحري: التوسيط + تقييد العرض
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(
-            maxWidth: 800, // أقصى عرض للمحتوى هو 800 بكسل حتى لو الشاشة 4K
+            maxWidth: 800,
           ),
           child: ListView.builder(
             padding: EdgeInsets.symmetric(
               vertical: 20.0,
-              horizontal: isWideScreen ? 0 : 16.0, // هوامش جانبية فقط في الموبايل
+              horizontal: isWideScreen ? 0 : 16.0,
             ),
             itemCount: tokkatsuItems.length,
             itemBuilder: (context, index) {
@@ -2442,7 +2299,6 @@ class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        // ظل ناعم يعطي عمقاً للتصميم
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.06),
@@ -2451,13 +2307,12 @@ class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
           ),
         ],
       ),
-      clipBehavior: Clip.antiAlias, // لقص الصورة داخل الحواف الدائرية
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ✅ استخدام AspectRatio يحافظ على تناسب الصورة مهما كان العرض
           AspectRatio(
-            aspectRatio: isWideScreen ? 21 / 9 : 16 / 9, // في الشاشات العريضة نجعل الصورة بانورامية أكثر
+            aspectRatio: isWideScreen ? 21 / 9 : 16 / 9,
             child: Image.asset(
               item.imagePath,
               fit: BoxFit.cover,
@@ -2468,7 +2323,6 @@ class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
             ),
           ),
 
-          // المحتوى النصي
           Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -2484,7 +2338,6 @@ class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                // خط زخرفي صغير تحت العنوان
                 Container(
                   width: 60,
                   height: 3,
@@ -2500,7 +2353,7 @@ class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.grey[800],
-                    height: 1.7, // تباعد أسطر مريح للقراءة
+                    height: 1.7,
                     fontFamily: 'Cairo',
                   ),
                 ),
@@ -2568,12 +2421,10 @@ class SchoolBooksPage extends StatelessWidget {
   }
 
   Widget _buildDigitalSkillsCard(BuildContext context) {
-    // منطق تحديد المحتوى بناءً على الصف الدراسي
     String title = "المهارات الرقمية";
     Widget content;
     Color cardColor = Colors.blue.shade50;
 
-    // الصفوف الأولية (1-3)
     if (['الصف الأول', 'الصف الثاني', 'الصف الثالث'].contains(grade)) {
       content = _buildInfoContent(
         icon: Icons.local_library_rounded,
@@ -2582,7 +2433,6 @@ class SchoolBooksPage extends StatelessWidget {
         color: Colors.blue.shade700,
       );
     }
-    // الصف الرابع
     else if (grade == 'الصف الرابع') {
       content = _buildLinkContent(
         context,
@@ -2592,7 +2442,6 @@ class SchoolBooksPage extends StatelessWidget {
       );
       cardColor = Colors.indigo.shade50;
     }
-    // الصف الخامس
     else if (grade == 'الصف الخامس') {
       content = _buildLinkContent(
         context,
@@ -2602,7 +2451,6 @@ class SchoolBooksPage extends StatelessWidget {
       );
       cardColor = Colors.indigo.shade50;
     }
-    // الصف السادس
     else if (grade == 'الصف السادس') {
       content = _buildLinkContent(
         context,
@@ -2612,7 +2460,6 @@ class SchoolBooksPage extends StatelessWidget {
       );
       cardColor = Colors.indigo.shade50;
     }
-    // صفوف أخرى (احتياطي)
     else {
       content = _buildInfoContent(
         icon: Icons.info_outline_rounded,
@@ -2664,7 +2511,6 @@ class SchoolBooksPage extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         children: [
-          // Header with Gradient
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -2693,7 +2539,6 @@ class SchoolBooksPage extends StatelessWidget {
               ],
             ),
           ),
-          // Content
           Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -2736,7 +2581,7 @@ class SchoolBooksPage extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: () async {
-                      final Uri url = Uri.parse('https://wa.me/966502649649'); // رقم الأستاذ يحيي
+                      final Uri url = Uri.parse('https://wa.me/966502649649');
                       if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
                         ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('لا يمكن فتح الواتساب')));
@@ -2806,157 +2651,398 @@ class SchoolBooksPage extends StatelessWidget {
   }
 }
 
-// ✅✅✅ صفحة عرض الفيزا للطلاب (جديد) ✅✅✅
-class StudentVisaPage extends StatelessWidget {
+// ---------------------------------------------------------------------------
+// ✅✅✅ صفحة فيزا الطلاب (تصميم مدمج مع QR Code) ✅✅✅
+// ---------------------------------------------------------------------------
+
+class StudentVisaPage extends StatefulWidget {
   final Map<String, dynamic> studentData;
 
   const StudentVisaPage({super.key, required this.studentData});
 
   @override
+  State<StudentVisaPage> createState() => _StudentVisaPageState();
+}
+
+class _StudentVisaPageState extends State<StudentVisaPage> {
+  late Map<String, dynamic> _currentData;
+  bool _isUploading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentData = widget.studentData;
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    try {
+      final picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 600,
+      );
+
+      if (pickedFile == null) return;
+
+      setState(() => _isUploading = true);
+
+      final String userId = FirebaseAuth.instance.currentUser!.uid;
+      Uint8List fileBytes = await pickedFile.readAsBytes();
+
+      if (fileBytes.length > 3 * 1024 * 1024) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حجم الصورة كبير جداً')));
+        setState(() => _isUploading = false);
+        return;
+      }
+
+      final ref = FirebaseStorage.instance.ref().child('students_photos').child('$userId.jpg');
+      await ref.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
+
+      String url = await ref.getDownloadURL();
+      final String uniqueUrl = '$url?v=${DateTime.now().millisecondsSinceEpoch}';
+
+      await FirebaseFirestore.instance.collection('students').doc(userId).update({'photo': uniqueUrl});
+
+      setState(() {
+        _currentData['photo'] = uniqueUrl;
+        _isUploading = false;
+      });
+
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث الصورة بنجاح'), backgroundColor: Colors.green));
+
+    } catch (e) {
+      setState(() => _isUploading = false);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل الرفع: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final String? visaCode = studentData['visaCode'];
-    final String studentName = studentData['name'] ?? 'طالب';
+    final String? visaCode = _currentData['visaCode'];
+    final String studentName = _currentData['name'] ?? 'طالب';
+    final double balance = (_currentData['walletBalance'] ?? 0).toDouble();
+    final String? photoUrl = _currentData['photo'];
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
-        title: const Text('فيزا الطلاب الرقمية'),
-        backgroundColor: Colors.deepPurple.shade600,
+        title: const Text('بطاقة الطالب الرقمية', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: const Color(0xFF1A237E),
+        elevation: 0,
+        centerTitle: true,
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (visaCode != null && visaCode.isNotEmpty) ...[
-                Container(
-                  width: double.infinity,
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.deepPurple.shade800, Colors.deepPurple.shade400],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          children: [
+            if (visaCode != null && visaCode.isNotEmpty) ...[
+              // ✅ تصميم البطاقة (نسبة أبعاد الفيزا القياسية)
+              Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(maxWidth: 450),
+                child: AspectRatio(
+                  aspectRatio: 1.586,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF1A237E), // كحلي غامق
+                          Color(0xFF3949AB), // نيلي
+                          Color(0xFF283593), // كحلي متوسط
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.4),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8)),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
+                    child: Stack(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Icon(Icons.nfc, color: Colors.white54, size: 30),
-                            Image.asset('assets/m1.png', width: 40, color: Colors.white.withOpacity(0.8)),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          // استخدام رابط API موثوق لعرض QR Code لضمان العمل بدون مكتبات خارجية معقدة
-                          child: Image.network(
-                            'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=$visaCode',
-                            width: 180,
-                            height: 180,
-                            fit: BoxFit.cover,
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return const SizedBox(
-                                height: 180,
-                                width: 180,
-                                child: Center(child: CircularProgressIndicator()),
-                              );
-                            },
-                            errorBuilder: (context, error, stackTrace) {
-                              return const SizedBox(
-                                height: 180,
-                                width: 180,
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.error_outline, color: Colors.red),
-                                    Text("تعذر تحميل الرمز"),
-                                  ],
-                                ),
-                              );
-                            },
+                        // 1. العلامة المائية
+                        Positioned.fill(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: _buildWatermark(),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Text(
-                          _formatVisaCode(visaCode),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontFamily: 'monospace',
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 2,
+
+                        // 2. المحتوى
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // --- الصف العلوي: المدرسة + الصورة ---
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          "ALMAREFA SCHOOL",
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 9,
+                                            letterSpacing: 1.5,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          "ابتدائية المعرفة الأهلية",
+                                          style: TextStyle(
+                                            color: Colors.amber.shade400,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            fontFamily: 'Cairo',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  // صورة الطالب (أعلى اليمين)
+                                  GestureDetector(
+                                    onTap: _isUploading ? null : _pickAndUploadImage,
+                                    child: Container(
+                                      width: 60,
+                                      height: 60,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.amber.shade400, width: 2),
+                                        color: Colors.grey.shade200,
+                                        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                      ),
+                                      child: ClipOval(
+                                        child: _isUploading
+                                            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                                            : (photoUrl != null
+                                            ? Image.network(photoUrl, fit: BoxFit.cover)
+                                            : const Icon(Icons.person, size: 35, color: Colors.grey)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const Spacer(),
+
+                              // --- الصف الأوسط: الشريحة + NFC ---
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 45,
+                                    height: 35,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFD700).withOpacity(0.8),
+                                      borderRadius: BorderRadius.circular(6),
+                                      gradient: LinearGradient(
+                                        colors: [Colors.amber.shade300, Colors.amber.shade600],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                    ),
+                                    child: CustomPaint(painter: ChipPainter()),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Icon(Icons.wifi, color: Colors.white54, size: 24),
+                                ],
+                              ),
+
+                              const Spacer(),
+
+                              // --- الصف السفلي: البيانات (يسار) + QR (يمين) ---
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  // البيانات (الاسم، الكود، الرصيد)
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        // رقم الفيزا
+                                        Text(
+                                          _formatVisaCode(visaCode),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontFamily: 'monospace',
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.5,
+                                            shadows: [Shadow(color: Colors.black45, offset: Offset(1,1), blurRadius: 2)],
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+
+                                        // الاسم
+                                        const Text('CARD HOLDER', style: TextStyle(color: Colors.white54, fontSize: 8)),
+                                        Text(
+                                          studentName.toUpperCase(),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+
+                                        // الرصيد
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.3),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: Colors.white30),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Text('BAL: ', style: TextStyle(color: Colors.amber, fontSize: 9, fontWeight: FontWeight.bold)),
+                                              Text(
+                                                '${balance.toStringAsFixed(2)} SAR',
+                                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 10),
+
+                                  // ✅ QR Code المدمج (يمين أسفل)
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                                    ),
+                                    // حجم ثابت لضمان عدم تشويه التصميم
+                                    width: 75,
+                                    height: 75,
+                                    child: Image.network(
+                                      'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=$visaCode',
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (c,e,s) => const Icon(Icons.qr_code, size: 40, color: Colors.black),
+                                      loadingBuilder: (c, child, p) => p == null ? child : const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('STUDENT NAME', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                                Text(studentName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const Icon(Icons.credit_card, color: Colors.white70, size: 35),
-                          ],
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.copy),
-                  label: const Text('نسخ رقم الفيزا'),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: visaCode));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('تم نسخ الكود بنجاح!'), backgroundColor: Colors.green),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                  ),
+              ),
+
+              const SizedBox(height: 30),
+
+              ElevatedButton.icon(
+                icon: const Icon(Icons.copy),
+                label: const Text('نسخ رقم الفيزا'),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: visaCode));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('تم نسخ الكود بنجاح!'), backgroundColor: Colors.green),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF1A237E),
+                  elevation: 2,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                 ),
-              ] else ...[
-                const Icon(Icons.credit_card_off, size: 80, color: Colors.grey),
-                const SizedBox(height: 20),
-                const Text(
-                  'عفواً، لم يتم إصدار فيزا لك بعد.',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'يرجى مراجعة إدارة المدرسة لتفعيل حسابك.',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ]
-            ],
-          ),
+              ),
+
+            ] else ...[
+              const Icon(Icons.credit_card_off, size: 80, color: Colors.grey),
+              const SizedBox(height: 20),
+              const Text(
+                'عفواً، لم يتم إصدار فيزا لك بعد.',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'يرجى مراجعة إدارة المدرسة لتفعيل حسابك.',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ]
+          ],
         ),
       ),
     );
   }
 
-  String _formatVisaCode(String code) {
-    // تقسيم الكود إلى مجموعات من 4 أحرف
-    if (code.length != 16) return code;
-    return '${code.substring(0, 4)}  ${code.substring(4, 8)}  ${code.substring(8, 12)}  ${code.substring(12, 16)}';
+  Widget _buildWatermark() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            for (double i = -100; i < constraints.maxWidth + 100; i += 100)
+              for (double j = -100; j < constraints.maxHeight + 100; j += 60)
+                Positioned(
+                  left: i,
+                  top: j,
+                  child: Transform.rotate(
+                    angle: -math.pi / 12,
+                    child: Text(
+                      "مدرسة ابتدائية المعرفة الاهلية",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.04),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+          ],
+        );
+      },
+    );
   }
+
+  String _formatVisaCode(String code) {
+    if (code.length != 16) return code;
+    return '${code.substring(0, 4)} ${code.substring(4, 8)} ${code.substring(8, 12)} ${code.substring(12, 16)}';
+  }
+}
+
+class ChipPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = Colors.black12
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    final w = size.width;
+    final h = size.height;
+
+    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), const Radius.circular(6)), paint);
+    canvas.drawLine(Offset(w * 0.3, 0), Offset(w * 0.3, h), paint);
+    canvas.drawLine(Offset(w * 0.7, 0), Offset(w * 0.7, h), paint);
+    canvas.drawLine(Offset(0, h * 0.5), Offset(w, h * 0.5), paint);
+    canvas.drawRect(Rect.fromCenter(center: Offset(w/2, h/2), width: w*0.3, height: h*0.4), paint..style = PaintingStyle.stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
