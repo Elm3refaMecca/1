@@ -2601,7 +2601,7 @@ class SchoolBooksPage extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// ✅✅✅ صفحة الفيزا المعدلة بالكامل ✅✅✅
+// ✅✅✅ صفحة الفيزا للطالب (StudentVisaPage) المعدلة بالكامل ✅✅✅
 // ---------------------------------------------------------------------------
 
 class StudentVisaPage extends StatefulWidget {
@@ -3191,7 +3191,7 @@ class _StudentVisaPageState extends State<StudentVisaPage> {
     );
   }
 
-  // --- نافذة السجلات (مشتريات/شحن) ---
+  // --- نافذة السجلات الموحدة (مشتريات/شحن) ---
   void _showHistoryDialog(BuildContext context, String type) {
     final bool isPurchase = type == 'purchases';
     showModalBottomSheet(
@@ -3200,122 +3200,82 @@ class _StudentVisaPageState extends State<StudentVisaPage> {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => DraggableScrollableSheet(
         expand: false,
-        initialChildSize: 0.85, // فتح واسع للسجلات
+        initialChildSize: 0.85,
         maxChildSize: 0.95,
         builder: (_, controller) => Column(
           children: [
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Text(isPurchase ? "سجل المشتريات التفصيلي" : "سجل عمليات الشحن", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              child: Text(isPurchase ? "سجل المشتريات والخصومات" : "سجل الإيداع والشحن", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             ),
             const Divider(),
             Expanded(
-              child: isPurchase
-                  ? _buildPurchasesList(controller)
-                  : _buildDepositsList(controller),
+              child: StreamBuilder<QuerySnapshot>(
+                // ✅ القراءة من wallet_transactions السجل الموحد
+                stream: FirebaseFirestore.instance
+                    .collection('wallet_transactions')
+                    .where('studentId', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
+                    .where('type', whereIn: isPurchase ? ['purchase', 'deduction'] : ['deposit']) // فلترة حسب النوع
+                    .orderBy('timestamp', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("لا توجد سجلات"));
+
+                  return ListView.separated(
+                    controller: controller,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: snapshot.data!.docs.length,
+                    separatorBuilder: (c, i) => const Divider(),
+                    itemBuilder: (context, index) {
+                      final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                      final amount = (data['amount'] ?? 0).toDouble();
+                      final desc = data['description'] ?? 'عملية مالية';
+                      final date = (data['timestamp'] as Timestamp?)?.toDate();
+                      final type = data['type'];
+
+                      // تنسيق العناصر إذا كانت مشتريات
+                      Widget detailWidget;
+                      if (type == 'purchase' && data['items'] != null) {
+                        List items = data['items'];
+                        detailWidget = Text(items.join(', '), style: const TextStyle(fontSize: 12, color: Colors.grey));
+                      } else {
+                        detailWidget = Text(desc, style: const TextStyle(fontSize: 12, color: Colors.grey));
+                      }
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: amount > 0 ? Colors.green.shade100 : Colors.red.shade100,
+                          child: Icon(
+                            amount > 0 ? Icons.arrow_downward : Icons.shopping_cart,
+                            color: amount > 0 ? Colors.green : Colors.red,
+                          ),
+                        ),
+                        title: Text(amount > 0 ? "إيداع" : "مشتريات", style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            detailWidget,
+                            Text(date != null ? intl.DateFormat('yyyy/MM/dd hh:mm a').format(date) : '-', style: const TextStyle(fontSize: 10)),
+                          ],
+                        ),
+                        trailing: Text(
+                          '${amount > 0 ? '+' : ''}${amount.toStringAsFixed(2)} ﷼',
+                          style: TextStyle(
+                            color: amount > 0 ? Colors.green : Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildPurchasesList(ScrollController controller) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('transactions')
-          .where('studentId', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
-          .orderBy('timestamp', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("لا توجد بيانات"));
-
-        return ListView.separated(
-          controller: controller,
-          padding: const EdgeInsets.all(16),
-          itemCount: snapshot.data!.docs.length,
-          separatorBuilder: (c, i) => const Divider(),
-          itemBuilder: (context, index) {
-            final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-            final items = data['items'] as List<dynamic>? ?? [];
-            final total = (data['total'] ?? 0).toDouble();
-            final date = (data['timestamp'] as Timestamp?)?.toDate();
-
-            // تنسيق المنتجات
-            String itemsText = items.map((e) => "• ${e['name']} (${e['qty']})").join('\n');
-
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.shopping_cart, color: Colors.blueGrey, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(itemsText, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 6),
-                        Text(
-                          date != null ? intl.DateFormat('yyyy/MM/dd hh:mm a').format(date) : '',
-                          style: const TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('-${total.toStringAsFixed(2)} ﷼', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
-                      const Text('مصروف', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                    ],
-                  )
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildDepositsList(ScrollController controller) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('admin_audit_logs')
-          .where('studentId', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
-          .where('action', isEqualTo: 'MONEY_DEPOSIT')
-          .orderBy('timestamp', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("لا توجد بيانات"));
-
-        return ListView.builder(
-          controller: controller,
-          itemCount: snapshot.data!.docs.length,
-          itemBuilder: (context, index) {
-            final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-            final details = data['details'].toString();
-            final amount = details.split('Amount:')[1].split('SAR')[0].trim();
-            final date = (data['timestamp'] as Timestamp?)?.toDate();
-
-            return ListTile(
-              leading: const CircleAvatar(backgroundColor: Colors.green, child: Icon(Icons.arrow_downward, color: Colors.white, size: 20)),
-              title: const Text("عملية إيداع", style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(date != null ? intl.DateFormat('yyyy/MM/dd hh:mm a').format(date) : '', style: const TextStyle(fontStyle: FontStyle.italic)),
-              trailing: Text('+$amount ﷼', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
-            );
-          },
-        );
-      },
     );
   }
 

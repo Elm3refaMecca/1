@@ -39,9 +39,6 @@ final List<IconData> marketingIcons = [
   Icons.verified,
 ];
 
-// ... (باقي الكود السابق كما هو، مثل _confirmWithPassword, _logAuditAction, VisaManagementPage, StoreManagementPage, AdminDepositPage, VisaGenerationView, _buildPdfCard, _buildWatermark وغيرها ...)
-// سنقوم بوضع الدوال والكلاسات التي لم تتغير في الأعلى كما هي، ونركز التغيير في كلاسات CanteenPOSPage و LaserPosPage
-
 Future<bool> _confirmWithPassword(BuildContext context) async {
   final passwordController = TextEditingController();
   final formKey = GlobalKey<FormState>();
@@ -169,9 +166,6 @@ Future<void> _logAuditAction({
     'timestamp': FieldValue.serverTimestamp(),
   });
 }
-
-// ... (VisaManagementPage, StoreManagementPage, AdminDepositPage, VisaGenerationView ... يفترض وجودهم هنا كما في الملف الأصلي دون تغيير)
-// سأقوم بإدراجهم اختصاراً لعدم ضياع السياق، ولكن التركيز على CanteenPOSPage
 
 class VisaManagementPage extends StatelessWidget {
   const VisaManagementPage({super.key});
@@ -455,10 +449,6 @@ class VisaManagementPage extends StatelessWidget {
   }
 }
 
-// StoreManagementPage, AdminDepositPage, VisaGenerationView ... (يتم الاحتفاظ بهم كما في الملف الأصلي لتجنب الحذف، سأختصر الكود هنا للتركيز على المشكلة)
-// ... [CODE_PLACEHOLDER_FOR_OTHER_CLASSES] ...
-// لضمان عمل الكود، سأضع StoreManagementPage و AdminDepositPage و VisaGenerationView كاملين هنا
-
 class StoreManagementPage extends StatefulWidget {
   const StoreManagementPage({super.key});
 
@@ -550,7 +540,6 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
   }
 
   void _showProductDialog({DocumentSnapshot? product}) {
-    // ... (نفس كود الحوار الموجود في الملف الأصلي)
     final nameController = TextEditingController(text: product?['name']);
     final sellingPriceController = TextEditingController(text: product?['price']?.toString());
     final costPriceController = TextEditingController(text: product != null ? '' : '');
@@ -769,7 +758,6 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: () async {
-                      // ... (منطق الحفظ كما هو)
                       if (nameController.text.isEmpty || sellingPriceController.text.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إكمال البيانات الأساسية')));
                         return;
@@ -887,7 +875,6 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
   }
 
   void _showProductHistory(BuildContext context, DocumentSnapshot product) {
-    // ... (تاريخ المنتج)
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1152,7 +1139,6 @@ class AdminDepositPage extends StatefulWidget {
 }
 
 class _AdminDepositPageState extends State<AdminDepositPage> {
-  // ... (نفس كود AdminDepositPage الأصلي)
   final TextEditingController _searchController = TextEditingController();
   List<DocumentSnapshot> _searchResults = [];
   bool _isSearching = false;
@@ -1260,18 +1246,37 @@ class _AdminDepositPageState extends State<AdminDepositPage> {
                   if (verified) {
                     try {
                       double change = (_operationType == 'deposit') ? amount : -amount;
-                      String actionLog = (_operationType == 'deposit') ? 'MONEY_DEPOSIT' : 'MONEY_DEDUCTION';
 
-                      await FirebaseFirestore.instance.collection('students').doc(studentId).update({
-                        'walletBalance': FieldValue.increment(change)
+                      // ✅✅✅ التصحيح: إضافة الكتابة للسجل الموحد wallet_transactions ✅✅✅
+                      await FirebaseFirestore.instance.runTransaction((transaction) async {
+                        // 1. تحديث رصيد الطالب
+                        transaction.update(FirebaseFirestore.instance.collection('students').doc(studentId), {
+                          'walletBalance': FieldValue.increment(change)
+                        });
+
+                        // 2. تسجيل العملية في سجل التدقيق الإداري (للتاريخ الإداري)
+                        DocumentReference auditRef = FirebaseFirestore.instance.collection('admin_audit_logs').doc();
+                        transaction.set(auditRef, {
+                          'action': _operationType == 'deposit' ? 'MONEY_DEPOSIT' : 'MONEY_DEDUCTION',
+                          'adminId': FirebaseAuth.instance.currentUser?.uid,
+                          'adminName': FirebaseAuth.instance.currentUser?.email ?? 'Admin',
+                          'studentId': studentId,
+                          'studentName': name,
+                          'details': 'Amount: $amount SAR | Reason: ${reasonController.text}',
+                          'timestamp': FieldValue.serverTimestamp(),
+                        });
+
+                        // 3. ✅ تسجيل العملية في سجل المحفظة الموحد (للعرض للطالب)
+                        DocumentReference walletLogRef = FirebaseFirestore.instance.collection('wallet_transactions').doc();
+                        transaction.set(walletLogRef, {
+                          'studentId': studentId,
+                          'amount': change, // موجب للإيداع، سالب للخصم
+                          'type': _operationType == 'deposit' ? 'deposit' : 'deduction',
+                          'description': reasonController.text.isNotEmpty ? reasonController.text : (_operationType == 'deposit' ? 'إيداع إداري' : 'خصم إداري'),
+                          'timestamp': FieldValue.serverTimestamp(),
+                          'adminEmail': FirebaseAuth.instance.currentUser?.email,
+                        });
                       });
-
-                      await _logAuditAction(
-                        actionType: actionLog,
-                        studentId: studentId,
-                        studentName: name,
-                        details: 'Amount: $amount SAR | Reason: ${reasonController.text}',
-                      );
 
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1360,7 +1365,6 @@ class VisaGenerationView extends StatefulWidget {
 }
 
 class _VisaGenerationViewState extends State<VisaGenerationView> {
-  // ... (نفس الكود الأصلي)
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isProcessing = false;
@@ -1556,7 +1560,6 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
     setState(() => _isProcessing = false);
   }
 
-  // ✅✅✅ دالة بناء البطاقة في PDF بتصميم مطابق 100% للتطبيق ✅✅✅
   pw.Widget _buildPdfCard(
       String name,
       String code,
@@ -1853,7 +1856,6 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
                   }
 
                   final allDocs = snapshot.data!.docs;
-                  // الفلترة بناءً على نص البحث
                   final filteredDocs = allDocs.where((doc) {
                     final data = doc.data() as Map<String, dynamic>;
                     final name = data['name']?.toString().toLowerCase() ?? '';
@@ -1916,10 +1918,6 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
 extension on PdfGraphics {
   void drawCurve(int i, int j, int k, int l, int m, int n) {}
 }
-
-// ============================================
-// ✅✅✅ الكلاس المصحح CanteenPOSPage ✅✅✅
-// ============================================
 
 class CanteenPOSPage extends StatefulWidget {
   const CanteenPOSPage({super.key});
@@ -2066,7 +2064,6 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
         List<DocumentSnapshot> productSnaps = [];
         for (var item in _cart) {
           DocumentReference prodRef = FirebaseFirestore.instance.collection('products').doc(item['id']);
-          // هذا الأمر كان يسبب المشكلة سابقاً لأنه كان داخل حلقة بعد تحديث الطالب
           productSnaps.add(await transaction.get(prodRef));
         }
 
@@ -2079,7 +2076,7 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
         // ب. تحديث المنتجات بناءً على القراءات السابقة
         for (int i = 0; i < _cart.length; i++) {
           var item = _cart[i];
-          var prodSnap = productSnaps[i]; // استخدام القراءة المحفوظة
+          var prodSnap = productSnaps[i];
 
           if (prodSnap.exists) {
             DocumentReference prodRef = prodSnap.reference;
@@ -2108,13 +2105,24 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
           }
         }
 
-        // ج. إنشاء الفاتورة
+        // ج. إنشاء الفاتورة في السجل القديم
         DocumentReference invoiceRef = FirebaseFirestore.instance.collection('transactions').doc();
         transaction.set(invoiceRef, {
           'studentId': _studentId,
           'studentName': _studentData!['name'],
           'items': _cart,
           'total': _totalAmount,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+        // د. ✅ إنشاء سجل في wallet_transactions (السجل الموحد الجديد)
+        DocumentReference walletLogRef = FirebaseFirestore.instance.collection('wallet_transactions').doc();
+        transaction.set(walletLogRef, {
+          'studentId': _studentId,
+          'amount': -_totalAmount, // بالسالب لأنها عملية شراء
+          'type': 'purchase',
+          'description': 'شراء من المقصف',
+          'items': _cart.map((e) => "${e['name']} (${e['qty']})").toList(),
           'timestamp': FieldValue.serverTimestamp(),
         });
       });
@@ -2293,10 +2301,6 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
   }
 }
 
-// ============================================
-// ✅✅✅ الكلاس المصحح LaserPosPage ✅✅✅
-// ============================================
-
 class LaserPosPage extends StatefulWidget {
   const LaserPosPage({super.key});
 
@@ -2437,17 +2441,15 @@ class _LaserPosPageState extends State<LaserPosPage> {
     setState(() { _statusMessage = 'جاري الدفع...'; _isProcessing = true; });
 
     try {
-      // ✅✅✅ التصحيح هنا أيضاً: قراءة كل المنتجات أولاً قبل الكتابة ✅✅✅
       await FirebaseFirestore.instance.runTransaction((transaction) async {
-
-        // 1. تحضير القراءات
+        // 1. القراءات
         List<DocumentSnapshot> productSnaps = [];
         for (var item in _currentCart) {
           DocumentReference prodRef = FirebaseFirestore.instance.collection('products').doc(item['id']);
           productSnaps.add(await transaction.get(prodRef));
         }
 
-        // 2. تنفيذ الكتابات
+        // 2. الكتابة
         transaction.update(FirebaseFirestore.instance.collection('students').doc(_currentStudentId), {
           'walletBalance': balance - _currentTotal
         });
@@ -2488,6 +2490,17 @@ class _LaserPosPageState extends State<LaserPosPage> {
           'studentName': _currentStudent!['name'],
           'items': _currentCart,
           'total': _currentTotal,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+        // ✅ إضافة للسجل الموحد
+        DocumentReference walletLogRef = FirebaseFirestore.instance.collection('wallet_transactions').doc();
+        transaction.set(walletLogRef, {
+          'studentId': _currentStudentId,
+          'amount': -_currentTotal,
+          'type': 'purchase',
+          'description': 'شراء بالليزر',
+          'items': _currentCart.map((e) => "${e['name']} (${e['qty']})").toList(),
           'timestamp': FieldValue.serverTimestamp(),
         });
       });
@@ -2606,7 +2619,9 @@ class _LaserPosPageState extends State<LaserPosPage> {
   }
 }
 
-// ... (VisaAnalyticsPage, SalesCalendarPage, WithdrawalsLogPage كما في الملف الأصلي)
+// ... (باقي كلاسات card.dart الأخرى مثل VisaAnalyticsPage وغيرها كما هي تماماً)
+// سأضعها هنا للحفاظ على الملف مكتملاً
+
 class VisaAnalyticsPage extends StatelessWidget {
   const VisaAnalyticsPage({super.key});
 
