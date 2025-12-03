@@ -4,6 +4,40 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart'; // تأكد من وجود هذا الاستيراد للتعامل مع الميتاداتا
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart'; // تأكد من استيراد مكتبة الصور
+import 'package:intl/intl.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'dart:async';
+import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+// ✅✅✅ تم إضافة الاستيراد الضروري هنا ✅✅✅
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
+import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1344,8 +1378,7 @@ class VisaGenerationView extends StatefulWidget {
 
 class _VisaGenerationViewState extends State<VisaGenerationView> {
   final TextEditingController _searchController = TextEditingController();
-  List<DocumentSnapshot> _searchResults = [];
-  bool _isSearching = false;
+  String _searchQuery = '';
   bool _isProcessing = false;
 
   String _generateRandomVisaCode() {
@@ -1439,30 +1472,11 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تغيير الكود بنجاح!'), backgroundColor: Colors.green));
-        _searchStudent(_searchController.text);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل التغيير: $e'), backgroundColor: Colors.red));
     } finally {
       setState(() => _isProcessing = false);
-    }
-  }
-
-  Future<void> _searchStudent(String query) async {
-    if (query.isEmpty) {
-      setState(() { _searchResults = []; _isSearching = false; });
-      return;
-    }
-    setState(() => _isSearching = true);
-    try {
-      final res = await FirebaseFirestore.instance
-          .collection('students')
-          .where('name', isGreaterThanOrEqualTo: query)
-          .where('name', isLessThanOrEqualTo: '$query\uf8ff')
-          .get();
-      setState(() { _searchResults = res.docs; _isSearching = false; });
-    } catch (e) {
-      setState(() => _isSearching = false);
     }
   }
 
@@ -1488,6 +1502,8 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
     final pdf = pw.Document();
     final font = await PdfGoogleFonts.cairoRegular();
     final boldFont = await PdfGoogleFonts.cairoBold();
+    // ✅ تحميل الشعار من الأصول للطباعة
+    final logoImage = await imageFromAssetBundle('assets/m2.png');
 
     List<DocumentSnapshot> targets = [];
     if (singleStudent != null) {
@@ -1527,13 +1543,17 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
       final data = doc.data() as Map<String, dynamic>;
       final name = data['name'] ?? 'Student';
       final code = data['visaCode'];
-      final balance = (data['walletBalance'] ?? 0).toDouble();
-      final email = data['email'] ?? '';
-      String studentNumber = '';
-      if (email.toString().contains('@')) {
-        studentNumber = email.toString().split('@')[0];
-      }
       final className = "${data['grades'] ?? ''} - ${data['classes'] ?? ''}";
+      final photoUrl = data['photo'];
+
+      pw.ImageProvider? studentPhoto;
+      if (photoUrl != null && photoUrl.toString().isNotEmpty) {
+        try {
+          studentPhoto = await networkImage(photoUrl);
+        } catch (e) {
+          debugPrint("Error loading image for $name: $e");
+        }
+      }
 
       pdf.addPage(
         pw.Page(
@@ -1541,7 +1561,7 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
           theme: pw.ThemeData.withFont(base: font, bold: boldFont),
           build: (pw.Context context) {
             return pw.Center(
-              child: _buildPdfCard(name, code, balance, studentNumber, className, font, boldFont),
+              child: _buildPdfCard(name, code, className, font, boldFont, logoImage, studentPhoto),
             );
           },
         ),
@@ -1552,105 +1572,177 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
     setState(() => _isProcessing = false);
   }
 
-  pw.Widget _buildPdfCard(String name, String code, double balance, String studentNumber, String className, pw.Font font, pw.Font boldFont) {
+  // ✅✅✅ دالة بناء البطاقة في PDF بتصميم مطابق 100% للتطبيق ✅✅✅
+  pw.Widget _buildPdfCard(
+      String name,
+      String code,
+      String className,
+      pw.Font font,
+      pw.Font boldFont,
+      pw.ImageProvider logoImage,
+      pw.ImageProvider? studentPhoto
+      ) {
+    const double cardWidth = 400;
+    const double cardHeight = cardWidth / 1.586;
+
     return pw.Container(
-      width: 420,
-      height: 265,
+      width: cardWidth,
+      height: cardHeight,
       decoration: pw.BoxDecoration(
-        borderRadius: pw.BorderRadius.circular(16),
+        borderRadius: pw.BorderRadius.circular(20),
         gradient: const pw.LinearGradient(
-          colors: [PdfColors.blue900, PdfColors.blue700, PdfColors.blue800],
+          colors: [PdfColor.fromInt(0xFF283593), PdfColor.fromInt(0xFF1A237E)], // ألوان زرقاء غامقة
           begin: pw.Alignment.topLeft,
           end: pw.Alignment.bottomRight,
         ),
       ),
       child: pw.Stack(
         children: [
+          // العلامة المائية (بيضاء خفيفة)
           _buildWatermark(font),
-          pw.Padding(
-            padding: const pw.EdgeInsets.all(20),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
+
+          // 1. الشريحة والواي فاي
+          pw.Positioned(
+            top: 40,
+            left: 25,
+            child: pw.Row(
               children: [
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text("ALMAREFA SCHOOL", style: pw.TextStyle(color: PdfColors.white, fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                        pw.Text("ابتدائية المعرفة الأهلية", textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: boldFont, color: PdfColors.amber, fontSize: 16)),
-                      ],
+                pw.Container(
+                  width: 45,
+                  height: 35,
+                  decoration: pw.BoxDecoration(
+                    borderRadius: pw.BorderRadius.circular(6),
+                    gradient: const pw.LinearGradient(
+                      colors: [PdfColor.fromInt(0xFFFFD54F), PdfColor.fromInt(0xFFFFB300)],
+                      begin: pw.Alignment.topLeft,
+                      end: pw.Alignment.bottomRight,
                     ),
-                    pw.Container(
-                      width: 60, height: 60,
-                      decoration: const pw.BoxDecoration(
-                        color: PdfColors.grey200,
-                        shape: pw.BoxShape.circle,
-                      ),
-                      child: pw.Center(
-                        child: pw.Text(
-                          studentNumber,
-                          style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
+                    border: pw.Border.all(color: PdfColors.white, width: 0.5),
+                  ),
+                  child: pw.Stack(
+                    children: [
+                      pw.Positioned(left: 0, right: 0, top: 17, child: pw.Container(height: 0.5, color: PdfColors.black)),
+                      pw.Positioned(top: 0, bottom: 0, left: 15, child: pw.Container(width: 0.5, color: PdfColors.black)),
+                      pw.Positioned(top: 0, bottom: 0, right: 15, child: pw.Container(width: 0.5, color: PdfColors.black)),
+                      pw.Center(
+                        child: pw.Container(
+                          width: 12, height: 8,
+                          decoration: pw.BoxDecoration(
+                            border: pw.Border.all(color: PdfColors.black, width: 0.5),
+                            borderRadius: pw.BorderRadius.circular(2),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                pw.Spacer(),
-                pw.Row(
-                  children: [
-                    _buildRealisticChip(),
-                    pw.SizedBox(width: 10),
-                  ],
+                pw.SizedBox(width: 10),
+                pw.SizedBox(
+                  width: 24, height: 24,
+                  child: pw.CustomPaint(
+                    painter: (canvas, size) {
+                      canvas.setColor(PdfColors.white);
+                      canvas.setLineWidth(2);
+                      canvas.drawCurve(0, 8, 12, -8, 24, 8); canvas.strokePath();
+                      canvas.drawCurve(4, 12, 12, 2, 20, 12); canvas.strokePath();
+                      canvas.drawEllipse(12, 18, 1.5, 1.5); canvas.fillPath();
+                    },
+                  ),
                 ),
-                pw.Spacer(),
-                pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.end,
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Expanded(
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Text(
-                            _formatVisaCode(code),
-                            style: pw.TextStyle(color: PdfColors.white, fontSize: 20, fontWeight: pw.FontWeight.bold, letterSpacing: 2),
-                          ),
-                          pw.SizedBox(height: 8),
-                          pw.Text(
-                            name,
-                            textDirection: pw.TextDirection.rtl,
-                            style: pw.TextStyle(font: boldFont, color: PdfColors.white, fontSize: 16),
-                          ),
-                          pw.Text(
-                            className,
-                            textDirection: pw.TextDirection.rtl,
-                            style: pw.TextStyle(font: font, color: PdfColors.amber, fontSize: 12),
-                          ),
-                          pw.SizedBox(height: 4),
-                          pw.Text(
-                            '${balance.toStringAsFixed(2)} SAR',
-                            style: pw.TextStyle(color: PdfColors.white, fontSize: 12, fontWeight: pw.FontWeight.bold),
-                          ),
-                        ],
+              ],
+            ),
+          ),
+
+          // 2. الباركود
+          pw.Positioned(
+            top: 90,
+            left: 25,
+            child: pw.Container(
+              padding: const pw.EdgeInsets.all(4),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.white,
+                borderRadius: pw.BorderRadius.circular(8),
+              ),
+              child: pw.BarcodeWidget(
+                barcode: pw.Barcode.qrCode(),
+                data: code,
+                width: 50,
+                height: 50,
+                color: PdfColors.black,
+              ),
+            ),
+          ),
+
+          // 3. شعار المدرسة (أبيض شفاف)
+          pw.Align(
+            alignment: pw.Alignment.center,
+            child: pw.Opacity(
+              opacity: 0.95,
+              child: pw.Image(logoImage, width: 80, height: 80),
+            ),
+          ),
+
+          // 4. صورة الطالب
+          pw.Positioned(
+            top: 20,
+            right: 20,
+            child: pw.Container(
+              width: 70,
+              height: 70,
+              padding: const pw.EdgeInsets.all(3),
+              decoration: pw.BoxDecoration(
+                shape: pw.BoxShape.circle,
+                border: pw.Border.all(color: PdfColors.white, width: 2),
+                color: PdfColors.white,
+              ),
+              child: pw.ClipOval(
+                child: studentPhoto != null
+                    ? pw.Image(studentPhoto, fit: pw.BoxFit.cover)
+                    : pw.Center(
+                  child: pw.Text("No Photo", style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey)),
+                ),
+              ),
+            ),
+          ),
+
+          // 5. البيانات
+          pw.Positioned(
+            bottom: 25,
+            left: 25,
+            right: 25,
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    mainAxisSize: pw.MainAxisSize.min,
+                    children: [
+                      pw.Text('CARD HOLDER', style: const pw.TextStyle(color: PdfColors.white, fontSize: 8)),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        name.toUpperCase(),
+                        textDirection: pw.TextDirection.rtl,
+                        style: pw.TextStyle(font: boldFont, color: PdfColors.white, fontSize: 16),
+                        maxLines: 1,
                       ),
-                    ),
-                    pw.Container(
-                      padding: const pw.EdgeInsets.all(4),
-                      decoration: pw.BoxDecoration(
-                        color: PdfColors.white,
-                        borderRadius: pw.BorderRadius.circular(8),
+                      pw.Text(
+                        className,
+                        textDirection: pw.TextDirection.rtl,
+                        style: pw.TextStyle(font: font, color: PdfColors.amber, fontSize: 12),
                       ),
-                      child: pw.BarcodeWidget(
-                        barcode: pw.Barcode.qrCode(),
-                        data: code,
-                        width: 95,
-                        height: 95,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+                pw.Text(
+                  _formatVisaCode(code),
+                  style: pw.TextStyle(
+                    color: PdfColors.white,
+                    font: font,
+                    fontSize: 12,
+                    letterSpacing: 1.2,
+                  ),
                 ),
               ],
             ),
@@ -1660,54 +1752,32 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
     );
   }
 
-  pw.Widget _buildRealisticChip() {
-    return pw.Container(
-      width: 50, height: 38,
-      decoration: pw.BoxDecoration(
-        color: PdfColors.amber300,
-        borderRadius: pw.BorderRadius.circular(6),
-        border: pw.Border.all(color: PdfColors.amber100, width: 0.5),
-      ),
-      child: pw.Stack(
-        children: [
-          pw.Positioned(
-            left: 0, right: 0, top: 19,
-            child: pw.Container(height: 0.5, color: PdfColors.grey800),
-          ),
-          pw.Positioned(
-            top: 0, bottom: 0, left: 16,
-            child: pw.Container(width: 0.5, color: PdfColors.grey800),
-          ),
-          pw.Positioned(
-            top: 0, bottom: 0, right: 16,
-            child: pw.Container(width: 0.5, color: PdfColors.grey800),
-          ),
-          pw.Center(
-            child: pw.Container(
-              width: 14, height: 10,
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: PdfColors.grey800, width: 0.5),
-                borderRadius: pw.BorderRadius.circular(2),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+  // ✅ الدالة المعدلة للعلامة المائية (نصوص بيضاء واضحة)
   pw.Widget _buildWatermark(pw.Font font) {
-    return pw.Opacity(
-      opacity: 0.05,
-      child: pw.Wrap(
-        spacing: 30,
-        runSpacing: 30,
-        children: List.generate(20, (index) {
-          return pw.Transform.rotate(
-            angle: -0.5,
-            child: pw.Text("ابتدائية المعرفة الأهلية", textDirection: pw.TextDirection.rtl, style: pw.TextStyle(font: font, fontSize: 14, color: PdfColors.white)),
-          );
-        }),
+    return pw.Positioned.fill(
+      child: pw.Opacity(
+        opacity: 0.15,
+        child: pw.Center(
+          child: pw.Wrap(
+            spacing: 30,
+            runSpacing: 30,
+            children: List.generate(20, (index) {
+              return pw.Transform.rotate(
+                angle: -0.5,
+                child: pw.Text(
+                  "ابتدائية المعرفة الأهلية",
+                  textDirection: pw.TextDirection.rtl,
+                  style: pw.TextStyle(
+                    font: font,
+                    fontSize: 10,
+                    color: PdfColors.white,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
       ),
     );
   }
@@ -1766,7 +1836,7 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
                       filled: true,
                       fillColor: const Color(0xFFF5F5F5),
                     ),
-                    onChanged: _searchStudent,
+                    onChanged: (val) => setState(() => _searchQuery = val),
                   ),
                 ],
               ),
@@ -1774,43 +1844,81 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
             if (_isProcessing) const LinearProgressIndicator(),
             const SizedBox(height: 10),
             Expanded(
-              child: _isSearching
-                  ? const Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                itemCount: _searchResults.length,
-                padding: const EdgeInsets.all(16),
-                itemBuilder: (context, index) {
-                  final data = _searchResults[index].data() as Map<String, dynamic>;
-                  final visaCode = data['visaCode'] ?? 'غير متوفر';
-                  final name = data['name'] ?? '...';
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collection('students').orderBy('name').snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 2,
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: Colors.cyan.shade100,
-                        child: Icon(Icons.qr_code, color: Colors.cyan.shade700),
-                      ),
-                      title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('الكود الحالي: $visaCode', style: const TextStyle(fontFamily: 'monospace')),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                  // ✅✅✅ التعديل هنا: إذا كان البحث فارغاً، عرض رسالة بدلاً من القائمة ✅✅✅
+                  if (_searchQuery.isEmpty) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.print, color: Colors.indigo),
-                            tooltip: 'طباعة فيزا الطالب',
-                            onPressed: () => _generatePdf(singleStudent: _searchResults[index]),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.refresh, color: Colors.orange),
-                            tooltip: 'تغيير الكود (أمان)',
-                            onPressed: () => _handleSingleVisaReset(_searchResults[index].id, name),
-                          ),
+                          Icon(Icons.search, size: 80, color: Colors.black12),
+                          SizedBox(height: 16),
+                          Text("أدخل اسم الطالب للبحث", style: TextStyle(color: Colors.grey, fontSize: 18)),
                         ],
                       ),
-                    ),
+                    );
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(child: Text("لا يوجد طلاب"));
+                  }
+
+                  final allDocs = snapshot.data!.docs;
+                  // الفلترة بناءً على نص البحث
+                  final filteredDocs = allDocs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final name = data['name']?.toString().toLowerCase() ?? '';
+                    return name.contains(_searchQuery.toLowerCase());
+                  }).toList();
+
+                  if (filteredDocs.isEmpty) {
+                    return const Center(child: Text("لم يتم العثور على نتائج"));
+                  }
+
+                  return ListView.builder(
+                    itemCount: filteredDocs.length,
+                    padding: const EdgeInsets.all(16),
+                    itemBuilder: (context, index) {
+                      final doc = filteredDocs[index];
+                      final data = doc.data() as Map<String, dynamic>;
+                      final visaCode = data['visaCode'] ?? 'غير متوفر';
+                      final name = data['name'] ?? '...';
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 2,
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.cyan.shade100,
+                            child: Icon(Icons.qr_code, color: Colors.cyan.shade700),
+                          ),
+                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text('الكود الحالي: $visaCode', style: const TextStyle(fontFamily: 'monospace')),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.print, color: Colors.indigo),
+                                tooltip: 'طباعة فيزا الطالب',
+                                onPressed: () => _generatePdf(singleStudent: doc),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.refresh, color: Colors.orange),
+                                tooltip: 'تغيير الكود (أمان)',
+                                onPressed: () => _handleSingleVisaReset(doc.id, name),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
@@ -1820,6 +1928,10 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
       ),
     );
   }
+}
+
+extension on PdfGraphics {
+  void drawCurve(int i, int j, int k, int l, int m, int n) {}
 }
 
 class CanteenPOSPage extends StatefulWidget {
