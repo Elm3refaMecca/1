@@ -4,22 +4,6 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart'; // تأكد من وجود هذا الاستيراد للتعامل مع الميتاداتا
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart'; // تأكد من استيراد مكتبة الصور
-import 'package:intl/intl.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
-import 'dart:async';
-import 'dart:math';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -30,22 +14,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-// ✅✅✅ تم إضافة الاستيراد الضروري هنا ✅✅✅
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:async';
-import 'dart:math';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 final List<IconData> marketingIcons = [
   Icons.local_grocery_store,
@@ -69,6 +38,9 @@ final List<IconData> marketingIcons = [
   Icons.star,
   Icons.verified,
 ];
+
+// ... (باقي الكود السابق كما هو، مثل _confirmWithPassword, _logAuditAction, VisaManagementPage, StoreManagementPage, AdminDepositPage, VisaGenerationView, _buildPdfCard, _buildWatermark وغيرها ...)
+// سنقوم بوضع الدوال والكلاسات التي لم تتغير في الأعلى كما هي، ونركز التغيير في كلاسات CanteenPOSPage و LaserPosPage
 
 Future<bool> _confirmWithPassword(BuildContext context) async {
   final passwordController = TextEditingController();
@@ -197,6 +169,9 @@ Future<void> _logAuditAction({
     'timestamp': FieldValue.serverTimestamp(),
   });
 }
+
+// ... (VisaManagementPage, StoreManagementPage, AdminDepositPage, VisaGenerationView ... يفترض وجودهم هنا كما في الملف الأصلي دون تغيير)
+// سأقوم بإدراجهم اختصاراً لعدم ضياع السياق، ولكن التركيز على CanteenPOSPage
 
 class VisaManagementPage extends StatelessWidget {
   const VisaManagementPage({super.key});
@@ -480,6 +455,10 @@ class VisaManagementPage extends StatelessWidget {
   }
 }
 
+// StoreManagementPage, AdminDepositPage, VisaGenerationView ... (يتم الاحتفاظ بهم كما في الملف الأصلي لتجنب الحذف، سأختصر الكود هنا للتركيز على المشكلة)
+// ... [CODE_PLACEHOLDER_FOR_OTHER_CLASSES] ...
+// لضمان عمل الكود، سأضع StoreManagementPage و AdminDepositPage و VisaGenerationView كاملين هنا
+
 class StoreManagementPage extends StatefulWidget {
   const StoreManagementPage({super.key});
 
@@ -571,6 +550,7 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
   }
 
   void _showProductDialog({DocumentSnapshot? product}) {
+    // ... (نفس كود الحوار الموجود في الملف الأصلي)
     final nameController = TextEditingController(text: product?['name']);
     final sellingPriceController = TextEditingController(text: product?['price']?.toString());
     final costPriceController = TextEditingController(text: product != null ? '' : '');
@@ -789,6 +769,7 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: () async {
+                      // ... (منطق الحفظ كما هو)
                       if (nameController.text.isEmpty || sellingPriceController.text.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إكمال البيانات الأساسية')));
                         return;
@@ -906,6 +887,7 @@ class _StoreManagementPageState extends State<StoreManagementPage> {
   }
 
   void _showProductHistory(BuildContext context, DocumentSnapshot product) {
+    // ... (تاريخ المنتج)
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1170,6 +1152,7 @@ class AdminDepositPage extends StatefulWidget {
 }
 
 class _AdminDepositPageState extends State<AdminDepositPage> {
+  // ... (نفس كود AdminDepositPage الأصلي)
   final TextEditingController _searchController = TextEditingController();
   List<DocumentSnapshot> _searchResults = [];
   bool _isSearching = false;
@@ -1377,6 +1360,7 @@ class VisaGenerationView extends StatefulWidget {
 }
 
 class _VisaGenerationViewState extends State<VisaGenerationView> {
+  // ... (نفس الكود الأصلي)
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isProcessing = false;
@@ -1851,7 +1835,6 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  // ✅✅✅ التعديل هنا: إذا كان البحث فارغاً، عرض رسالة بدلاً من القائمة ✅✅✅
                   if (_searchQuery.isEmpty) {
                     return const Center(
                       child: Column(
@@ -1933,6 +1916,10 @@ class _VisaGenerationViewState extends State<VisaGenerationView> {
 extension on PdfGraphics {
   void drawCurve(int i, int j, int k, int l, int m, int n) {}
 }
+
+// ============================================
+// ✅✅✅ الكلاس المصحح CanteenPOSPage ✅✅✅
+// ============================================
 
 class CanteenPOSPage extends StatefulWidget {
   const CanteenPOSPage({super.key});
@@ -2072,16 +2059,30 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
       return;
     }
     try {
+      // ✅✅✅ التصحيح هنا: تنفيذ جميع القراءات قبل الكتابة ✅✅✅
       await FirebaseFirestore.instance.runTransaction((transaction) async {
+
+        // 1. تحضير قراءة المنتجات أولاً (Reads)
+        List<DocumentSnapshot> productSnaps = [];
+        for (var item in _cart) {
+          DocumentReference prodRef = FirebaseFirestore.instance.collection('products').doc(item['id']);
+          // هذا الأمر كان يسبب المشكلة سابقاً لأنه كان داخل حلقة بعد تحديث الطالب
+          productSnaps.add(await transaction.get(prodRef));
+        }
+
+        // 2. تنفيذ الكتابات (Writes)
+        // أ. تحديث رصيد الطالب
         transaction.update(FirebaseFirestore.instance.collection('students').doc(_studentId), {
           'walletBalance': currentBalance - _totalAmount
         });
 
-        for (var item in _cart) {
-          DocumentReference prodRef = FirebaseFirestore.instance.collection('products').doc(item['id']);
-          DocumentSnapshot prodSnap = await transaction.get(prodRef);
+        // ب. تحديث المنتجات بناءً على القراءات السابقة
+        for (int i = 0; i < _cart.length; i++) {
+          var item = _cart[i];
+          var prodSnap = productSnaps[i]; // استخدام القراءة المحفوظة
 
           if (prodSnap.exists) {
+            DocumentReference prodRef = prodSnap.reference;
             double currentTotalCost = (prodSnap['total_cost_value'] ?? 0).toDouble();
             int currentStock = (prodSnap['stock'] ?? 0).toInt();
             int qtySold = item['qty'];
@@ -2107,6 +2108,7 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
           }
         }
 
+        // ج. إنشاء الفاتورة
         DocumentReference invoiceRef = FirebaseFirestore.instance.collection('transactions').doc();
         transaction.set(invoiceRef, {
           'studentId': _studentId,
@@ -2291,6 +2293,10 @@ class _CanteenPOSPageState extends State<CanteenPOSPage> {
   }
 }
 
+// ============================================
+// ✅✅✅ الكلاس المصحح LaserPosPage ✅✅✅
+// ============================================
+
 class LaserPosPage extends StatefulWidget {
   const LaserPosPage({super.key});
 
@@ -2431,16 +2437,27 @@ class _LaserPosPageState extends State<LaserPosPage> {
     setState(() { _statusMessage = 'جاري الدفع...'; _isProcessing = true; });
 
     try {
+      // ✅✅✅ التصحيح هنا أيضاً: قراءة كل المنتجات أولاً قبل الكتابة ✅✅✅
       await FirebaseFirestore.instance.runTransaction((transaction) async {
+
+        // 1. تحضير القراءات
+        List<DocumentSnapshot> productSnaps = [];
+        for (var item in _currentCart) {
+          DocumentReference prodRef = FirebaseFirestore.instance.collection('products').doc(item['id']);
+          productSnaps.add(await transaction.get(prodRef));
+        }
+
+        // 2. تنفيذ الكتابات
         transaction.update(FirebaseFirestore.instance.collection('students').doc(_currentStudentId), {
           'walletBalance': balance - _currentTotal
         });
 
-        for (var item in _currentCart) {
-          DocumentReference prodRef = FirebaseFirestore.instance.collection('products').doc(item['id']);
-          DocumentSnapshot prodSnap = await transaction.get(prodRef);
+        for (int i = 0; i < _currentCart.length; i++) {
+          var item = _currentCart[i];
+          var prodSnap = productSnaps[i];
 
           if (prodSnap.exists) {
+            DocumentReference prodRef = prodSnap.reference;
             int qtySold = item['qty'];
             double currentTotalCost = (prodSnap['total_cost_value'] ?? 0).toDouble();
             int currentStock = (prodSnap['stock'] ?? 0).toInt();
@@ -2589,6 +2606,7 @@ class _LaserPosPageState extends State<LaserPosPage> {
   }
 }
 
+// ... (VisaAnalyticsPage, SalesCalendarPage, WithdrawalsLogPage كما في الملف الأصلي)
 class VisaAnalyticsPage extends StatelessWidget {
   const VisaAnalyticsPage({super.key});
 
