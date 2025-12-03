@@ -314,8 +314,7 @@ class TeacherLoginApp extends StatelessWidget {
           indicatorColor: Colors.white,
         ),
       ),
-      // ✅ تغليف البناء الأساسي
-      builder: (context, child) => _GlobalFabStack(child: child),
+      // ✅ تم حذف _GlobalFabStack من هنا بناءً على طلبك
       initialRoute: '/',
       routes: {
         '/': (context) => const AuthWrapper(),
@@ -328,76 +327,6 @@ class TeacherLoginApp extends StatelessWidget {
           return LoginPage(accountType: accountType);
         }
       },
-    );
-  }
-}
-
-// ✅✅✅ 3. تعديل الزر العائم (تصغيره وتغيير وظيفته) ✅✅✅
-class _GlobalFabStack extends StatefulWidget {
-  final Widget? child;
-  const _GlobalFabStack({this.child});
-  @override
-  _GlobalFabStackState createState() => _GlobalFabStackState();
-}
-
-class _GlobalFabStackState extends State<_GlobalFabStack> {
-  Offset _fabOffset = const Offset(20, 40);
-  bool _isOffsetInitialized = false;
-
-  // الحجم الأصلي للزر هو 56.0
-  // تصغير بنسبة 23% يعني الحجم الجديد حوالي 43.0
-  final double _fabSize = 43.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final padding = MediaQuery.of(context).padding;
-    final size = MediaQuery.of(context).size;
-
-    if (!_isOffsetInitialized) {
-      // تعديل الإزاحة بناءً على الحجم الجديد
-      _fabOffset = Offset(
-          size.width - _fabSize - 24,
-          padding.top + 24
-      );
-      _isOffsetInitialized = true;
-    }
-
-    return Stack(
-      children: [
-        if (widget.child != null) widget.child!,
-
-        Positioned(
-          left: _fabOffset.dx,
-          top: _fabOffset.dy,
-          child: GestureDetector(
-            onPanUpdate: (details) {
-              setState(() {
-                // تحديث حدود السحب بناءً على الحجم الجديد
-                _fabOffset = Offset(
-                  (_fabOffset.dx + details.delta.dx).clamp(8.0, size.width - _fabSize - 8),
-                  (_fabOffset.dy + details.delta.dy).clamp(padding.top + 8.0, size.height - _fabSize - 8),
-                );
-              });
-            },
-            child: SizedBox(
-              width: _fabSize,
-              height: _fabSize,
-              child: FloatingActionButton(
-                heroTag: 'back-fab',
-                onPressed: () {
-                  // ✅ وظيفة الرجوع خطوة واحدة
-                  Navigator.of(context).maybePop();
-                },
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
-                elevation: 6,
-                // ✅ أيقونة الرجوع
-                child: const Icon(Icons.arrow_back, size: 20),
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1092,7 +1021,8 @@ class _WelcomePageState extends State<WelcomePage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: SpeedDial(
         heroTag: 'main-fab',
-        icon: Icons.support_agent,
+        // ✅ تم تغيير الأيقونة هنا إلى أيقونة الدردشة لتدل على واتساب
+        icon: Icons.chat,
         activeIcon: Icons.close,
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
