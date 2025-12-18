@@ -27,7 +27,132 @@ import 'package:uuid/uuid.dart';
 import 'package:almarefamecca/add.dart';
 import 'package:almarefamecca/student_view.dart';
 
-// ✅ تم حذف QuickSessionManager لأننا نستخدم الآن مصادقة حقيقية آمنة
+// ✅✅✅ مدير جلسة السبورة الذكية (المؤقت 5 دقائق) ✅✅✅
+class QRSessionTimer {
+  static Timer? _timer;
+  static final ValueNotifier<int> remainingSeconds = ValueNotifier<int>(0);
+  static bool isActive = false;
+
+  // بدء الجلسة المؤقتة
+  static void startSession(BuildContext context) {
+    isActive = true;
+    remainingSeconds.value = 300; // 5 دقائق = 300 ثانية
+
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (remainingSeconds.value > 0) {
+        remainingSeconds.value--;
+      } else {
+        // انتهى الوقت
+        stopSession();
+        await FirebaseAuth.instance.signOut();
+        if (context.mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('انتهت جلسة السبورة (5 دقائق). تم الخروج تلقائياً للأمان.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    });
+  }
+
+  // إيقاف الجلسة (عند الخروج اليدوي)
+  static void stopSession() {
+    _timer?.cancel();
+    isActive = false;
+    remainingSeconds.value = 0;
+  }
+}
+
+// ✅✅✅ واجهة عرض المؤقت (شريط علوي صغير وأحمر فاقع) ✅✅✅
+class QRSessionOverlay extends StatelessWidget {
+  final Widget child;
+  const QRSessionOverlay({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child,
+        if (QRSessionTimer.isActive)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ValueListenableBuilder<int>(
+              valueListenable: QRSessionTimer.remainingSeconds,
+              builder: (context, seconds, _) {
+                if (seconds <= 0) return const SizedBox.shrink();
+
+                final mins = (seconds / 60).floor();
+                final secs = seconds % 60;
+
+                // تغيير اللون ليكون أحمر فاقع عند اقتراب النهاية، أو أحمر عادي
+                final bool isUrgent = seconds < 60;
+
+                return Material(
+                  color: isUrgent ? Colors.redAccent.shade700 : Colors.red, // أحمر فاقع
+                  elevation: 6,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0), // مسافات صغيرة (Compact)
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // أيقونة صغيرة متحركة
+                        const Icon(Icons.timer_outlined, color: Colors.white, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'جلسة مؤقتة: سيتم الخروج خلال ${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13, // خط صغير
+                              fontFamily: 'Cairo'
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // زر خروج صغير جداً
+                        InkWell(
+                          onTap: () async {
+                            QRSessionTimer.stopSession();
+                            await FirebaseAuth.instance.signOut();
+                            if (context.mounted) {
+                              Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12)
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.logout, size: 12, color: Colors.red),
+                                SizedBox(width: 4),
+                                Text(
+                                    'خروج',
+                                    style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
 
 class GlobalScrollBehavior extends MaterialScrollBehavior {
   @override
@@ -53,6 +178,16 @@ class ExitPopupWrapper extends StatelessWidget {
       canPop: false,
       onPopInvoked: (didPop) async {
         if (didPop) return;
+
+        // إذا كانت جلسة سبورة، الخروج يعني إنهاء الجلسة فوراً
+        if (QRSessionTimer.isActive) {
+          QRSessionTimer.stopSession();
+          await FirebaseAuth.instance.signOut();
+          if (context.mounted) {
+            Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+          }
+          return;
+        }
 
         final shouldExit = await showDialog<bool>(
           context: context,
@@ -314,8 +449,8 @@ class TeacherLoginApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const AuthWrapper(),
-        // لم نعد بحاجة للغلاف القديم TeacherOverlayWrapper
-        '/add': (context) => const ExitPopupWrapper(child: AddPage()),
+        // ✅ تغليف صفحة المعلم بالمؤقت (يظهر فقط إذا كانت الجلسة عبر الباركود)
+        '/add': (context) => const ExitPopupWrapper(child: QRSessionOverlay(child: AddPage())),
         '/student_view': (context) => const ExitPopupWrapper(child: StudentViewPage()),
         '/login': (context) {
           final args = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
@@ -443,7 +578,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
               switch (roleSnapshot.data) {
                 case 'teacher':
-                  return const ExitPopupWrapper(child: AddPage());
+                // ✅ هنا يتم توجيه المعلم مع غلاف المؤقت (الذي لن يظهر إلا إذا تم تفعيله من الباركود)
+                  return const ExitPopupWrapper(child: QRSessionOverlay(child: AddPage()));
                 case 'student':
                   return const ExitPopupWrapper(child: StudentViewPage());
                 case 'unauthorized':
@@ -814,7 +950,7 @@ class _WelcomePageState extends State<WelcomePage> {
     }
   }
 
-  // ✅✅✅ دالة الدخول السريع الجديدة والمحدثة (الطريقة الآمنة) ✅✅✅
+  // ✅✅✅ دالة الدخول السريع الجديدة والمحدثة (الطريقة الآمنة + المؤقت) ✅✅✅
   void _showQRLoginDialog() {
     final String sessionId = const Uuid().v4();
 
@@ -846,11 +982,16 @@ class _WelcomePageState extends State<WelcomePage> {
                       Navigator.pop(context); // إغلاق الديالوج
 
                       try {
-                        // 🔥 تسجيل دخول حقيقي ببيانات المعلم!
+                        // 1. تسجيل دخول حقيقي ببيانات المعلم!
                         await FirebaseAuth.instance.signInWithCustomToken(data['auth_token']);
 
-                        // تنظيف: حذف وثيقة الجلسة
+                        // 2. تنظيف: حذف وثيقة الجلسة
                         FirebaseFirestore.instance.collection('qr_logins').doc(sessionId).delete();
+
+                        // 3. 🔥 تشغيل مؤقت الأمان (5 دقائق)
+                        if (context.mounted) {
+                          QRSessionTimer.startSession(context);
+                        }
 
                       } catch (e) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -884,9 +1025,9 @@ class _WelcomePageState extends State<WelcomePage> {
                       ),
                       const SizedBox(height: 12),
                       const Text(
-                        'سيتم تسجيل دخولك بحسابك الحقيقي فوراً.',
+                        'أمان 🔒: سيتم الخروج تلقائياً بعد 5 دقائق.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       const CircularProgressIndicator(), // مؤشر انتظار
