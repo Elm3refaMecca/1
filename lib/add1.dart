@@ -1,5 +1,6 @@
 // add1.dart
-// ✅ (MODIFIED) تم تحديث معايير اللغة الإنجليزية لتكون شاملة ومهنية
+// ✅ (MODIFIED) تم تحديث معايير السلوك (Likes/Dislikes) لتكون إلزامية وشاملة
+// ✅ تم إضافة ميزة الرصد الجماعي (Bulk Action) للفصل كاملاً
 // ✅ تم دمج التقييم مع رصد الدرجة ورفعه على Firebase
 
 import 'dart:async';
@@ -305,7 +306,7 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
                     className: _selectedClass!,
                     subject: 'سلوك',
                     testFieldKey: 'behavior',
-                    testName: 'تقييم السلوك (الطالب المنضبط)',
+                    testName: 'تقييم السلوك والمواظبة',
                     isBehaviorMode: true,
                   ),
                 ),
@@ -655,7 +656,7 @@ class __TestTileState extends State<_TestTile> {
 }
 
 // ---------------------------------------------------------------------------
-// 3. صفحة رصد الدرجات / تسجيل السلوك (GradeEntryPage) مع التقييم
+// 3. صفحة رصد الدرجات / تسجيل السلوك (GradeEntryPage) مع التقييم الإلزامي والجماعي
 // ---------------------------------------------------------------------------
 
 class GradeEntryPage extends StatefulWidget {
@@ -687,11 +688,84 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   bool _isLoading = true;
   List<DocumentSnapshot> _students = [];
   Map<String, dynamic> _grades = {};
-  // ✅ خريطة لتخزين تقييمات الطلاب
   Map<String, dynamic> _evaluations = {};
 
   final Map<String, int> _likes = {};
   final Map<String, int> _dislikes = {};
+
+  // -------------------------------------------
+  // 🟢 قوائم الإيجابيات (Likes Criteria)
+  // -------------------------------------------
+  final Map<String, List<String>> _positiveBehaviors = {
+    'القيم والأخلاق (Character)': [
+      'الأمانة والصدق (اعترف بخطأه بشجاعة)',
+      'إصلاح ذات البين (حل مشكلة بين زميلين)',
+      'التواضع وتقبل النصيحة',
+      'بر الوالدين (يظهر في حديثه وسلوكه)',
+      'كظم الغيظ (تمالك نفسه عند الغضب)',
+    ],
+    'المهارات الأكاديمية والقيادية': [
+      'قائد فريق ناجح (يدير مجموعته بذكاء)',
+      'طرح أسئلة ذكية وناقدة',
+      'المعلم الصغير (شرح نقطة لزميله ببراعة)',
+      'سرعة البديهة والمشاركة الفعالة',
+      'جمال الخط وترتيب الدفتر',
+    ],
+    'المسؤولية والمبادرة': [
+      'مبادرة لتنظيف الفصل دون طلب',
+      'الحفاظ على ممتلكات المدرسة',
+      'إحضار أدوات إضافية لمساعدة زملائه (الإيثار)',
+      'الإنصات الجيد واحترام المتحدث',
+      'الالتزام التام بالزي المدرسي والمظهر العام',
+    ],
+    'التطوير الذاتي': [
+      'تحسن ملحوظ في المستوى (لمن كان مستواه ضعيفاً)',
+      'إنجاز المهام قبل الوقت المحدد',
+      'الحرص على صلاة الجماعة في الصف الأول',
+    ],
+  };
+
+  // -------------------------------------------
+  // 🔴 قوائم السلبيات (Dislikes Criteria)
+  // -------------------------------------------
+  final Map<String, List<String>> _negativeBehaviors = {
+    'سلوكيات "الاستحقاق" والتعالي': [
+      'التعامل بفوقية مع المعلم (نظرة "أنا أدفع راتبك")',
+      'التهديد المبطن ("أنت لا تعرف من أبي")',
+      'الجدال العقيم وتصيد الأخطاء للمعلم',
+      'الضحك المستفز أو المصطنع للتشويش',
+      'تقليد المعلم أو السخرية من حركاته',
+    ],
+    'التنمر والعلاقات الاجتماعية': [
+      'التنمر اللفظي (ألقاب مسيئة، سخرية من الشكل)',
+      'التنمر الجسدي (الدف، الضرب الخفيف المستفز)',
+      'التنمر الإلكتروني (تصوير الزملاء، نشر شائعات)',
+      'إقصاء زميل متعمداً من المجموعة (العنصرية/الشللية)',
+      'التحريض ضد طالب آخر',
+    ],
+    'سوء استخدام التقنية والممتلكات': [
+      'استخدام الساعة الذكية للغش أو اللعب',
+      'إخراج الهاتف المحمول في الفصل',
+      'العبث بإعدادات أجهزة المدرسة (المكيفات، الكمبيوتر)',
+      'الكتابة على الطاولات أو الجدران',
+      'إهدار الموارد (مناديل، أوراق، ألوان)',
+    ],
+    'الإهمال الأكاديمي والديني': [
+      'عدم حفظ الآيات القرآنية المقررة',
+      'عدم حفظ جدول الضرب / الأساسيات',
+      'عدم إحضار الكتاب أو الدفتر',
+      'النوم داخل الحصة',
+      'الغش في الاختبارات أو الواجبات',
+      'نسيان الزي الرياضي',
+    ],
+    'الانضباط العام': [
+      'كثرة الاستئذان للخروج (الهروب المقنع)',
+      'التأخر الصباحي أو التأخر عن دخول الحصة',
+      'تناول الطعام/العلكة أثناء الشرح',
+      'مقاطعة المعلم أثناء الحديث',
+      'إثارة الفوضى عند غياب المعلم',
+    ],
+  };
 
   @override
   void initState() {
@@ -729,8 +803,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         final studentId = studentDoc.id;
         grades[studentId] = data?[widget.testFieldKey];
 
-        // ✅ جلب التقييم المرتبط بهذا الاختبار تحديداً
-        // اسم الحقل سيكون: eval_اسم_الاختبار (مثلاً eval_e1profession1)
         if (data != null && data.containsKey('eval_${widget.testFieldKey}')) {
           evaluations[studentId] = data['eval_${widget.testFieldKey}'];
         }
@@ -759,62 +831,107 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  Future<String?> _showDislikeDialog(String studentName) async {
+  // --------------------------------------------------------------------------
+  // نافذة اختيار سبب السلوك (موحدة للـ Like و Dislike)
+  // --------------------------------------------------------------------------
+  Future<Map<String, String>?> _showBehaviorSelectionDialog({required bool isLike}) async {
+    final Map<String, List<String>> dataSource = isLike ? _positiveBehaviors : _negativeBehaviors;
+    String? selectedReason;
     final noteController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
 
-    return showDialog<String>(
+    return showDialog<Map<String, String>>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          title: Text('ملاحظة سلوكية على: $studentName'),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              controller: noteController,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'سبب الملاحظة',
-                hintText: 'مثال: يتحدث مع زميله أثناء الشرح',
-                border: OutlineInputBorder(),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(
+                isLike ? 'اختر سبب التميز (Like)' : 'اختر سبب الملاحظة (Dislike)',
+                style: TextStyle(color: isLike ? Colors.green : Colors.red),
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'الرجاء كتابة سبب الملاحظة';
-                }
-                return null;
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  Navigator.of(context).pop(noteController.text.trim());
-                }
-              },
-              child: const Text('حفظ'),
-            ),
-          ],
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Expanded(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: dataSource.entries.map((entry) {
+                          return ExpansionTile(
+                            title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            children: entry.value.map((reason) {
+                              return RadioListTile<String>(
+                                title: Text(reason, style: const TextStyle(fontSize: 12)),
+                                value: reason,
+                                groupValue: selectedReason,
+                                dense: true,
+                                onChanged: (val) {
+                                  setDialogState(() {
+                                    selectedReason = val;
+                                  });
+                                },
+                              );
+                            }).toList(),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const Divider(),
+                    TextField(
+                      controller: noteController,
+                      decoration: const InputDecoration(
+                        labelText: 'ملاحظة إضافية (اختياري)',
+                        hintText: 'مثال: في حصة القرآن',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('إلغاء'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isLike ? Colors.green : Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: selectedReason == null
+                      ? null // تعطيل الزر إذا لم يتم اختيار سبب
+                      : () {
+                    Navigator.of(context).pop({
+                      'reason': selectedReason!,
+                      'note': noteController.text.trim(),
+                    });
+                  },
+                  child: const Text('تأكيد وحفظ'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
+  // --------------------------------------------------------------------------
+  // إضافة تقرير سلوك فردي
+  // --------------------------------------------------------------------------
   Future<void> _addBehaviorReport(String studentId, String studentName, String type) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    String? teacherNote;
-    if (type == 'dislike') {
-      teacherNote = await _showDislikeDialog(studentName);
-      if (teacherNote == null) return;
-    }
+    final isLike = (type == 'like');
+    // ✅ طلب اختيار السبب (إلزامي)
+    final result = await _showBehaviorSelectionDialog(isLike: isLike);
+
+    if (result == null) return; // تم الإلغاء
+    final String reason = result['reason']!;
+    final String extraNote = result['note'] ?? '';
 
     try {
       final teacherDoc = await _firestore.collection('users').doc(user.uid).get();
@@ -832,12 +949,11 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         'teacherName': teacherName,
         'subject': widget.subject,
         'type': type,
+        'reason': reason, // ✅ تم حفظ السبب
+        'note': extraNote, // ✅ تم حفظ الملاحظة الإضافية
         'timestamp': FieldValue.serverTimestamp(),
         'dateString': intl.DateFormat('yyyy/MM/dd').format(now),
         'dayName': dayName,
-        if (type == 'dislike') 'teacherNote': teacherNote,
-        if (type == 'dislike') 'studentReply': null,
-        if (type == 'dislike') 'replyTimestamp': null,
         'status': type == 'dislike' ? 'pending_reply' : 'like_added',
       };
 
@@ -857,8 +973,8 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(type == 'like' ? 'تم تسجيل الإعجاب بنجاح' : 'تم تسجيل الملاحظة بنجاح'),
-          backgroundColor: Colors.green,
+          content: Text(type == 'like' ? 'تم إضافة اللايك: $reason' : 'تم إضافة الملاحظة: $reason'),
+          backgroundColor: isLike ? Colors.green : Colors.redAccent,
         ));
       }
     } catch (e) {
@@ -871,19 +987,122 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  // ✅ تحديث دالة الحفظ لتشمل التقييم
+  // --------------------------------------------------------------------------
+  //  إدارة الرصد الجماعي (Bulk Action)
+  // --------------------------------------------------------------------------
+  Future<void> _handleBulkAction(bool isLike) async {
+    if (_students.isEmpty) return;
+
+    // 1. اختيار السبب الموحد
+    final result = await _showBehaviorSelectionDialog(isLike: isLike);
+    if (result == null) return;
+
+    final String reason = result['reason']!;
+    final String extraNote = result['note'] ?? '';
+
+    // 2. تأكيد نهائي
+    final bool confirm = await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(isLike ? 'إرسال لايكات للكل' : 'إرسال ديسلايك للكل'),
+        content: Text('هل أنت متأكد من منح ${isLike ? 'لايك' : 'ديسلايك'} لجميع طلاب الفصل (${_students.length} طالب)؟\n\nالسبب: $reason'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: isLike ? Colors.green : Colors.red),
+            child: const Text('نعم، نفذ'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirm) return;
+
+    setState(() => _isLoading = true);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final teacherDoc = await _firestore.collection('users').doc(user.uid).get();
+      final teacherName = teacherDoc.data()?['name'] ?? 'معلم غير معروف';
+      final now = DateTime.now();
+      final dayName = intl.DateFormat('EEEE', 'ar').format(now);
+      final dateString = intl.DateFormat('yyyy/MM/dd').format(now);
+
+      // استخدام Batch للكتابة الجماعية (تحسين الأداء وضمان الذرية)
+      WriteBatch batch = _firestore.batch();
+
+      for (var student in _students) {
+        final studentId = student.id;
+        final studentName = student.data() != null ? (student.data() as Map)['name'] ?? '?' : '?';
+
+        // مرجع الطالب للتحديث
+        final studentRef = _firestore.collection('students').doc(studentId);
+        batch.update(studentRef, {
+          isLike ? 'totalLikes' : 'totalDislikes': FieldValue.increment(1),
+        });
+
+        // إنشاء تقرير جديد
+        final reportRef = _firestore.collection('behavior_reports').doc();
+        final reportData = {
+          'studentId': studentId,
+          'studentName': studentName,
+          'teacherId': user.uid,
+          'teacherName': teacherName,
+          'subject': widget.subject,
+          'type': isLike ? 'like' : 'dislike',
+          'reason': reason,
+          'note': extraNote,
+          'timestamp': FieldValue.serverTimestamp(),
+          'dateString': dateString,
+          'dayName': dayName,
+          'isBulk': true, // علامة لتمييز الإرسال الجماعي
+          'status': isLike ? 'like_added' : 'pending_reply',
+        };
+        batch.set(reportRef, reportData);
+      }
+
+      await batch.commit();
+
+      // تحديث الواجهة محلياً
+      setState(() {
+        for (var student in _students) {
+          if (isLike) {
+            _likes[student.id] = (_likes[student.id] ?? 0) + 1;
+          } else {
+            _dislikes[student.id] = (_dislikes[student.id] ?? 0) + 1;
+          }
+        }
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('تم تنفيذ العملية الجماعية بنجاح!'),
+          backgroundColor: Colors.blueAccent,
+        ));
+      }
+
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // وظائف حفظ الدرجات القديمة (كما هي)
+  // --------------------------------------------------------------------------
   Future<void> _saveGrade(String studentId, num grade, Map<String, dynamic>? evaluationData) async {
     try {
       final studentRef = _firestore.collection('students').doc(studentId);
-
-      // تجهيز البيانات للحفظ
       Map<String, dynamic> updates = { widget.testFieldKey: grade };
-
-      // إذا كان هناك تقييم، نضيفه للحقل الخاص به
       if (evaluationData != null) {
         updates['eval_${widget.testFieldKey}'] = evaluationData;
       }
-
       await studentRef.set(updates, SetOptions(merge: true));
 
       setState(() {
@@ -910,7 +1129,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   Future<void> _deleteGrade(String studentId) async {
     try {
       final studentRef = _firestore.collection('students').doc(studentId);
-      // حذف الدرجة والتقييم المرتبط بها
       await studentRef.update({
         widget.testFieldKey: FieldValue.delete(),
         'eval_${widget.testFieldKey}': FieldValue.delete(),
@@ -1142,13 +1360,53 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           studentId: studentId,
           studentName: studentName,
           currentGrade: currentGrade,
-          // ✅ تمرير التقييم الحالي إن وجد
           currentEvaluation: _evaluations[studentId],
           maxGrade: maxGrade,
           passingGrade: passingGrade,
-          subjectName: widget.subject, // ✅ تمرير اسم المادة لجلب المعايير
+          subjectName: widget.subject,
           onSaveGrade: _saveGrade,
           onDeleteGrade: _deleteGrade,
+        );
+      },
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // زر اختيار الإجراء الجماعي (Bulk Button)
+  // --------------------------------------------------------------------------
+  void _showBulkActionSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('إجراء جماعي للفصل', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.thumb_up, color: Colors.green),
+                title: const Text('منح (لايك) للجميع'),
+                subtitle: const Text('سيتم طلب السبب وتطبيقه على كل الطلاب'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handleBulkAction(true);
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.thumb_down, color: Colors.red),
+                title: const Text('منح (ديسلايك) للجميع'),
+                subtitle: const Text('سيتم طلب السبب وتطبيقه على كل الطلاب'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handleBulkAction(false);
+                },
+              ),
+            ],
+          ),
         );
       },
     );
@@ -1175,6 +1433,14 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           ),
         ),
         actions: [
+          // زر الإجراء الجماعي (فقط في وضع السلوك)
+          if (widget.isBehaviorMode)
+            IconButton(
+              icon: const Icon(Icons.groups_3_outlined),
+              tooltip: 'إجراء جماعي (لايك/ديسلايك للكل)',
+              onPressed: _showBulkActionSheet,
+            ),
+          // زر التصدير (فقط في وضع الدرجات)
           if (!widget.isBehaviorMode)
             IconButton(
               icon: Icon(
@@ -1301,10 +1567,10 @@ class _GradeEntryDialog extends StatefulWidget {
   final String studentId;
   final String studentName;
   final dynamic currentGrade;
-  final Map<String, dynamic>? currentEvaluation; // ✅ التقييم الحالي
+  final Map<String, dynamic>? currentEvaluation;
   final double maxGrade;
   final double passingGrade;
-  final String subjectName; // ✅ اسم المادة لجلب المعايير
+  final String subjectName;
   final Future<void> Function(String studentId, num grade, Map<String, dynamic>? evaluationData) onSaveGrade;
   final Future<void> Function(String studentId) onDeleteGrade;
 
@@ -1329,11 +1595,9 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
 
-  // ✅ متغيرات التقييم
   List<String> _selectedWeaknesses = [];
   String? _severityLevel; // منخفض، متوسط، مرتفع
 
-  // ✅ قوائم المعايير للمواد المختلفة (بما فيها الإنجليزي)
   final Map<String, List<String>> _subjectCriteria = {
     'لغتي': [
       'التمييز بين أقسام الكلمة',
@@ -1381,12 +1645,10 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
   };
 
   List<String> get _currentCriteriaList {
-    // محاولة مطابقة اسم المادة بالقوائم الموجودة
     if (widget.subjectName.contains('لغتي')) return _subjectCriteria['لغتي']!;
     if (widget.subjectName.contains('رياضيات')) return _subjectCriteria['رياضيات']!;
     if (widget.subjectName.contains('علوم')) return _subjectCriteria['علوم']!;
     if (widget.subjectName.contains('انجليزي') || widget.subjectName.contains('نجليزي')) return _subjectCriteria['انجليزي']!;
-    // افتراضي إذا لم تكن المادة موجودة
     return ['ضعف عام في الاستيعاب', 'عدم المشاركة الصفية', 'نقص في حل الواجبات', 'صعوبة في الفهم'];
   }
 
@@ -1399,7 +1661,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
           : '',
     );
 
-    // ✅ استرجاع التقييم السابق إن وجد
     if (widget.currentEvaluation != null) {
       if (widget.currentEvaluation!['selected_points'] != null) {
         _selectedWeaknesses = List<String>.from(widget.currentEvaluation!['selected_points']);
@@ -1414,7 +1675,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
     super.dispose();
   }
 
-  // ✅ دالة عرض نافذة اختيار المعايير
   Future<void> _showAssessmentSelectionDialog() async {
     final List<String> criteria = _currentCriteriaList;
 
@@ -1445,7 +1705,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
                               _selectedWeaknesses.remove(criterion);
                             }
                           });
-                          // تحديث حالة الدايلوج الأصلي أيضاً
                           this.setState(() {});
                         },
                       );
@@ -1529,7 +1788,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
         if (confirmed != true) return;
       }
 
-      // ✅ تجهيز بيانات التقييم للحفظ
       Map<String, dynamic>? evalData;
       if (_selectedWeaknesses.isNotEmpty) {
         evalData = {
@@ -1538,7 +1796,7 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
           'timestamp': Timestamp.now(),
         };
       } else {
-        evalData = null; // لا يوجد تقييم
+        evalData = null;
       }
 
       await widget.onSaveGrade(widget.studentId, grade, evalData);
@@ -1554,7 +1812,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
     if (_isSaving) return;
     setState(() => _isSaving = true);
     try {
-      // الغياب لا يحتاج تقييم عادة، نرسل null
       await widget.onSaveGrade(widget.studentId, -1, null);
       if (mounted) Navigator.pop(context);
     } finally {
@@ -1579,7 +1836,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ تحديد لون خلفية مربع التقييم
     final bool hasEvaluation = _selectedWeaknesses.isNotEmpty;
     final Color evalBoxColor = hasEvaluation ? Colors.green.shade100 : Colors.amber.shade100;
     final Color evalBorderColor = hasEvaluation ? Colors.green : Colors.amber;
@@ -1648,7 +1904,6 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
 
               const SizedBox(height: 20),
 
-              // ✅ مربع التقييم الجديد
               InkWell(
                 onTap: _showAssessmentSelectionDialog,
                 borderRadius: BorderRadius.circular(8),
