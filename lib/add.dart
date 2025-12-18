@@ -3,9 +3,12 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:almarefamecca/add1.dart';
-import 'package:almarefamecca/card.dart'; // ✅ تم إضافة استيراد ملف الفيزا الجديد
+import 'package:almarefamecca/card.dart';
 import 'package:almarefamecca/secondary_pages.dart';
 import 'package:almarefamecca/student_view.dart';
+// ✅ استيراد ملف جائزة التميز الجديد
+import 'package:almarefamecca/teacher_excellence.dart';
+
 import 'package:badges/badges.dart' as badges;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:excel/excel.dart' hide Border;
@@ -20,6 +23,8 @@ import 'package:percent_indicator/percent_indicator.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
+// ✅ استيراد قارئ الباركود
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 class AddPage extends StatefulWidget {
   const AddPage({super.key});
@@ -127,6 +132,17 @@ class _AddPageState extends State<AddPage> {
         content: Text('هذه الميزة غير متاحة لحساب الضيف.'),
         backgroundColor: Colors.orange,
       ),
+    );
+  }
+
+  // ✅ دالة الدخول السريع للسبورة (تم تعديلها لتسمح بالدخول من الويب أيضاً)
+  Future<void> _handleSmartBoardLogin() async {
+    // ❌ تم إزالة شرط (kIsWeb) للسماح بفتح الكاميرا من المتصفح والكمبيوتر أيضاً
+
+    // الانتقال لصفحة المسح الضوئي مباشرة
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SmartBoardQRScanner()),
     );
   }
 
@@ -362,11 +378,6 @@ class _AddPageState extends State<AddPage> {
       },
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // ⛔️ تم حذف دوال _generateRandomVisaCode و _generateBulkStudentVisas من هنا
-  // ⛔️ ونقلها إلى ملف card.dart
-  // ---------------------------------------------------------------------------
 
   Future<void> _launchEduFormsUrl() async {
     final Uri url = Uri.parse('https://edu-forms.com/');
@@ -1055,6 +1066,13 @@ class _AddPageState extends State<AddPage> {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const ViolationsLogPage()));
                 },
               ),
+              // ✅✅✅ زر دخول السبورة الذكية (المعدل) ✅✅✅
+              _buildDashboardButton(
+                title: 'دخول السبورة الذكية',
+                icon: Icons.cast_connected,
+                color: Colors.blueGrey.shade800,
+                onTap: _handleSmartBoardLogin,
+              ),
               if (showAdminFeatures)
                 _buildDashboardButton(
                   title: 'بحث نتائج طالب',
@@ -1122,6 +1140,21 @@ class _AddPageState extends State<AddPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const VisaManagementPage()),
+                    );
+                  },
+                ),
+              // ✅✅✅ زر جائزة المعرفة للتميز (الجديد) ✅✅✅
+              if (_isAdmin)
+                _buildDashboardButton(
+                  title: 'جائزة التميز',
+                  icon: Icons.workspace_premium, // أيقونة الجائزة
+                  // يمكنك استخدام صورة مخصصة هنا إذا توفرت
+                  // assetPath: 'assets/award.png',
+                  color: const Color(0xFFD4AF37), // لون ذهبي فخم
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ExcellenceHubPage()),
                     );
                   },
                 ),
@@ -2748,6 +2781,98 @@ class AbsenceStatsPage extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ✅✅✅ صفحة الماسح الضوئي (داخل AddPage لتجنب التكرار في main) ✅✅✅
+class SmartBoardQRScanner extends StatefulWidget {
+  const SmartBoardQRScanner({super.key});
+
+  @override
+  State<SmartBoardQRScanner> createState() => _SmartBoardQRScannerState();
+}
+
+class _SmartBoardQRScannerState extends State<SmartBoardQRScanner> {
+  bool _isProcessing = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('امسح كود السبورة للدخول')),
+      body: Stack(
+        children: [
+          MobileScanner(
+            onDetect: (capture) async {
+              if (_isProcessing) return;
+              final List<Barcode> barcodes = capture.barcodes;
+              for (final barcode in barcodes) {
+                if (barcode.rawValue != null) {
+                  setState(() => _isProcessing = true);
+                  final String sessionId = barcode.rawValue!;
+
+                  try {
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user != null) {
+                      // ✅ التعديل الجوهري: نرسل teacher_uid ونستخدم update
+                      // هذا التحديث هو ما سيحفز Cloud Function لتوليد التوكن
+                      await FirebaseFirestore.instance.collection('qr_logins').doc(sessionId).update({
+                        'teacher_uid': user.uid,
+                        'status': 'scanned', // تغيير الحالة ليراها السيرفر
+                        'scanned_at': FieldValue.serverTimestamp(),
+                      });
+
+                      if (mounted) {
+                        HapticFeedback.heavyImpact();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('تم المسح بنجاح! سيفتح حسابك على السبورة خلال لحظات.'),
+                                backgroundColor: Colors.green
+                            )
+                        );
+                        // نخرج فوراً ولا ننتظر شيئاً، السيرفر والسبورة سيتولون الباقي
+                        Navigator.pop(context);
+                      }
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('خطأ أو الكود منتهي الصلاحية: $e'), backgroundColor: Colors.red)
+                      );
+                      setState(() => _isProcessing = false);
+                    }
+                  }
+                  break;
+                }
+              }
+            },
+          ),
+          Center(
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.green, width: 4),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(
+                  child: Text(
+                    "وجه الكاميرا نحو الباركود\nالموجود في شاشة الدخول الرئيسية",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, backgroundColor: Colors.black45),
+                  )
+              ),
+            ),
+          ),
+          if (_isProcessing)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            )
+        ],
       ),
     );
   }

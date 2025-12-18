@@ -87,6 +87,8 @@ dev_dependencies:
   image_cropper: ^11.0.0
   lottie: ^3.1.0  # أو أحدث إصدار
   mobile_scanner: ^7.1.3
+  qr_flutter: ^4.1.0
+  uuid: ^4.0.0
 
 
 
@@ -150,6 +152,7 @@ flutter:
     - assets/b10.png
     - assets/b11.png
     - assets/m2.png
+    - assets/m4.png
 
 
 

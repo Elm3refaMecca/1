@@ -5,7 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/services.dart'; // ضروري للخروج النظامي
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'dart:math' as math;
 import 'dart:async';
@@ -21,11 +21,14 @@ import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:lottie/lottie.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 import 'package:almarefamecca/add.dart';
 import 'package:almarefamecca/student_view.dart';
 
-// ✅ 1. إعدادات السكرول (التمرير)
+// ✅ تم حذف QuickSessionManager لأننا نستخدم الآن مصادقة حقيقية آمنة
+
 class GlobalScrollBehavior extends MaterialScrollBehavior {
   @override
   Set<PointerDeviceKind> get dragDevices => {
@@ -40,23 +43,20 @@ class GlobalScrollBehavior extends MaterialScrollBehavior {
   }
 }
 
-// ✅✅✅ 2. غلاف الحماية (قائمة الخروج المنبثقة) ✅✅✅
 class ExitPopupWrapper extends StatelessWidget {
   final Widget child;
   const ExitPopupWrapper({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
-    // PopScope هي الأداة الوحيدة التي يمكنها اعتراض زر الرجوع
     return PopScope(
-      canPop: false, // ⛔️ نمنع الرجوع التلقائي نهائياً
+      canPop: false,
       onPopInvoked: (didPop) async {
         if (didPop) return;
 
-        // 🔥 إظهار القائمة المنبثقة للإجبار على الاختيار
         final shouldExit = await showDialog<bool>(
           context: context,
-          barrierDismissible: false, // يمنع إغلاق النافذة بالضغط خارجها
+          barrierDismissible: false,
           builder: (context) => AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             elevation: 10,
@@ -73,9 +73,8 @@ class ExitPopupWrapper extends StatelessWidget {
               style: TextStyle(fontSize: 16),
             ),
             actionsPadding: const EdgeInsets.all(16),
-            actionsAlignment: MainAxisAlignment.spaceEvenly, // توزيع الأزرار
+            actionsAlignment: MainAxisAlignment.spaceEvenly,
             actions: [
-              // زر البقاء
               ElevatedButton.icon(
                 onPressed: () => Navigator.of(context).pop(false),
                 icon: const Icon(Icons.cancel_outlined, size: 18),
@@ -87,11 +86,9 @@ class ExitPopupWrapper extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              // زر الخروج
               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.of(context).pop(true);
-                  // أمر الخروج النهائي
                   SystemNavigator.pop();
                 },
                 icon: const Icon(Icons.exit_to_app, size: 18),
@@ -314,11 +311,10 @@ class TeacherLoginApp extends StatelessWidget {
           indicatorColor: Colors.white,
         ),
       ),
-      // ✅ تم حذف _GlobalFabStack من هنا بناءً على طلبك
       initialRoute: '/',
       routes: {
         '/': (context) => const AuthWrapper(),
-        // ✅✅✅ تطبيق غلاف القائمة المنبثقة على الصفحات الرئيسية ✅✅✅
+        // لم نعد بحاجة للغلاف القديم TeacherOverlayWrapper
         '/add': (context) => const ExitPopupWrapper(child: AddPage()),
         '/student_view': (context) => const ExitPopupWrapper(child: StudentViewPage()),
         '/login': (context) {
@@ -354,8 +350,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         final messaging = FirebaseMessaging.instance;
         try {
           await messaging.subscribeToTopic('public_announcements');
-        } catch (e) {
-        }
+        } catch (e) {}
 
         FirebaseMessaging.onMessage.listen((RemoteMessage message) {
           if (message.notification != null) {
@@ -365,14 +360,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
             _showBrowserNotification(title, body);
           }
         });
-
         RemoteMessage? initialMessage = await messaging.getInitialMessage();
-
-        FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        });
-
-      } catch(e) {
-      }
+        FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {});
+      } catch(e) {}
     }
   }
 
@@ -381,17 +371,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (kIsWeb || defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
       try {
         final messaging = FirebaseMessaging.instance;
-
         NotificationSettings settings = await messaging.requestPermission(
-          alert: true,
-          badge: true,
-          sound: true,
-          provisional: true,
+          alert: true, badge: true, sound: true, provisional: true,
         );
 
         if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-            settings.authorizationStatus == AuthorizationStatus.provisional)
-        {
+            settings.authorizationStatus == AuthorizationStatus.provisional) {
           String? token = await messaging.getToken();
           if (token != null) {
             final currentToken = studentData?['fcmToken'];
@@ -400,28 +385,26 @@ class _AuthWrapperState extends State<AuthWrapper> {
             }
           }
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
   }
 
   Future<String> _getUserRole(User user) async {
     try {
-      final teacherDoc =
-      await _firestore.collection('users').doc(user.uid).get();
+      // 1. التحقق الطبيعي من الأدمن/المعلم
+      final teacherDoc = await _firestore.collection('users').doc(user.uid).get();
       if (teacherDoc.exists) {
         return 'teacher';
       }
 
+      // 2. التحقق من الطالب
       final studentDocRef = _firestore.collection('students').doc(user.uid);
       final studentDoc = await studentDocRef.get();
       if (studentDoc.exists) {
         studentDocRef.update({
           'lastSeen': FieldValue.serverTimestamp(),
         }).catchError((e) {});
-
         _handleStudentTokenRegistration(studentDocRef, studentDoc.data() as Map<String, dynamic>?);
-
         return 'student';
       }
 
@@ -429,9 +412,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       return 'unauthorized';
 
     } catch (e, s) {
-      try {
-        await FirebaseAuth.instance.signOut();
-      } catch (_) {}
+      try { await FirebaseAuth.instance.signOut(); } catch (_) {}
       return 'unauthorized';
     }
   }
@@ -442,9 +423,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnapshot) {
         if (authSnapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-              backgroundColor: Colors.white,
-              body: LoadingLottie());
+          return const Scaffold(backgroundColor: Colors.white, body: LoadingLottie());
         }
 
         if (authSnapshot.hasError) {
@@ -456,12 +435,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
             future: _getUserRole(authSnapshot.data!),
             builder: (context, roleSnapshot) {
               if (roleSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                    backgroundColor: Colors.white,
-                    body: LoadingLottie());
+                return const Scaffold(backgroundColor: Colors.white, body: LoadingLottie());
               }
-
-              // ✅✅✅ تغليف الصفحة الرئيسية بـ ExitPopupWrapper ✅✅✅
               if (roleSnapshot.hasError) {
                 return const ExitPopupWrapper(child: WelcomePage());
               }
@@ -472,14 +447,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
                 case 'student':
                   return const ExitPopupWrapper(child: StudentViewPage());
                 case 'unauthorized':
-                  return const ExitPopupWrapper(child: WelcomePage());
                 default:
                   return const ExitPopupWrapper(child: WelcomePage());
               }
             },
           );
         }
-
         return const ExitPopupWrapper(child: WelcomePage());
       },
     );
@@ -514,41 +487,29 @@ class _WelcomePageState extends State<WelcomePage> {
         try {
           final isReady = js.context['isInstallable'] ?? false;
           if (mounted && _isInstallable != isReady) {
-            setState(() {
-              _isInstallable = isReady;
-            });
+            setState(() { _isInstallable = isReady; });
           }
-        } catch (e) {
-        }
+        } catch (e) {}
       };
       try {
         js.context.callMethod('addEventListener', ['pwa-installable', js.context['pwa-installable-listener']]);
         if (js.context.hasProperty('isInstallable')) {
           _isInstallable = js.context['isInstallable'] ?? false;
         }
-      } catch(e) {
-      }
+      } catch(e) {}
 
       js.context['pwa-update-listener'] = (event) {
         try {
           final isReady = js.context['isUpdateAvailable'] ?? true;
-          if (mounted) {
-            setState(() {
-              _updateAvailable = true;
-            });
-          }
-        } catch (e) {
-        }
+          if (mounted) { setState(() { _updateAvailable = true; }); }
+        } catch (e) {}
       };
       try {
         js.context.callMethod('addEventListener', ['pwa-update-available', js.context['pwa-update-listener']]);
         if (js.context.hasProperty('isUpdateAvailable')) {
-          setState(() {
-            _updateAvailable = js.context['isUpdateAvailable'] ?? false;
-          });
+          setState(() { _updateAvailable = js.context['isUpdateAvailable'] ?? false; });
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
   }
 
@@ -562,8 +523,7 @@ class _WelcomePageState extends State<WelcomePage> {
         if (js.context.hasProperty('pwa-update-listener')) {
           js.context.callMethod('removeEventListener', ['pwa-update-available', js.context['pwa-update-listener']]);
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
     super.dispose();
   }
@@ -573,9 +533,7 @@ class _WelcomePageState extends State<WelcomePage> {
     if (kIsWeb) {
       if (html.Notification.supported) {
         if(mounted) {
-          setState(() {
-            _notificationPermission = html.Notification.permission!;
-          });
+          setState(() { _notificationPermission = html.Notification.permission!; });
         }
       }
     } else {
@@ -601,9 +559,7 @@ class _WelcomePageState extends State<WelcomePage> {
       if (html.Notification.supported) {
         final permission = await html.Notification.requestPermission();
         if(mounted) {
-          setState(() {
-            _notificationPermission = permission;
-          });
+          setState(() { _notificationPermission = permission; });
         }
         if(permission == 'granted') {
           _showBrowserNotification("تم التفعيل!", "ستتلقى الإشعارات الهامة الآن.");
@@ -613,10 +569,7 @@ class _WelcomePageState extends State<WelcomePage> {
       try {
         final messaging = FirebaseMessaging.instance;
         NotificationSettings settings = await messaging.requestPermission(
-          alert: true,
-          badge: true,
-          sound: true,
-          provisional: true,
+          alert: true, badge: true, sound: true, provisional: true,
         );
         if(mounted) {
           if (settings.authorizationStatus == AuthorizationStatus.authorized) {
@@ -627,25 +580,19 @@ class _WelcomePageState extends State<WelcomePage> {
             setState(() => _notificationPermission = 'default');
           }
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
   }
 
   void _showInstallPrompt() {
     if (kIsWeb) {
-      try {
-        js.context.callMethod('showInstallPrompt');
-      } catch (e) {
-      }
+      try { js.context.callMethod('showInstallPrompt'); } catch (e) {}
     }
   }
 
   void _triggerUpdate() {
     if (kIsWeb) {
-      try {
-        js.context.callMethod('triggerPwaUpdate');
-      } catch (e) {
+      try { js.context.callMethod('triggerPwaUpdate'); } catch (e) {
         html.window.location.reload();
       }
     }
@@ -653,15 +600,12 @@ class _WelcomePageState extends State<WelcomePage> {
 
   Future<void> _onRefresh() async {
     await Future.delayed(const Duration(seconds: 1));
-
     if (kIsWeb) {
       html.window.location.reload();
     } else {
       _setupPwaListeners();
       _checkNotificationPermission();
-      if (mounted) {
-        setState(() {});
-      }
+      if (mounted) setState(() {});
     }
   }
 
@@ -854,7 +798,6 @@ class _WelcomePageState extends State<WelcomePage> {
       } else if (e.code == 'network-request-failed') {
         message = 'مشكلة في الشبكة. حاول مرة أخرى.';
       }
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message), backgroundColor: Colors.red),
@@ -869,6 +812,99 @@ class _WelcomePageState extends State<WelcomePage> {
     } finally {
       if (mounted) setState(() => _isGuestLoading = false);
     }
+  }
+
+  // ✅✅✅ دالة الدخول السريع الجديدة والمحدثة (الطريقة الآمنة) ✅✅✅
+  void _showQRLoginDialog() {
+    final String sessionId = const Uuid().v4();
+
+    // 1. إنشاء وثيقة الجلسة في فايربيز
+    FirebaseFirestore.instance.collection('qr_logins').doc(sessionId).set({
+      'created_at': FieldValue.serverTimestamp(),
+      'status': 'waiting',
+    });
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            // الاستماع للتغيرات في الوثيقة
+            return StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance.collection('qr_logins').doc(sessionId).snapshots(),
+              builder: (context, snapshot) {
+
+                if (snapshot.hasData && snapshot.data!.exists) {
+                  final data = snapshot.data!.data() as Map<String, dynamic>;
+
+                  // ✅ إذا وصل التوكن من السيرفر (كلاود فانكشن)
+                  if (data['auth_token'] != null) {
+                    // تنفيذ عملية تسجيل الدخول الحقيقي
+                    WidgetsBinding.instance.addPostFrameCallback((_) async {
+                      if (!context.mounted) return;
+                      Navigator.pop(context); // إغلاق الديالوج
+
+                      try {
+                        // 🔥 تسجيل دخول حقيقي ببيانات المعلم!
+                        await FirebaseAuth.instance.signInWithCustomToken(data['auth_token']);
+
+                        // تنظيف: حذف وثيقة الجلسة
+                        FirebaseFirestore.instance.collection('qr_logins').doc(sessionId).delete();
+
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('فشل الدخول بالتوكن: $e'), backgroundColor: Colors.red)
+                        );
+                      }
+                    });
+                  }
+                }
+
+                return AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  title: const Text('دخول سريع آمن (QR)', textAlign: TextAlign.center),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 200,
+                        width: 200,
+                        child: QrImageView(
+                          data: sessionId,
+                          version: QrVersions.auto,
+                          size: 200.0,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'افتح تطبيق المعلم على هاتفك، ثم اضغط على "دخول السبورة الذكية" من لوحة التحكم وامسح هذا الكود.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'سيتم تسجيل دخولك بحسابك الحقيقي فوراً.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      const CircularProgressIndicator(), // مؤشر انتظار
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('إلغاء'),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _buildMobileLayout() {
@@ -994,7 +1030,7 @@ class _WelcomePageState extends State<WelcomePage> {
                     CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white)),
                     SizedBox(height: 16),
                     Text(
-                      'جاري تسجيل الدخول كضيف...',
+                      'جاري تهيئة الحساب السريع...',
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -1021,7 +1057,6 @@ class _WelcomePageState extends State<WelcomePage> {
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       floatingActionButton: SpeedDial(
         heroTag: 'main-fab',
-        // ✅ تم تغيير الأيقونة هنا إلى أيقونة الدردشة لتدل على واتساب
         icon: Icons.chat,
         activeIcon: Icons.close,
         backgroundColor: Theme.of(context).primaryColor,
@@ -1215,6 +1250,22 @@ class _WelcomePageState extends State<WelcomePage> {
                 },
               ),
             ),
+            const SizedBox(height: 12),
+
+            // ✅ زر تسجيل الدخول السريع (للسبورة الذكية)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.qr_code_2),
+                label: const Text('دخول سريع للسبورة (QR)'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black87,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: _showQRLoginDialog,
+              ),
+            ),
+
             const SizedBox(height: 20),
 
             SizedBox(
