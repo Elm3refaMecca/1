@@ -1,102 +1,88 @@
-// استيراد الدوال من الإصدار الثاني (V2)
-const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
-const { initializeApp } = require("firebase-admin/app");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
-const { getAuth } = require("firebase-admin/auth"); // ✅ ضروري لإنشاء التوكن
+const functions = require("firebase-functions/v1");
+const admin = require("firebase-admin");
 
-// تهيئة Firebase Admin SDK
-initializeApp();
-const db = getFirestore();
-const auth = getAuth(); // ✅ تهيئة خدمة المصادقة
+admin.initializeApp();
+const db = admin.firestore();
+const auth = admin.auth();
 
-/**
- * 🔔 Trigger: عند إنشاء تقرير سلوكي جديد
- */
-exports.sendBehaviorNotification = onDocumentCreated(
-  "behavior_reports/{reportId}",
-  async (event) => {
-    const snap = event.data;
-    if (!snap) {
-      console.log("❌ لا توجد بيانات في الحدث.");
-      return;
-    }
+// ---------------------------------------------------------
+// 1️⃣ دالة إشعارات السلوك (الاسم الجديد: sendBehaviorAlert)
+// ---------------------------------------------------------
+exports.sendBehaviorAlert = functions.firestore
+  .document("behavior_reports/{reportId}")
+  .onCreate(async (snap, context) => {
+    
+    const data = snap.data();
+    // التحقق من صحة البيانات
+    if (!data || !data.studentId || !data.teacherName) return;
 
-    const reportData = snap.data();
-    const { studentId, teacherName, type, teacherId } = reportData;
-
-    if (!studentId || !teacherName || !type) {
-      console.log("⚠️ البيانات المطلوبة ناقصة.");
-      return;
-    }
-
-    let message = "";
-    if (type === "like") {
-      message = `لديك إشادة سلوكية (نبل) من المعلم ${teacherName}.`;
-    } else {
-      message = `لديك ملاحظة سلوكية (شغب) من المعلم ${teacherName}.`;
-    }
-
-    const notificationPayload = {
-      message: message,
-      teacherId: teacherId || null,
-      reportId: event.params.reportId,
-      timestamp: FieldValue.serverTimestamp(),
-      isRead: false,
-    };
+    // تحديد نوع الرسالة
+    let message = data.type === "like" 
+      ? `🌟 إشادة سلوكية (نبل) من المعلم ${data.teacherName}` 
+      : `⚠️ ملاحظة سلوكية (شغب) من المعلم ${data.teacherName}`;
 
     try {
-      await db
-        .collection("students")
-        .doc(studentId)
-        .collection("notifications")
-        .add(notificationPayload);
-      console.log("✅ تم إرسال الإشعار للطالب:", studentId);
+      // البحث عن أولياء الأمور
+      const parentsSnapshot = await db.collection("users")
+        .where("role", "==", "parent")
+        .where("children", "array-contains", data.studentId)
+        .get();
+
+      if (parentsSnapshot.empty) {
+        console.log("No parents found for student:", data.studentId);
+        return;
+      }
+
+      const batch = db.batch();
+      
+      parentsSnapshot.docs.forEach((doc) => {
+        const notificationRef = db.collection("users").doc(doc.id).collection("notifications").doc();
+        batch.set(notificationRef, {
+          message: message,
+          studentId: data.studentId,
+          reportId: context.params.reportId,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          read: false,
+          type: "behavior"
+        });
+      });
+
+      await batch.commit();
+      console.log(`✅ Notification sent to ${parentsSnapshot.size} parents.`);
+      
     } catch (error) {
-      console.error("❌ خطأ أثناء إرسال الإشعار:", studentId, error);
+      console.error("❌ Error sending notification:", error);
     }
-  }
-);
+  });
 
-// ==================================================================
-// ✅ بداية الكود الجديد: نظام الدخول الآمن للسبورة الذكية (QR Code)
-// ==================================================================
-
-/**
- * دالة مراقبة قاعدة البيانات للدخول السريع
- * تم تحديثها لتعمل مع الإصدار الثاني (V2) مثل الدالة السابقة
- */
-exports.generateTokenOnScan = onDocumentUpdated(
-  "qr_logins/{sessionId}",
-  async (event) => {
-    const change = event.data;
+// ---------------------------------------------------------
+// 2️⃣ دالة الباركود QR (الاسم الجديد: handleQrLogin)
+// ---------------------------------------------------------
+exports.handleQrLogin = functions.firestore
+  .document("qr_logins/{sessionId}")
+  .onUpdate(async (change, context) => {
+    
     const newData = change.after.data();
     const oldData = change.before.data();
 
-    // التحقق: هل تم إضافة teacher_uid الآن؟
+    // إذا تم تحديث teacher_uid
     if (newData.teacher_uid && !oldData.teacher_uid) {
-      const teacherUid = newData.teacher_uid;
-      console.log(`Teacher scanned code. UID: ${teacherUid}`);
-
       try {
-        // 🔥 إنشاء مفتاح دخول مخصص (Custom Token) باستخدام auth المعرف بالأعلى
-        const customToken = await auth.createCustomToken(teacherUid);
-
-        console.log("Custom token created successfully.");
-
-        // كتابة التوكن في نفس الوثيقة
+        const token = await auth.createCustomToken(newData.teacher_uid);
+        
         return change.after.ref.update({
-          auth_token: customToken,
-          status: "success_token_generated",
-          updated_at: FieldValue.serverTimestamp(),
+          auth_token: token,
+          status: "success",
+          updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
+        
       } catch (error) {
-        console.error("Error creating custom token:", error);
+        console.error("❌ Error creating custom token:", error);
         return change.after.ref.update({
           status: "error",
-          error_message: error.message,
+          error_message: "Failed to generate token"
         });
       }
     }
     return null;
-  }
-);
+  });

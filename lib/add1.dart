@@ -1690,12 +1690,12 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('اختر نقاط الضعف:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                    const Text('اختر نقاط الضعف:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
                     const SizedBox(height: 8),
                     ...criteria.map((criterion) {
                       return CheckboxListTile(
                         title: Text(criterion, style: const TextStyle(fontSize: 14)),
-                        value: _selectedWeaknesses.contains(criterion),
+                        value:   _selectedWeaknesses.contains(criterion),
                         dense: true,
                         onChanged: (bool? value) {
                           setDialogState(() {

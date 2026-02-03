@@ -2591,5 +2591,333 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
         },
       ),
     );
+
+  }
+}
+// ---------------------------------------------------------------------------
+// ✅ صفحة ملف الإنجاز الإلكتروني (Student Portfolio)
+// ---------------------------------------------------------------------------
+
+class StudentPortfolioPage extends StatefulWidget {
+  final Map<String, dynamic> studentData;
+
+  const StudentPortfolioPage({super.key, required this.studentData});
+
+  @override
+  State<StudentPortfolioPage> createState() => _StudentPortfolioPageState();
+}
+
+class _StudentPortfolioPageState extends State<StudentPortfolioPage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  bool _isUploading = false;
+  final String _studentId = FirebaseAuth.instance.currentUser!.uid;
+
+  // 📂 الأقسام الذكية للملف
+  final List<Map<String, dynamic>> _categories = [
+    {'id': 'certs', 'label': 'الشهادات والتكريمات', 'icon': Icons.emoji_events},
+    {'id': 'projects', 'label': 'المشاريع والمواهب', 'icon': Icons.lightbulb},
+    {'id': 'activities', 'label': 'الأنشطة والفعاليات', 'icon': Icons.sports_handball},
+    {'id': 'creative', 'label': 'واجبات إبداعية', 'icon': Icons.brush},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _categories.length, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  // 📤 دالة رفع الصورة مع التحقق من الحجم (2 ميجا)
+  Future<void> _uploadImage(String categoryId) async {
+    final ImagePicker picker = ImagePicker();
+
+    // 1. اختيار الصورة
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80, // ضغط أولي خفيف
+    );
+
+    if (image == null) return;
+
+    // 2. التحقق من الحجم (2 ميجا بايت = 2 * 1024 * 1024 بايت)
+    final int fileSize = await image.length();
+    if (fileSize > 2 * 1024 * 1024) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.error_outline, color: Colors.white),
+              SizedBox(width: 10),
+              Expanded(child: Text('عفواً، حجم الصورة أكبر من 2 ميجا. يرجى اختيار صورة أصغر.')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // 3. بدء الرفع
+    setState(() => _isUploading = true);
+    try {
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_$categoryId.jpg';
+      final Reference storageRef = FirebaseStorage.instance
+          .ref()
+          .child('student_portfolios')
+          .child(_studentId)
+          .child(fileName);
+
+      // رفع البيانات
+      final Uint8List fileBytes = await image.readAsBytes();
+      await storageRef.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
+      final String downloadUrl = await storageRef.getDownloadURL();
+
+      // 4. الحفظ في Firestore
+      await FirebaseFirestore.instance.collection('portfolio_items').add({
+        'studentId': _studentId,
+        'category': categoryId,
+        'imageUrl': downloadUrl,
+        'timestamp': FieldValue.serverTimestamp(),
+        'fileName': fileName, // للحذف لاحقاً
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت إضافة الصورة لملف الإنجاز بنجاح ✅'), backgroundColor: Colors.green),
+      );
+
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('حدث خطأ أثناء الرفع: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  // 🗑️ حذف الصورة
+  Future<void> _deleteItem(String docId, String fileName) async {
+    final bool confirm = await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف الصورة'),
+        content: const Text('هل أنت متأكد من حذف هذه الصورة من ملف إنجازك؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('حذف')
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirm) return;
+
+    try {
+      // حذف من Storage
+      await FirebaseStorage.instance
+          .ref()
+          .child('student_portfolios')
+          .child(_studentId)
+          .child(fileName)
+          .delete();
+
+      // حذف من Firestore
+      await FirebaseFirestore.instance.collection('portfolio_items').doc(docId).delete();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم الحذف بنجاح'), backgroundColor: Colors.orange),
+      );
+    } catch (e) {
+      debugPrint("Error deleting: $e");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ملف إنجازي', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
+        centerTitle: true,
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          labelColor: Colors.amber,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.amber,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+          tabs: _categories.map((cat) => Tab(
+            icon: Icon(cat['icon']),
+            text: cat['label'],
+          )).toList(),
+        ),
+      ),
+      body: Stack(
+        children: [
+          TabBarView(
+            controller: _tabController,
+            children: _categories.map((cat) => _buildCategoryView(cat['id'])).toList(),
+          ),
+          if (_isUploading)
+            Container(
+              color: Colors.black45,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 20),
+                    Text("جاري رفع الصورة...", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            )
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _uploadImage(_categories[_tabController.index]['id']),
+        backgroundColor: Colors.indigo,
+        icon: const Icon(Icons.add_a_photo, color: Colors.white),
+        label: const Text("إضافة صورة", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildCategoryView(String categoryId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('portfolio_items')
+          .where('studentId', isEqualTo: _studentId)
+          .where('category', isEqualTo: categoryId)
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.folder_open, size: 80, color: Colors.grey.shade300),
+                const SizedBox(height: 10),
+                Text(
+                  "لا توجد صور في هذا القسم",
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  "اضغط على زر الإضافة بالأسفل لتوثيق إنجازاتك",
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.85,
+          ),
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            final doc = snapshot.data!.docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+
+            return GestureDetector(
+              onTap: () => _showFullImage(data['imageUrl']),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(15),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5)],
+                  color: Colors.white,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                        child: Image.network(
+                          data['imageUrl'],
+                          fit: BoxFit.cover,
+                          loadingBuilder: (ctx, child, progress) {
+                            if (progress == null) return child;
+                            return Center(child: CircularProgressIndicator(value: progress.expectedTotalBytes != null ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes! : null));
+                          },
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(bottom: Radius.circular(15)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            intl.DateFormat('yyyy/MM/dd').format((data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now()),
+                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                            onPressed: () => _deleteItem(doc.id, data['fileName']),
+                          )
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showFullImage(String url) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.network(url, fit: BoxFit.contain),
+            ),
+            IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const CircleAvatar(
+                backgroundColor: Colors.black54,
+                child: Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

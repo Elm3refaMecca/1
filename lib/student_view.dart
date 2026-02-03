@@ -17,6 +17,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:percent_indicator/percent_indicator.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:lottie/lottie.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:universal_html/html.dart' as html;
@@ -44,6 +45,7 @@ class _DashboardButtonData {
   final VoidCallback onTap;
   final String? badgeText;
   final bool isWorking;
+  final bool isFeatured; // ✅ خاصية جديدة لتمييز العنصر
 
   _DashboardButtonData({
     required this.title,
@@ -53,6 +55,7 @@ class _DashboardButtonData {
     required this.onTap,
     this.badgeText,
     this.isWorking = true,
+    this.isFeatured = false, // الافتراضي غير مميز
   });
 }
 
@@ -605,7 +608,15 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 
   Widget _buildBody() {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    if (_isLoading) {
+      return Center(
+        child: SizedBox(
+          width: 200,
+          height: 200,
+          child: Lottie.network('3.json'),
+        ),
+      );
+    }
     if (_studentData == null) {
       return ListView(
           children: [
@@ -666,7 +677,7 @@ class _StudentViewPageState extends State<StudentViewPage>
       'الملاحظات السلوكية': 'assets/a9.png',
       'فيزا الطلاب': 'assets/a2.png',
       'الكتاب المدرسي': 'assets/a3.png',
-      'الاحتفالات': 'assets/a5.png',
+      'ملف الإنجاز': 'assets/a5.png', // تم تغيير المفتاح ليتوافق مع المسمى الجديد
       'استديو الطالب': 'assets/a11.png',
       'التوكاتسو ': 'assets/a4.png',
       'المسابقات': 'assets/a10.png',
@@ -741,14 +752,24 @@ class _StudentViewPageState extends State<StudentViewPage>
         },
         isWorking: true,
       ),
+      // ✅✅✅ تم التعديل: تمييز أيقونة ملف الإنجاز لتكون مشعة ✅✅✅
       _DashboardButtonData(
-        title: 'الاحتفالات',
-        icon: Icons.celebration,
-        assetPath: imageMap['الاحتفالات'],
-        color: Colors.pink.shade500,
-        onTap: () => _showPlaceholderSnackBar('سيتوفر قريبا'),
-        isWorking: false,
+        title: 'ملف الإنجاز',
+        icon: Icons.workspace_premium_rounded,
+        assetPath: imageMap['ملف الإنجاز'],
+        color: Colors.pink.shade600,
+        isFeatured: true, // تفعيل التمييز
+        onTap: () {
+          if (_studentDocId != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => StudentPortfolioPage(studentId: _studentDocId!)),
+            );
+          }
+        },
+        isWorking: true,
       ),
+      // ✅✅✅ ------------------------------------------- ✅✅✅
       _DashboardButtonData(
         title: 'استديو الطالب',
         icon: Icons.photo_library,
@@ -907,6 +928,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                                 onTap: data.onTap,
                                 badgeText: data.badgeText,
                                 isWorking: data.isWorking,
+                                isFeatured: data.isFeatured, // تمرير خاصية التمييز
                               ),
                             ),
                           ),
@@ -946,6 +968,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     required VoidCallback onTap,
     String? badgeText,
     required bool isWorking,
+    bool isFeatured = false, // خاصية جديدة
   }) {
     // ✅ تخصيص زر الطالب المنضبط ليظهر العدد بداخله
     final bool isNobleButton = icon == Icons.thumb_up;
@@ -964,7 +987,25 @@ class _StudentViewPageState extends State<StudentViewPage>
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(20),
-              boxShadow: [
+              border: isFeatured
+                  ? Border.all(color: Colors.amberAccent, width: 2) // إطار ذهبي للمميز
+                  : null,
+              boxShadow: isFeatured
+                  ? [ // ✅✅ تأثير الإشعاع للعناصر المميزة ✅✅
+                BoxShadow(
+                  color: color.withOpacity(0.6),
+                  blurRadius: 15,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 0),
+                ),
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.5),
+                  blurRadius: 10,
+                  spreadRadius: -2,
+                  offset: const Offset(0, 0),
+                ),
+              ]
+                  : [
                 BoxShadow(
                   color: color.withOpacity(0.4),
                   blurRadius: 8,
@@ -1011,6 +1052,27 @@ class _StudentViewPageState extends State<StudentViewPage>
               ),
             ),
           ),
+
+          // ✅ شارة "جديد" للعناصر المميزة
+          if (isFeatured)
+            Positioned(
+              top: -8,
+              right: -5,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                  border: Border.all(color: Colors.white, width: 1),
+                ),
+                child: const Text(
+                  "جديد",
+                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                ),
+              ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+                  .scaleXY(begin: 1.0, end: 1.1, duration: 800.ms), // نبض خفيف للشارة
+            ),
 
           // ✅ إعادة الرقم إلى أعلى الأيقونة (لغير الطالب المنضبط)
           if (badgeText != null && !isNobleButton)
@@ -2601,7 +2663,366 @@ class SchoolBooksPage extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// ✅✅✅ صفحة الفيزا للطالب (StudentVisaPage) المعدلة بالكامل ✅✅✅
+// ✅✅✅ صفحة ملف الإنجاز (StudentPortfolioPage) المطورة ✅✅✅
+// ---------------------------------------------------------------------------
+
+class StudentPortfolioPage extends StatefulWidget {
+  final String studentId;
+
+  const StudentPortfolioPage({super.key, required this.studentId});
+
+  @override
+  State<StudentPortfolioPage> createState() => _StudentPortfolioPageState();
+}
+
+class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
+  bool _isUploading = false;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickAndUploadImage() async {
+    try {
+      // 1. اختيار الصورة مع ضغطها لتقليل الحجم (أقل من 2 ميجا)
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 70, // جودة 70% تضمن حجماً صغيراً
+        maxWidth: 1024, // تقليص العرض
+      );
+
+      if (pickedFile == null) return;
+
+      // 2. طلب وصف للصورة من الطالب (اختياري)
+      final String? caption = await _showCaptionDialog();
+
+      // إذا ضغط الطالب إلغاء في الديالوج، لا نرفع الصورة
+      if (caption == null) return;
+
+      setState(() => _isUploading = true);
+
+      // 3. رفع الصورة إلى Storage
+      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final String fileName = '${widget.studentId}_$timestamp.jpg';
+      final Reference ref = FirebaseStorage.instance
+          .ref()
+          .child('student_portfolio')
+          .child(widget.studentId)
+          .child(fileName);
+
+      Uint8List fileBytes = await pickedFile.readAsBytes();
+      await ref.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
+
+      // 4. الحصول على الرابط
+      final String downloadUrl = await ref.getDownloadURL();
+
+      // 5. الحفظ في Firestore مع الوصف
+      await FirebaseFirestore.instance
+          .collection('students')
+          .doc(widget.studentId)
+          .collection('portfolio')
+          .add({
+        'imageUrl': downloadUrl,
+        'caption': caption, // النص المكتوب
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت إضافة الصورة إلى ملف إنجازك بنجاح ✅'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      debugPrint("Error uploading portfolio image: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('فشل رفع الصورة، حاول مرة أخرى.'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  // ديالوج لإدخال وصف الصورة
+  Future<String?> _showCaptionDialog() async {
+    final TextEditingController captionController = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text("وصف الصورة", style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("اكتب تعليقاً بسيطاً تحت صورتك (مثلاً: شهادة تفوق في الرياضيات)"),
+              const SizedBox(height: 12),
+              TextField(
+                controller: captionController,
+                maxLength: 50,
+                decoration: const InputDecoration(
+                  hintText: "أدخل النص هنا...",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null), // إلغاء
+              child: const Text("إلغاء", style: TextStyle(color: Colors.red)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, captionController.text.trim()), // تأكيد
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.pink.shade600, foregroundColor: Colors.white),
+              child: const Text("نشر"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // حذف الصورة
+  Future<void> _deleteImage(String docId, String imageUrl) async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("حذف الصورة"),
+        content: const Text("هل أنت متأكد من حذف هذه الصورة من ملف إنجازك؟"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("تراجع")),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("حذف", style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      // حذف من Firestore
+      await FirebaseFirestore.instance
+          .collection('students')
+          .doc(widget.studentId)
+          .collection('portfolio')
+          .doc(docId)
+          .delete();
+
+      // محاولة حذف من Storage (اختياري، لتوفير المساحة)
+      try {
+        await FirebaseStorage.instance.refFromURL(imageUrl).delete();
+      } catch (_) {}
+
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم الحذف بنجاح")));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("حدث خطأ أثناء الحذف")));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // التحقق مما إذا كان المستخدم هو الطالب نفسه لعرض زر الإضافة
+    final bool isMe = FirebaseAuth.instance.currentUser?.uid == widget.studentId;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ملف إنجازي (ألبوم الصور)', style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        backgroundColor: Colors.pink.shade700,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      floatingActionButton: isMe
+          ? FloatingActionButton.extended(
+        onPressed: _isUploading ? null : _pickAndUploadImage,
+        backgroundColor: Colors.pink.shade600,
+        icon: _isUploading
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white))
+            : const Icon(Icons.add_a_photo),
+        label: Text(_isUploading ? 'جاري الرفع...' : 'إضافة صورة'),
+      )
+          : null,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.pink.shade50, Colors.white],
+          ),
+        ),
+        child: StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('students')
+              .doc(widget.studentId)
+              .collection('portfolio')
+              .orderBy('timestamp', descending: true)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.photo_library_outlined, size: 80, color: Colors.grey.shade300),
+                    const SizedBox(height: 16),
+                    Text(
+                      'ألبوم صورك فارغ حالياً',
+                      style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                    ),
+                    if (isMe)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Text("اضغط على زر الإضافة لرفع شهاداتك وصورك", style: TextStyle(color: Colors.grey)),
+                      ),
+                  ],
+                ),
+              );
+            }
+
+            return AnimationLimiter(
+              child: GridView.builder(
+                padding: const EdgeInsets.all(12),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2, // عمودين لعرض أجمل
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.8, // نسبة الطول للعرض (شكل بطاقة)
+                ),
+                itemCount: snapshot.data!.docs.length,
+                itemBuilder: (context, index) {
+                  final doc = snapshot.data!.docs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final String imageUrl = data['imageUrl'] ?? '';
+                  final String caption = data['caption'] ?? '';
+
+                  return AnimationConfiguration.staggeredGrid(
+                    position: index,
+                    duration: const Duration(milliseconds: 375),
+                    columnCount: 2,
+                    child: ScaleAnimation(
+                      child: FadeInAnimation(
+                        child: GestureDetector(
+                          onTap: () => _showFullImage(context, imageUrl, caption),
+                          onLongPress: isMe ? () => _deleteImage(doc.id, imageUrl) : null,
+                          child: Hero(
+                            tag: imageUrl,
+                            child: Card(
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              clipBehavior: Clip.antiAlias,
+                              color: Colors.white,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return Container(
+                                          color: Colors.grey.shade100,
+                                          child: const Center(child: Icon(Icons.image, color: Colors.grey)),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  if (caption.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.all(8.0),
+                                      color: Colors.white,
+                                      child: Text(
+                                        caption,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // دالة لعرض الصورة بحجم كامل مع التكبير والنص
+  void _showFullImage(BuildContext context, String imageUrl, String caption) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          body: Stack(
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  minScale: 0.5,
+                  maxScale: 4.0, // تكبير حتى 4 أضعاف
+                  child: Hero(
+                    tag: imageUrl,
+                    child: Image.network(imageUrl),
+                  ),
+                ),
+              ),
+              if (caption.isNotEmpty)
+                Positioned(
+                  bottom: 40,
+                  left: 20,
+                  right: 20,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      caption,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ✅✅✅ صفحة الفيزا للطالب (StudentVisaPage)  ✅✅✅
 // ---------------------------------------------------------------------------
 
 class StudentVisaPage extends StatefulWidget {
