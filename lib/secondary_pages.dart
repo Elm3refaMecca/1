@@ -1,8 +1,3 @@
-// secondary_pages.dart
-// ✅ (COMPLETE) تم دمج جميع الصفحات (الجديدة والقديمة) في ملف واحد كامل
-// ✅ (MODIFIED) تم تحديث StudentProfilePage لتطابق تصميم هوية المعلم (Badge ID)
-// ✅ (MODIFIED) تم تحديث ProfilePage لتصميم الهوية الجديد مع إصلاح الصورة
-
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -19,10 +14,6 @@ import 'package:intl/intl.dart' as intl;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_html/html.dart' as html;
-
-// ---------------------------------------------------------------------------
-// 1. ProfilePage (Teacher Badge ID) - هوية المعلم
-// ---------------------------------------------------------------------------
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -165,13 +156,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 child: Column(
                   children: [
-                    // الرأس
                     SizedBox(
                       height: 190,
                       child: Stack(
                         alignment: Alignment.topCenter,
                         children: [
-                          // الخلفية
                           Container(
                             height: 140,
                             decoration: BoxDecoration(
@@ -205,7 +194,6 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ),
 
-                          // الصورة
                           Positioned(
                             bottom: 0,
                             child: Stack(
@@ -277,7 +265,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     const SizedBox(height: 10),
 
-                    // المعلومات
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Column(
@@ -328,7 +315,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     const SizedBox(height: 30),
 
-                    // تذييل البطاقة
                     Container(
                       height: 50,
                       decoration: BoxDecoration(
@@ -477,10 +463,6 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 2. GradeEntryPage
-// ---------------------------------------------------------------------------
-
 class GradeEntryPage extends StatefulWidget {
   final String stage;
   final String grade;
@@ -509,7 +491,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isLoading = true;
   List<DocumentSnapshot> _students = [];
-  Map<String, dynamic> _grades = {}; // Stores fetched and updated grades
+  Map<String, dynamic> _grades = {};
   final Map<String, int> _likes = {};
   final Map<String, int> _dislikes = {};
 
@@ -531,7 +513,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
       var students = querySnapshot.docs;
 
-      // Sort students alphabetically by name
       students.sort((a, b) {
         final aData = a.data() as Map<String, dynamic>? ?? {};
         final bData = b.data() as Map<String, dynamic>? ?? {};
@@ -540,7 +521,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         return aName.compareTo(bName);
       });
 
-      // Prepare map to hold grades and behavior counts
       final grades = <String, dynamic>{};
       final likes = <String, int>{};
       final dislikes = <String, int>{};
@@ -548,21 +528,18 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       for (var studentDoc in students) {
         final data = studentDoc.data() as Map<String, dynamic>?;
         final studentId = studentDoc.id;
-        // Fetch the specific grade for the current test
         grades[studentId] = data?[widget.testFieldKey];
 
-        // Fetch behavior counts
         likes[studentId] = data?['totalLikes'] ?? 0;
         dislikes[studentId] = data?['totalDislikes'] ?? 0;
       }
 
-      // Update state once all data is processed
       if (mounted) {
         setState(() {
           _students = students;
-          _grades = grades; // Update the grades map
-          _likes.addAll(likes); // Update likes
-          _dislikes.addAll(dislikes); // Update dislikes
+          _grades = grades;
+          _likes.addAll(likes);
+          _dislikes.addAll(dislikes);
           _isLoading = false;
         });
       }
@@ -631,7 +608,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     String? teacherNote;
     if (type == 'dislike') {
       teacherNote = await _showDislikeDialog(studentName);
-      if (teacherNote == null) return; // User cancelled the dialog
+      if (teacherNote == null) return;
     }
 
     try {
@@ -656,7 +633,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         if (type == 'dislike') 'teacherNote': teacherNote,
         if (type == 'dislike') 'studentReply': null,
         if (type == 'dislike') 'replyTimestamp': null,
-        'status': type == 'dislike' ? 'pending_reply' : 'like_added', // Status for like
+        'status': type == 'dislike' ? 'pending_reply' : 'like_added',
       };
 
       await _firestore.runTransaction((transaction) async {
@@ -1328,10 +1305,6 @@ extension on Sheet {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 3. TeacherProfileViewPage
-// ---------------------------------------------------------------------------
-
 class TeacherProfileViewPage extends StatelessWidget {
   final String teacherId;
 
@@ -1430,10 +1403,6 @@ class TeacherProfileViewPage extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 4. TestSelectionPage
-// ---------------------------------------------------------------------------
-
 class TestItem {
   final String testFieldKey;
   final String name;
@@ -1503,10 +1472,8 @@ class TestSelectionPage extends StatelessWidget {
         TestItem(testFieldKey: 'e6${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الرابع ف نافس', term: 'اختبارات نافس'),
         TestItem(testFieldKey: 'e7${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الخامس ف نافس', term: 'اختبارات نافس'),
         TestItem(testFieldKey: 'e8${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار السادس ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e9${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار السابع ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e10${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثامن ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e11${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار التاسع ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e12${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار العاشر ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e9${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار التاسع ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e10${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار العاشر ف نافس', term: 'اختبارات نافس'),
       ]);
     }
 
@@ -1735,10 +1702,6 @@ class __TestTileState extends State<_TestTile> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// 5. OnlineStudentsPage
-// ---------------------------------------------------------------------------
 
 class OnlineStudentsPage extends StatelessWidget {
   const OnlineStudentsPage({super.key});
@@ -2008,10 +1971,6 @@ class OnlineStudentsPage extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 6. StudentProfilePage (Student Badge ID) - هوية الطالب
-// ---------------------------------------------------------------------------
-
 class StudentProfilePage extends StatefulWidget {
   const StudentProfilePage({super.key});
 
@@ -2023,7 +1982,7 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
   final User? _user = FirebaseAuth.instance.currentUser;
   Map<String, dynamic>? _studentData;
   bool _isLoading = true;
-  bool _isUploading = false; // في حال أردت السماح للطالب برفع صورة مستقبلاً
+  bool _isUploading = false;
 
   @override
   void initState() {
@@ -2096,13 +2055,11 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                 ),
                 child: Column(
                   children: [
-                    // الرأس
                     SizedBox(
                       height: 190,
                       child: Stack(
                         alignment: Alignment.topCenter,
                         children: [
-                          // الخلفية (لون مختلف قليلاً للطالب لتمييزه)
                           Container(
                             height: 140,
                             decoration: BoxDecoration(
@@ -2136,7 +2093,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
                             ),
                           ),
 
-                          // الصورة
                           Positioned(
                             bottom: 0,
                             child: Container(
@@ -2177,7 +2133,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
 
                     const SizedBox(height: 10),
 
-                    // المعلومات الرئيسية
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Column(
@@ -2213,7 +2168,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
 
                     const SizedBox(height: 24),
 
-                    // التفاصيل
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Column(
@@ -2231,7 +2185,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
 
                     const SizedBox(height: 30),
 
-                    // تذييل البطاقة
                     Container(
                       height: 50,
                       decoration: BoxDecoration(
@@ -2321,10 +2274,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// 7. NobleStudentPage
-// ---------------------------------------------------------------------------
 
 class NobleStudentPage extends StatefulWidget {
   final String stage;
@@ -2594,9 +2543,6 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
 
   }
 }
-// ---------------------------------------------------------------------------
-// ✅ صفحة ملف الإنجاز الإلكتروني (Student Portfolio)
-// ---------------------------------------------------------------------------
 
 class StudentPortfolioPage extends StatefulWidget {
   final Map<String, dynamic> studentData;
@@ -2612,7 +2558,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
   bool _isUploading = false;
   final String _studentId = FirebaseAuth.instance.currentUser!.uid;
 
-  // 📂 الأقسام الذكية للملف
   final List<Map<String, dynamic>> _categories = [
     {'id': 'certs', 'label': 'الشهادات والتكريمات', 'icon': Icons.emoji_events},
     {'id': 'projects', 'label': 'المشاريع والمواهب', 'icon': Icons.lightbulb},
@@ -2632,19 +2577,16 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     super.dispose();
   }
 
-  // 📤 دالة رفع الصورة مع التحقق من الحجم (2 ميجا)
   Future<void> _uploadImage(String categoryId) async {
     final ImagePicker picker = ImagePicker();
 
-    // 1. اختيار الصورة
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 80, // ضغط أولي خفيف
+      imageQuality: 80,
     );
 
     if (image == null) return;
 
-    // 2. التحقق من الحجم (2 ميجا بايت = 2 * 1024 * 1024 بايت)
     final int fileSize = await image.length();
     if (fileSize > 2 * 1024 * 1024) {
       if (!mounted) return;
@@ -2664,7 +2606,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
       return;
     }
 
-    // 3. بدء الرفع
     setState(() => _isUploading = true);
     try {
       final String fileName = '${DateTime.now().millisecondsSinceEpoch}_$categoryId.jpg';
@@ -2674,18 +2615,16 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
           .child(_studentId)
           .child(fileName);
 
-      // رفع البيانات
       final Uint8List fileBytes = await image.readAsBytes();
       await storageRef.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
       final String downloadUrl = await storageRef.getDownloadURL();
 
-      // 4. الحفظ في Firestore
       await FirebaseFirestore.instance.collection('portfolio_items').add({
         'studentId': _studentId,
         'category': categoryId,
         'imageUrl': downloadUrl,
         'timestamp': FieldValue.serverTimestamp(),
-        'fileName': fileName, // للحذف لاحقاً
+        'fileName': fileName,
       });
 
       if (!mounted) return;
@@ -2703,7 +2642,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     }
   }
 
-  // 🗑️ حذف الصورة
   Future<void> _deleteItem(String docId, String fileName) async {
     final bool confirm = await showDialog(
       context: context,
@@ -2724,7 +2662,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     if (!confirm) return;
 
     try {
-      // حذف من Storage
       await FirebaseStorage.instance
           .ref()
           .child('student_portfolios')
@@ -2732,7 +2669,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
           .child(fileName)
           .delete();
 
-      // حذف من Firestore
       await FirebaseFirestore.instance.collection('portfolio_items').doc(docId).delete();
 
       if (!mounted) return;
@@ -2832,10 +2768,10 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
         return GridView.builder(
           padding: const EdgeInsets.all(12),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.85,
+            crossAxisCount: 3, // تم التغيير لـ 3 أعمدة لتصغير الصور
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 0.75, // تعديل النسبة لتتناسب مع الحجم الصغير
           ),
           itemCount: snapshot.data!.docs.length,
           itemBuilder: (context, index) {
@@ -2846,43 +2782,400 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
               onTap: () => _showFullImage(data['imageUrl']),
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 5)],
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 4)],
                   color: Colors.white,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                        child: Image.network(
-                          data['imageUrl'],
-                          fit: BoxFit.cover,
-                          loadingBuilder: (ctx, child, progress) {
-                            if (progress == null) return child;
-                            return Center(child: CircularProgressIndicator(value: progress.expectedTotalBytes != null ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes! : null));
-                          },
+                      child: Padding(
+                        padding: const EdgeInsets.all(6.0), // إضافة هوامش لتصغير الصورة داخل الكارت
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            data['imageUrl'],
+                            fit: BoxFit.cover,
+                            loadingBuilder: (ctx, child, progress) {
+                              if (progress == null) return child;
+                              return Center(
+                                  child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          value: progress.expectedTotalBytes != null
+                                              ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                                              : null
+                                      )
+                                  )
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                       decoration: const BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.vertical(bottom: Radius.circular(15)),
+                        borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            intl.DateFormat('yyyy/MM/dd').format((data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now()),
-                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          Expanded(
+                            child: Text(
+                              intl.DateFormat('yyyy/MM/dd').format((data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now()),
+                              style: const TextStyle(fontSize: 9, color: Colors.grey),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                            onPressed: () => _deleteItem(doc.id, data['fileName']),
+                          InkWell(
+                            onTap: () => _deleteItem(doc.id, data['fileName']),
+                            child: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                           )
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showFullImage(String url) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.network(url, fit: BoxFit.contain),
+            ),
+            IconButton(
+              onPressed: () => Navigator.pop(context),
+              icon: const CircleAvatar(
+                backgroundColor: Colors.black54,
+                child: Icon(Icons.close, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class TeacherPortfolioPage extends StatefulWidget {
+  final bool isAdmin;
+
+  const TeacherPortfolioPage({super.key, required this.isAdmin});
+
+  @override
+  State<TeacherPortfolioPage> createState() => _TeacherPortfolioPageState();
+}
+
+class _TeacherPortfolioPageState extends State<TeacherPortfolioPage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  bool _isUploading = false;
+  final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
+
+  final List<Map<String, dynamic>> _categories = [
+    {'id': 'certs', 'label': 'الشهادات والتكريمات', 'icon': Icons.emoji_events},
+    {'id': 'projects', 'label': 'المشاريع والإنجازات', 'icon': Icons.lightbulb},
+    {'id': 'activities', 'label': 'الأنشطة والفعاليات', 'icon': Icons.sports_handball},
+    {'id': 'creative', 'label': 'مبادرات إبداعية', 'icon': Icons.brush},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _categories.length, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _uploadImage(String categoryId) async {
+    if (!widget.isAdmin) return;
+
+    final ImagePicker picker = ImagePicker();
+
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+
+    if (image == null) return;
+
+    final int fileSize = await image.length();
+    if (fileSize > 2 * 1024 * 1024) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.error_outline, color: Colors.white),
+              SizedBox(width: 10),
+              Expanded(child: Text('عفواً، حجم الصورة أكبر من 2 ميجا. يرجى اختيار صورة أصغر.')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isUploading = true);
+    try {
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_${categoryId}_teacher.jpg';
+      final Reference storageRef = FirebaseStorage.instance
+          .ref()
+          .child('teacher_portfolios')
+          .child(fileName);
+
+      final Uint8List fileBytes = await image.readAsBytes();
+      await storageRef.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
+      final String downloadUrl = await storageRef.getDownloadURL();
+
+      await FirebaseFirestore.instance.collection('teacher_portfolio_items').add({
+        'uploaderId': _currentUserId,
+        'category': categoryId,
+        'imageUrl': downloadUrl,
+        'timestamp': FieldValue.serverTimestamp(),
+        'fileName': fileName,
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت إضافة الصورة لملف إنجاز المعلمين بنجاح ✅'), backgroundColor: Colors.green),
+      );
+
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('حدث خطأ أثناء الرفع: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  Future<void> _deleteItem(String docId, String fileName) async {
+    if (!widget.isAdmin) return;
+
+    final bool confirm = await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف الصورة'),
+        content: const Text('هل أنت متأكد من حذف هذه الصورة؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('حذف')
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirm) return;
+
+    try {
+      await FirebaseStorage.instance
+          .ref()
+          .child('teacher_portfolios')
+          .child(fileName)
+          .delete();
+
+      await FirebaseFirestore.instance.collection('teacher_portfolio_items').doc(docId).delete();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم الحذف بنجاح'), backgroundColor: Colors.orange),
+      );
+    } catch (e) {
+      debugPrint("Error deleting: $e");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('ملف إنجاز المعلمين', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.blueAccent,
+        foregroundColor: Colors.white,
+        centerTitle: true,
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          labelColor: Colors.amberAccent,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.amberAccent,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+          tabs: _categories.map((cat) => Tab(
+            icon: Icon(cat['icon']),
+            text: cat['label'],
+          )).toList(),
+        ),
+      ),
+      body: Stack(
+        children: [
+          TabBarView(
+            controller: _tabController,
+            children: _categories.map((cat) => _buildCategoryView(cat['id'])).toList(),
+          ),
+          if (_isUploading)
+            Container(
+              color: Colors.black45,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 20),
+                    Text("جاري رفع الصورة...", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            )
+        ],
+      ),
+      floatingActionButton: widget.isAdmin
+          ? FloatingActionButton.extended(
+        onPressed: () => _uploadImage(_categories[_tabController.index]['id']),
+        backgroundColor: Colors.blueAccent,
+        icon: const Icon(Icons.add_a_photo, color: Colors.white),
+        label: const Text("إضافة صورة", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      )
+          : null,
+    );
+  }
+
+  Widget _buildCategoryView(String categoryId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('teacher_portfolio_items')
+          .where('category', isEqualTo: categoryId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(child: SelectableText("حدث خطأ في جلب البيانات: ${snapshot.error}"));
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.folder_shared, size: 80, color: Colors.grey.shade300),
+                const SizedBox(height: 10),
+                Text(
+                  "لا توجد صور في هذا القسم",
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                ),
+                if (widget.isAdmin) ...[
+                  const SizedBox(height: 5),
+                  const Text(
+                    "اضغط على زر الإضافة لتوثيق الإنجازات",
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ]
+              ],
+            ),
+          );
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(12),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3, // تم التغيير لـ 3 أعمدة
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 0.75, // تعديل النسبة
+          ),
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            final doc = snapshot.data!.docs[index];
+            final data = doc.data() as Map<String, dynamic>;
+
+            return GestureDetector(
+              onTap: () => _showFullImage(data['imageUrl']),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 4)],
+                  color: Colors.white,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(6.0), // هامش لتصغير الصورة
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            data['imageUrl'],
+                            fit: BoxFit.cover,
+                            loadingBuilder: (ctx, child, progress) {
+                              if (progress == null) return child;
+                              return Center(
+                                  child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          value: progress.expectedTotalBytes != null
+                                              ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                                              : null
+                                      )
+                                  )
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) => const Center(child: Icon(Icons.broken_image, size: 30, color: Colors.grey)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              intl.DateFormat('yyyy/MM/dd').format((data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now()),
+                              style: const TextStyle(fontSize: 9, color: Colors.grey),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (widget.isAdmin)
+                            InkWell(
+                              onTap: () => _deleteItem(doc.id, data['fileName']),
+                              child: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                            )
                         ],
                       ),
                     )

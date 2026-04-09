@@ -1486,6 +1486,17 @@ class _AddPageState extends State<AddPage> {
                     );
                   },
                 ),
+              _buildDashboardButton(
+                title: 'ملف إنجاز المعلمين',
+                icon: Icons.folder_shared,
+                color: Colors.blue.shade800, // لون أزرق كما هو مطلوب
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => TeacherPortfolioPage(isAdmin: _isAdmin)),
+                  );
+                },
+              ),
             ],
           ),
         ),

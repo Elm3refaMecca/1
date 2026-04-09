@@ -45,7 +45,7 @@ class _DashboardButtonData {
   final VoidCallback onTap;
   final String? badgeText;
   final bool isWorking;
-  final bool isFeatured; // ✅ خاصية جديدة لتمييز العنصر
+  final bool isFeatured;
 
   _DashboardButtonData({
     required this.title,
@@ -55,7 +55,7 @@ class _DashboardButtonData {
     required this.onTap,
     this.badgeText,
     this.isWorking = true,
-    this.isFeatured = false, // الافتراضي غير مميز
+    this.isFeatured = false,
   });
 }
 
@@ -1574,20 +1574,60 @@ class _StudentViewPageState extends State<StudentViewPage>
         stream: FirebaseFirestore.instance
             .collection('broadcast_notifications')
             .orderBy('timestamp', descending: true)
-            .limit(10)
+            .limit(100) // ✅ زيادة الحد لجلب العدد الصحيح للإشعارات المخزنة
             .snapshots(),
         builder: (context, snapshot) {
-          final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+          final int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
+          final bool hasNews = count > 0;
+
+          // ✅ تصميم الأيقونة المتوهجة
+          Widget iconWidget = IconButton(
+            icon: Icon(
+              Icons.notifications_active,
+              color: hasNews ? Colors.blue : iconColor, // ✅ لون مميز إذا وجد جديد
+              size: 28,
+            ),
+            tooltip: 'التعاميم العامة',
+            onPressed: () => _showNotifications(0),
+          );
+
+          // ✅ إضافة نبض وتوهج للأيقونة
+          if (hasNews) {
+            iconWidget = iconWidget.animate(onPlay: (controller) => controller.repeat())
+                .shimmer(duration: 1200.ms, color: Colors.orange.withOpacity(0.5)) // ✅ لمعان مستمر
+                .then()
+                .shake(hz: 4, curve: Curves.easeInOutCubic); // ✅ اهتزاز خفيف للفت النظر
+          }
+
           return badges.Badge(
-            showBadge: count > 0,
-            badgeContent: Text('!',
-                style: const TextStyle(color: Colors.white, fontSize: 10)),
-            badgeStyle: badges.BadgeStyle(badgeColor: Colors.green),
-            position: badges.BadgePosition.topEnd(top: 4, end: 4),
-            child: IconButton(
-              icon: Icon(Icons.notifications_active, color: Colors.green.shade600),
-              tooltip: 'التعاميم العامة',
-              onPressed: () => _showNotifications(0),
+            showBadge: hasNews,
+            badgeContent: Text(
+              '$count', // ✅ عرض العدد الفعلي للإشعارات المخزنة
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            badgeStyle: badges.BadgeStyle(
+              badgeColor: Colors.blueAccent, // ✅ لون أحمر لافت للشارة
+              padding: const EdgeInsets.all(6),
+              elevation: 4,
+            ),
+            position: badges.BadgePosition.topEnd(top: -5, end: -5), // ✅ موقع دقيق فوق الأيقونة
+            child: Container(
+              // ✅ هالة ضوئية خلف الأيقونة لزيادة الإشعاع
+              decoration: hasNews ? BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.6),
+                    blurRadius: 15,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ) : null,
+              child: iconWidget,
             ),
           );
         },
@@ -2025,7 +2065,7 @@ class _DislikeCardState extends State<_DislikeCard> {
     switch (status) {
       case 'replied_by_student':
         statusText = 'بانتظار رد المعلم';
-        statusColor = Colors.orange.shade300;
+        statusColor = Colors.blue.shade300;
         break;
       case 'closed':
         statusText = 'مغلقة';
@@ -2353,7 +2393,7 @@ class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
                   width: 60,
                   height: 3,
                   decoration: BoxDecoration(
-                    color: Colors.amber,
+                    color: Colors.blue,
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -3669,7 +3709,7 @@ class _StudentVisaPageState extends State<StudentVisaPage> {
                           backgroundColor: amount > 0 ? Colors.green.shade100 : Colors.red.shade100,
                           child: Icon(
                             amount > 0 ? Icons.arrow_downward : Icons.shopping_cart,
-                            color: amount > 0 ? Colors.green : Colors.red,
+                            color: amount > 0 ? Colors.cyan : Colors.blue,
                           ),
                         ),
                         title: Text(amount > 0 ? "إيداع" : "مشتريات", style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -3683,7 +3723,7 @@ class _StudentVisaPageState extends State<StudentVisaPage> {
                         trailing: Text(
                           '${amount > 0 ? '+' : ''}${amount.toStringAsFixed(2)} ﷼',
                           style: TextStyle(
-                            color: amount > 0 ? Colors.green : Colors.red,
+                            color: amount > 0 ? Colors.green : Colors.blue,
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
                           ),
