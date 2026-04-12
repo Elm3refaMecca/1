@@ -14,6 +14,7 @@ import 'package:intl/intl.dart' as intl;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_html/html.dart' as html;
+import 'package:flutter_svg/flutter_svg.dart'; // ✅ تم إضافة مكتبة عرض الـ SVG
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -339,11 +340,12 @@ class _ProfilePageState extends State<ProfilePage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 30),
               const Text(
                 "المملكة العربية السعودية - ابتدائية المعرفة بمكة المكرمة",
                 style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.w600),
               ),
+              const SizedBox(height: 30),
             ],
           ),
         ),
@@ -459,6 +461,243 @@ class _ProfilePageState extends State<ProfilePage> {
           )).toList(),
         ),
       ],
+    );
+  }
+}
+
+// ✅✅ الصفحة المستقلة لربط حساب جوجل من الشاشة الرئيسية ✅✅
+class GoogleAccountLinkerPage extends StatefulWidget {
+  const GoogleAccountLinkerPage({super.key});
+
+  @override
+  State<GoogleAccountLinkerPage> createState() => _GoogleAccountLinkerPageState();
+}
+
+class _GoogleAccountLinkerPageState extends State<GoogleAccountLinkerPage> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool _isLinked = false;
+  bool _isLoading = false;
+  String? _linkedEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIfLinked();
+  }
+
+  void _checkIfLinked() {
+    final user = _auth.currentUser;
+    if (user != null) {
+      for (var userInfo in user.providerData) {
+        if (userInfo.providerId == 'google.com') {
+          if (mounted) {
+            setState(() {
+              _isLinked = true;
+              _linkedEmail = userInfo.email;
+            });
+          }
+          return;
+        }
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _isLinked = false;
+        _linkedEmail = null;
+      });
+    }
+  }
+
+  Future<void> _linkGoogleAccount() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('المستخدم غير مسجل الدخول');
+
+      GoogleAuthProvider googleProvider = GoogleAuthProvider();
+      googleProvider.addScope('email');
+      googleProvider.setCustomParameters({
+        'prompt': 'select_account',
+        'client_id': '773233380314-t7nsjeim41v50fct8794k0rn9dm8do83.apps.googleusercontent.com'
+      });
+
+      await user.linkWithPopup(googleProvider);
+      _checkIfLinked();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم ربط حساب Google بنجاح! يمكنك الدخول به مستقبلاً.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = 'حدث خطأ أثناء الربط.';
+      if (e.code == 'provider-already-linked') {
+        message = 'هذا الحساب مرتبط مسبقاً بجوجل.';
+      } else if (e.code == 'credential-already-in-use') {
+        message = 'حساب جوجل هذا مستخدم بالفعل في حساب معلم آخر لدينا.';
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _unlinkGoogleAccount() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await user.unlink('google.com');
+        _checkIfLinked();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم إلغاء ربط حساب Google بنجاح.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('فشل إلغاء الربط. تأكد من وجود طريقة دخول أخرى.'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('إعدادات الدخول السريع', style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      backgroundColor: Colors.grey[100],
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.security, color: Colors.blueGrey, size: 30),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'ربط حساب جوجل (elm3rfa_vip)',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 40, thickness: 1),
+                    if (_isLinked) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            // ✅ التعديل هنا: استخدام SvgPicture للوجو جوجل
+                            SvgPicture.asset('assets/g1.svg', height: 30),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('حسابك مرتبط بنجاح', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  if (_linkedEmail != null)
+                                    Text(_linkedEmail!, style: TextStyle(color: Colors.green.shade800, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 45,
+                        child: _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : TextButton.icon(
+                          onPressed: _unlinkGoogleAccount,
+                          icon: const Icon(Icons.link_off, color: Colors.red),
+                          label: const Text('إلغاء الربط', style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold)),
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.red.shade50,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      )
+                    ] else ...[
+                      const Text(
+                        'اربط حسابك الآن بـ Google لتتمكن من تسجيل الدخول بضغطة زر واحدة في المرات القادمة وبكل أمان دون الحاجة لكتابة كلمة المرور.',
+                        style: TextStyle(color: Colors.grey, fontSize: 15, height: 1.5),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : ElevatedButton.icon(
+                          onPressed: _linkGoogleAccount,
+                          // ✅ التعديل هنا: استخدام SvgPicture للوجو جوجل
+                          icon: SvgPicture.asset('assets/g1.svg', height: 24),
+                          label: const Text(
+                            'ربط الحساب بـ Google',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            elevation: 2,
+                            side: BorderSide(color: Colors.blue.shade700, width: 1.5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          ),
+                        ),
+                      ),
+                    ]
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -883,6 +1122,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       backgroundColor = Colors.orange.shade50;
       textColor = Colors.orange.shade800;
       borderColor = Colors.orange.shade300;
+      fontWeight = FontWeight.bold;
     }
 
     return InkWell(
@@ -2768,10 +3008,10 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
         return GridView.builder(
           padding: const EdgeInsets.all(12),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3, // تم التغيير لـ 3 أعمدة لتصغير الصور
+            crossAxisCount: 3,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
-            childAspectRatio: 0.75, // تعديل النسبة لتتناسب مع الحجم الصغير
+            childAspectRatio: 0.75,
           ),
           itemCount: snapshot.data!.docs.length,
           itemBuilder: (context, index) {
@@ -2791,7 +3031,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
                   children: [
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.all(6.0), // إضافة هوامش لتصغير الصورة داخل الكارت
+                        padding: const EdgeInsets.all(6.0),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.network(
@@ -3106,10 +3346,10 @@ class _TeacherPortfolioPageState extends State<TeacherPortfolioPage> with Single
         return GridView.builder(
           padding: const EdgeInsets.all(12),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3, // تم التغيير لـ 3 أعمدة
+            crossAxisCount: 3,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
-            childAspectRatio: 0.75, // تعديل النسبة
+            childAspectRatio: 0.75,
           ),
           itemCount: snapshot.data!.docs.length,
           itemBuilder: (context, index) {
@@ -3129,7 +3369,7 @@ class _TeacherPortfolioPageState extends State<TeacherPortfolioPage> with Single
                   children: [
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.all(6.0), // هامش لتصغير الصورة
+                        padding: const EdgeInsets.all(6.0),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: Image.network(

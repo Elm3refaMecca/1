@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth, Persistence, User, AuthWrapper, FirebaseAuthException;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:almarefamecca/firebase_options.dart';
 import 'dart:js' as js;
 import 'package:flutter/gestures.dart';
@@ -20,30 +20,27 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:lottie/lottie.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:almarefamecca/add.dart';
 import 'package:almarefamecca/student_view.dart';
 
-// ✅✅✅ مدير جلسة السبورة الذكية (المؤقت 5 دقائق) ✅✅✅
 class QRSessionTimer {
   static Timer? _timer;
   static final ValueNotifier<int> remainingSeconds = ValueNotifier<int>(0);
   static bool isActive = false;
 
-  // بدء الجلسة المؤقتة
   static void startSession(BuildContext context) {
     isActive = true;
-    remainingSeconds.value = 300; // 5 دقائق = 300 ثانية
+    remainingSeconds.value = 300;
 
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (remainingSeconds.value > 0) {
         remainingSeconds.value--;
       } else {
-        // انتهى الوقت
         stopSession();
         await FirebaseAuth.instance.signOut();
         if (context.mounted) {
@@ -60,7 +57,6 @@ class QRSessionTimer {
     });
   }
 
-  // إيقاف الجلسة (عند الخروج اليدوي)
   static void stopSession() {
     _timer?.cancel();
     isActive = false;
@@ -68,7 +64,6 @@ class QRSessionTimer {
   }
 }
 
-// ✅✅✅ واجهة عرض المؤقت (شريط علوي صغير وأحمر فاقع) ✅✅✅
 class QRSessionOverlay extends StatelessWidget {
   final Widget child;
   const QRSessionOverlay({super.key, required this.child});
@@ -90,19 +85,16 @@ class QRSessionOverlay extends StatelessWidget {
 
                 final mins = (seconds / 60).floor();
                 final secs = seconds % 60;
-
-                // تغيير اللون ليكون أحمر فاقع عند اقتراب النهاية، أو أحمر عادي
                 final bool isUrgent = seconds < 60;
 
                 return Material(
-                  color: isUrgent ? Colors.redAccent.shade700 : Colors.red, // أحمر فاقع
+                  color: isUrgent ? Colors.redAccent.shade700 : Colors.red,
                   elevation: 6,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0), // مسافات صغيرة (Compact)
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // أيقونة صغيرة متحركة
                         const Icon(Icons.timer_outlined, color: Colors.white, size: 18),
                         const SizedBox(width: 8),
                         Text(
@@ -110,12 +102,11 @@ class QRSessionOverlay extends StatelessWidget {
                           style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 13, // خط صغير
+                              fontSize: 13,
                               fontFamily: 'Cairo'
                           ),
                         ),
                         const SizedBox(width: 12),
-                        // زر خروج صغير جداً
                         InkWell(
                           onTap: () async {
                             QRSessionTimer.stopSession();
@@ -179,7 +170,6 @@ class ExitPopupWrapper extends StatelessWidget {
       onPopInvoked: (didPop) async {
         if (didPop) return;
 
-        // إذا كانت جلسة سبورة، الخروج يعني إنهاء الجلسة فوراً
         if (QRSessionTimer.isActive) {
           QRSessionTimer.stopSession();
           await FirebaseAuth.instance.signOut();
@@ -307,7 +297,7 @@ class _AppRootState extends State<AppRoot> {
           debugShowCheckedModeBanner: false,
           home: Scaffold(
             backgroundColor: Colors.white,
-            body: LoadingLottie(),
+            body: SafeLoadingWidget(),
           ),
         );
       },
@@ -324,8 +314,8 @@ class _AppRootState extends State<AppRoot> {
   }
 }
 
-class LoadingLottie extends StatelessWidget {
-  const LoadingLottie({super.key});
+class SafeLoadingWidget extends StatelessWidget {
+  const SafeLoadingWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -334,16 +324,25 @@ class LoadingLottie extends StatelessWidget {
       width: double.infinity,
       height: double.infinity,
       child: Center(
-        child: SizedBox(
-          width: 250,
-          height: 250,
-          child: Lottie.network(
-            '1.json',
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return const CircularProgressIndicator();
-            },
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/m1.png',
+              height: 150,
+              width: 150,
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(Icons.school, size: 100, color: Theme.of(context).primaryColor);
+              },
+            ),
+            const SizedBox(height: 30),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 15),
+            const Text(
+              "جاري التحقق من البيانات...",
+              style: TextStyle(color: Colors.grey, fontSize: 16, fontFamily: 'Cairo'),
+            )
+          ],
         ),
       ),
     );
@@ -360,7 +359,7 @@ class TeacherLoginApp extends StatelessWidget {
     const Color backgroundColor = Color(0xFFF0F4F8);
 
     return MaterialApp(
-      title: 'بوابة ابدائية المعرفة الاهلية',
+      title: 'بوابة ابتدائية المعرفة الاهلية',
       debugShowCheckedModeBanner: false,
       scrollBehavior: GlobalScrollBehavior(),
       localizationsDelegates: const [
@@ -449,7 +448,6 @@ class TeacherLoginApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (context) => const AuthWrapper(),
-        // ✅ تغليف صفحة المعلم بالمؤقت (يظهر فقط إذا كانت الجلسة عبر الباركود)
         '/add': (context) => const ExitPopupWrapper(child: QRSessionOverlay(child: AddPage())),
         '/student_view': (context) => const ExitPopupWrapper(child: StudentViewPage()),
         '/login': (context) {
@@ -470,13 +468,13 @@ class AuthWrapper extends StatefulWidget {
 }
 
 class _AuthWrapperState extends State<AuthWrapper> {
-
   final _firestore = FirebaseFirestore.instance;
 
   @override
   void initState() {
     super.initState();
     _setupFCM();
+    // لم نعد بحاجة لفحص نتيجة الـ Redirect لأننا انتقلنا للـ Popup
   }
 
   Future<void> _setupFCM() async {
@@ -500,7 +498,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
       } catch(e) {}
     }
   }
-
 
   Future<void> _handleStudentTokenRegistration(DocumentReference studentDocRef, Map<String, dynamic>? studentData) async {
     if (kIsWeb || defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS) {
@@ -526,13 +523,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<String> _getUserRole(User user) async {
     try {
-      // 1. التحقق الطبيعي من الأدمن/المعلم
       final teacherDoc = await _firestore.collection('users').doc(user.uid).get();
       if (teacherDoc.exists) {
         return 'teacher';
       }
 
-      // 2. التحقق من الطالب
       final studentDocRef = _firestore.collection('students').doc(user.uid);
       final studentDoc = await studentDocRef.get();
       if (studentDoc.exists) {
@@ -543,12 +538,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
         return 'student';
       }
 
-      await FirebaseAuth.instance.signOut();
-      return 'unauthorized';
+      final pendingTeacher = await _firestore.collection('pending_teachers').doc(user.uid).get();
+      if (pendingTeacher.exists) return 'pending';
 
-    } catch (e, s) {
-      try { await FirebaseAuth.instance.signOut(); } catch (_) {}
-      return 'unauthorized';
+      final pendingStudent = await _firestore.collection('pending_students').doc(user.uid).get();
+      if (pendingStudent.exists) return 'pending';
+
+      return 'unregistered';
+
+    } catch (e) {
+      debugPrint("Firebase Read Error: $e");
+      return 'error:$e';
     }
   }
 
@@ -558,7 +558,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnapshot) {
         if (authSnapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(backgroundColor: Colors.white, body: LoadingLottie());
+          return const Scaffold(backgroundColor: Colors.white, body: SafeLoadingWidget());
         }
 
         if (authSnapshot.hasError) {
@@ -570,20 +570,48 @@ class _AuthWrapperState extends State<AuthWrapper> {
             future: _getUserRole(authSnapshot.data!),
             builder: (context, roleSnapshot) {
               if (roleSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(backgroundColor: Colors.white, body: LoadingLottie());
-              }
-              if (roleSnapshot.hasError) {
-                return const ExitPopupWrapper(child: WelcomePage());
+                return const Scaffold(backgroundColor: Colors.white, body: SafeLoadingWidget());
               }
 
-              switch (roleSnapshot.data) {
+              final role = roleSnapshot.data;
+
+              switch (role) {
                 case 'teacher':
-                // ✅ هنا يتم توجيه المعلم مع غلاف المؤقت (الذي لن يظهر إلا إذا تم تفعيله من الباركود)
                   return const ExitPopupWrapper(child: QRSessionOverlay(child: AddPage()));
                 case 'student':
                   return const ExitPopupWrapper(child: StudentViewPage());
+                case 'pending':
+                  return const ExitPopupWrapper(child: PendingApprovalScreen());
+                case 'unregistered':
+                  return const ExitPopupWrapper(child: RegistrationFlow());
                 case 'unauthorized':
+                  return const ExitPopupWrapper(child: WelcomePage());
                 default:
+                  if (role != null && role.startsWith('error:')) {
+                    return Scaffold(
+                      body: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.security_update_warning_outlined, color: Colors.red, size: 80),
+                              const SizedBox(height: 20),
+                              const Text("عذراً، فشل النظام في قراءة بياناتك من Firebase بسبب صلاحيات (Security Rules) أو مشكلة بالاتصال.", textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 10),
+                              Text(role.replaceFirst('error:', ''), textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontSize: 14), textDirection: TextDirection.ltr),
+                              const SizedBox(height: 30),
+                              ElevatedButton.icon(
+                                onPressed: () => FirebaseAuth.instance.signOut(),
+                                icon: const Icon(Icons.logout),
+                                label: const Text("تسجيل الخروج والمحاولة مرة أخرى"),
+                              )
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
                   return const ExitPopupWrapper(child: WelcomePage());
               }
             },
@@ -664,12 +692,11 @@ class _WelcomePageState extends State<WelcomePage> {
     super.dispose();
   }
 
-
   void _checkNotificationPermission() async {
     if (kIsWeb) {
       if (html.Notification.supported) {
         if(mounted) {
-          setState(() { _notificationPermission = html.Notification.permission!; });
+          setState(() { _notificationPermission = html.Notification.permission ?? 'default'; });
         }
       }
     } else {
@@ -950,11 +977,30 @@ class _WelcomePageState extends State<WelcomePage> {
     }
   }
 
-  // ✅✅✅ دالة الدخول السريع الجديدة والمحدثة (الطريقة الآمنة + المؤقت) ✅✅✅
+  // ✅ استدعاء مباشر لـ Popup بدون أي تأخير زمني لتفادي الحظر من المتصفح!
+  void _signInWithGoogle() {
+    GoogleAuthProvider authProvider = GoogleAuthProvider();
+    authProvider.addScope('email');
+    authProvider.setCustomParameters({
+      'prompt': 'select_account',
+    });
+
+    if (kIsWeb) {
+      FirebaseAuth.instance.signInWithPopup(authProvider).catchError((e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('تم إلغاء الدخول أو حظر النافذة من المتصفح'), backgroundColor: Colors.red),
+          );
+        }
+      });
+    } else {
+      FirebaseAuth.instance.signInWithProvider(authProvider);
+    }
+  }
+
   void _showQRLoginDialog() {
     final String sessionId = const Uuid().v4();
 
-    // 1. إنشاء وثيقة الجلسة في فايربيز
     FirebaseFirestore.instance.collection('qr_logins').doc(sessionId).set({
       'created_at': FieldValue.serverTimestamp(),
       'status': 'waiting',
@@ -966,7 +1012,6 @@ class _WelcomePageState extends State<WelcomePage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            // الاستماع للتغيرات في الوثيقة
             return StreamBuilder<DocumentSnapshot>(
               stream: FirebaseFirestore.instance.collection('qr_logins').doc(sessionId).snapshots(),
               builder: (context, snapshot) {
@@ -974,21 +1019,15 @@ class _WelcomePageState extends State<WelcomePage> {
                 if (snapshot.hasData && snapshot.data!.exists) {
                   final data = snapshot.data!.data() as Map<String, dynamic>;
 
-                  // ✅ إذا وصل التوكن من السيرفر (كلاود فانكشن)
                   if (data['auth_token'] != null) {
-                    // تنفيذ عملية تسجيل الدخول الحقيقي
                     WidgetsBinding.instance.addPostFrameCallback((_) async {
                       if (!context.mounted) return;
-                      Navigator.pop(context); // إغلاق الديالوج
+                      Navigator.pop(context);
 
                       try {
-                        // 1. تسجيل دخول حقيقي ببيانات المعلم!
                         await FirebaseAuth.instance.signInWithCustomToken(data['auth_token']);
-
-                        // 2. تنظيف: حذف وثيقة الجلسة
                         FirebaseFirestore.instance.collection('qr_logins').doc(sessionId).delete();
 
-                        // 3. 🔥 تشغيل مؤقت الأمان (5 دقائق)
                         if (context.mounted) {
                           QRSessionTimer.startSession(context);
                         }
@@ -1030,7 +1069,7 @@ class _WelcomePageState extends State<WelcomePage> {
                         style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      const CircularProgressIndicator(), // مؤشر انتظار
+                      const CircularProgressIndicator(),
                     ],
                   ),
                   actions: [
@@ -1208,7 +1247,7 @@ class _WelcomePageState extends State<WelcomePage> {
         children: [
           SpeedDialChild(
             child: const Icon(Icons.code),
-            label: '<مبرمج المنصة> مصطفي سعيد ',
+            label: 'Website Developer: Mostafa Saeed',
             backgroundColor: Colors.deepPurple,
             foregroundColor: Colors.white,
             onTap: () => _launchUrlHelper('https://wa.me/966569064173'),
@@ -1348,18 +1387,13 @@ class _WelcomePageState extends State<WelcomePage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            SizedBox(
-              height: logoSize,
-              width: logoSize,
-              child: Lottie.network(
-                '1.json',
-                fit: BoxFit.contain,
+            Image.asset(
+                'assets/m1.png',
+                height: logoSize,
+                width: logoSize,
                 errorBuilder: (context, error, stackTrace) {
-                  return Image.asset('assets/m1.png', height: logoSize, width: logoSize, errorBuilder: (context, error, stackTrace) {
-                    return Icon(Icons.school, size: logoSize, color: Theme.of(context).primaryColor.withOpacity(0.5));
-                  });
-                },
-              ),
+                  return Icon(Icons.school, size: logoSize, color: Theme.of(context).primaryColor.withOpacity(0.5));
+                }
             ),
 
             const SizedBox(height: 16),
@@ -1393,7 +1427,25 @@ class _WelcomePageState extends State<WelcomePage> {
             ),
             const SizedBox(height: 12),
 
-            // ✅ زر تسجيل الدخول السريع (للسبورة الذكية)
+            // ✅ استدعاء الزر بدون وضع مؤشر التحميل قبله لحل مشكلة المتصفح
+            SizedBox(
+              width: double.infinity,
+              height: 45,
+              child: OutlinedButton.icon(
+                onPressed: _signInWithGoogle,
+                icon: SvgPicture.asset('assets/g1.svg', height: 24),
+                label: const Text(
+                  'سجل الدخول بجوجل',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  side: BorderSide(color: Colors.grey.shade400),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -1516,18 +1568,13 @@ class _WelcomePageState extends State<WelcomePage> {
               'وكيل الشئون التعليمية: أ/عماد الجندي (966502361091+)',
               'وكيل المدرسة: ا عصام المطرفي (966501468550+)',
               'موجه الطلاب 4-6: أ موجة طلابي س (966**********+)',
-              'موجه الطلاب 1-3: أ يحيي (9665'
-                  ''
-                  ''
-                  '0'
-                  ''
-                  '02649649+)',
+              'موجه الطلاب 1-3: أ يحيي (966502649649+)',
             ],
           ),
           _buildFooterColumn(
             'الدعم الفني والتسجيل',
             [
-              '<مبرمج المنصة/> مصطفي سعيد (966569064173+)',
+              'مطور الموقع / مصطفي سعيد (966569064173+)',
             ],
           ),
         ],
@@ -1563,7 +1610,6 @@ class _WelcomePageState extends State<WelcomePage> {
   }
 }
 
-
 class LoginPage extends StatefulWidget {
   final String accountType;
   const LoginPage({super.key, required this.accountType});
@@ -1595,8 +1641,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       if (mounted) {
-        Navigator.of(context)
-            .pushNamedAndRemoveUntil('/', (route) => false);
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
       }
 
     } on FirebaseAuthException catch (e) {
@@ -1719,6 +1764,653 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class GoogleAccountLinker extends StatefulWidget {
+  const GoogleAccountLinker({super.key});
+
+  @override
+  State<GoogleAccountLinker> createState() => _GoogleAccountLinkerState();
+}
+
+class _GoogleAccountLinkerState extends State<GoogleAccountLinker> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool _isLinked = false;
+  bool _isLoading = false;
+  String? _linkedEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkIfLinked();
+  }
+
+  void _checkIfLinked() {
+    final user = _auth.currentUser;
+    if (user != null) {
+      for (var userInfo in user.providerData) {
+        if (userInfo.providerId == 'google.com') {
+          setState(() {
+            _isLinked = true;
+            _linkedEmail = userInfo.email;
+          });
+          return;
+        }
+      }
+    }
+    setState(() {
+      _isLinked = false;
+      _linkedEmail = null;
+    });
+  }
+
+  // ✅ استخدام ربط سريع بدون تأخير للمتصفح
+  void _linkGoogleAccount() {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    GoogleAuthProvider googleProvider = GoogleAuthProvider();
+    googleProvider.addScope('email');
+    googleProvider.setCustomParameters({
+      'prompt': 'select_account',
+    });
+
+    if (kIsWeb) {
+      user.linkWithPopup(googleProvider).then((_) {
+        _checkIfLinked();
+      }).catchError((e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('تم إلغاء العملية أو الحظر من المتصفح'), backgroundColor: Colors.red),
+          );
+        }
+      });
+    } else {
+      user.linkWithProvider(googleProvider).then((_) => _checkIfLinked());
+    }
+  }
+
+  Future<void> _unlinkGoogleAccount() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        await user.unlink('google.com');
+        _checkIfLinked();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم إلغاء ربط حساب Google بنجاح.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('فشل إلغاء الربط. تأكد من وجود طريقة دخول أخرى.'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.security, color: Colors.blueGrey),
+                SizedBox(width: 10),
+                Text(
+                  'إعدادات الدخول السريع',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const Divider(height: 30),
+            if (_isLinked) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    SvgPicture.asset('assets/g1.svg', height: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('حسابك مرتبط بـ Google بنجاح', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                          if (_linkedEmail != null)
+                            Text(_linkedEmail!, style: TextStyle(color: Colors.green.shade800, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                    _isLoading
+                        ? const CircularProgressIndicator()
+                        : TextButton(
+                      onPressed: _unlinkGoogleAccount,
+                      child: const Text('إلغاء الربط', style: TextStyle(color: Colors.red)),
+                    )
+                  ],
+                ),
+              ),
+            ] else ...[
+              const Text(
+                'اربط حسابك الآن بـ Google لتتمكن من تسجيل الدخول بضغطة زر واحدة في المرات القادمة بدون الحاجة لكتابة كلمة المرور.',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 45,
+                child: OutlinedButton.icon(
+                  onPressed: _linkGoogleAccount, // تم إزالة التحقق من _isLoading لمنع حظر النافذة
+                  icon: SvgPicture.asset('assets/g1.svg', height: 24),
+                  label: const Text(
+                    'ربط الحساب بـ Google',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: Theme.of(context).primaryColor),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PendingApprovalScreen extends StatelessWidget {
+  const PendingApprovalScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('حالة الحساب')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.hourglass_empty, size: 80, color: Colors.orange),
+              const SizedBox(height: 24),
+              Text(
+                'حسابك قيد المراجعة',
+                style: Theme.of(context).textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'تم إرسال بياناتك للإدارة بنجاح. يرجى الانتظار حتى يتم قبول طلبك لتتمكن من الدخول للبوابة.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await FirebaseAuth.instance.signOut();
+                },
+                icon: const Icon(Icons.logout),
+                label: const Text('تسجيل الخروج والعودة للرئيسية'),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RegistrationFlow extends StatefulWidget {
+  const RegistrationFlow({super.key});
+
+  @override
+  State<RegistrationFlow> createState() => _RegistrationFlowState();
+}
+
+class _RegistrationFlowState extends State<RegistrationFlow> {
+  String? selectedRole;
+
+  @override
+  Widget build(BuildContext context) {
+    if (selectedRole == 'teacher') {
+      return const TeacherRegistrationForm();
+    } else if (selectedRole == 'student') {
+      return const StudentRegistrationForm();
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('استكمال التسجيل'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () => FirebaseAuth.instance.signOut(),
+            tooltip: 'إلغاء وتسجيل خروج',
+          )
+        ],
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'أهلاً بك! يبدو أنك تسجل دخولك لأول مرة.',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'يرجى تحديد صفتك في المدرسة لاستكمال بياناتك:',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 40),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildRoleCard(
+                    context,
+                    title: 'معلم',
+                    icon: Icons.person,
+                    color: Colors.blue,
+                    onTap: () => setState(() => selectedRole = 'teacher'),
+                  ),
+                  const SizedBox(width: 20),
+                  _buildRoleCard(
+                    context,
+                    title: 'طالب',
+                    icon: Icons.child_care,
+                    color: Colors.orange,
+                    onTap: () => setState(() => selectedRole = 'student'),
+                  ),
+                ],
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleCard(BuildContext context, {required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          width: 140,
+          padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 16),
+          child: Column(
+            children: [
+              Icon(icon, size: 50, color: color),
+              const SizedBox(height: 16),
+              Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class TeacherRegistrationForm extends StatefulWidget {
+  const TeacherRegistrationForm({super.key});
+
+  @override
+  State<TeacherRegistrationForm> createState() => _TeacherRegistrationFormState();
+}
+
+class _TeacherRegistrationFormState extends State<TeacherRegistrationForm> {
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+
+  final _firstNameCtrl = TextEditingController();
+  final _secondNameCtrl = TextEditingController();
+  final _lastNameCtrl = TextEditingController();
+  final _idNumberCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _jobTitleCtrl = TextEditingController();
+
+  String? _selectedStage;
+  List<String> _selectedClasses = [];
+
+  final List<String> stages = ['الصفوف الأولية', 'الصفوف العليا'];
+  final List<String> availableClasses = ['1/أ', '1/ب', '2/أ', '2/ب', '3/أ', '3/ب', '4/أ', '5/أ', '6/أ'];
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedStage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار المرحلة')));
+      return;
+    }
+    if (_selectedClasses.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار فصل واحد على الأقل')));
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('عذراً، فقدت جلسة الاتصال. يرجى تسجيل الدخول مجدداً')));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseFirestore.instance.collection('pending_teachers').doc(user.uid).set({
+        'uid': user.uid,
+        'email': user.email,
+        'firstName': _firstNameCtrl.text.trim(),
+        'secondName': _secondNameCtrl.text.trim(),
+        'lastName': _lastNameCtrl.text.trim(),
+        'fullName': '${_firstNameCtrl.text.trim()} ${_secondNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}',
+        'idNumber': _idNumberCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
+        'jobTitle': _jobTitleCtrl.text.trim(),
+        'stage': _selectedStage,
+        'classes': _selectedClasses,
+        'requestDate': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e')));
+    } finally {
+      if(mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('بيانات المعلم الجديد'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pushReplacementNamed('/registration'),
+        ),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      const Text('يرجى تعبئة جميع البيانات بدقة ليتم مراجعتها من قبل الإدارة', style: TextStyle(color: Colors.grey)),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(child: _buildTextField(_firstNameCtrl, 'الاسم الأول')),
+                          const SizedBox(width: 10),
+                          Expanded(child: _buildTextField(_secondNameCtrl, 'الاسم الثاني')),
+                          const SizedBox(width: 10),
+                          Expanded(child: _buildTextField(_lastNameCtrl, 'الاسم الأخير')),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(_idNumberCtrl, 'رقم الهوية', isNumber: true),
+                      const SizedBox(height: 16),
+                      _buildTextField(_phoneCtrl, 'رقم الهاتف', isNumber: true),
+                      const SizedBox(height: 16),
+                      _buildTextField(_jobTitleCtrl, 'الوظيفة (مثال: معلم رياضيات)'),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'المرحلة الدراسية'),
+                        value: _selectedStage,
+                        items: stages.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                        onChanged: (v) => setState(() => _selectedStage = v),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(border: Border.all(color: Colors.grey), borderRadius: BorderRadius.circular(12)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('الفصول التي تدرسها:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            Wrap(
+                              spacing: 8,
+                              children: availableClasses.map((c) {
+                                final isSelected = _selectedClasses.contains(c);
+                                return FilterChip(
+                                  label: Text(c),
+                                  selected: isSelected,
+                                  onSelected: (bool selected) {
+                                    setState(() {
+                                      if (selected) {
+                                        _selectedClasses.add(c);
+                                      } else {
+                                        _selectedClasses.remove(c);
+                                      }
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : ElevatedButton(
+                          onPressed: _submit,
+                          child: const Text('إرسال الطلب للإدارة'),
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController ctrl, String label, {bool isNumber = false}) {
+    return TextFormField(
+      controller: ctrl,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      decoration: InputDecoration(labelText: label),
+      validator: (v) => (v == null || v.isEmpty) ? 'مطلوب' : null,
+    );
+  }
+}
+
+class StudentRegistrationForm extends StatefulWidget {
+  const StudentRegistrationForm({super.key});
+
+  @override
+  State<StudentRegistrationForm> createState() => _StudentRegistrationFormState();
+}
+
+class _StudentRegistrationFormState extends State<StudentRegistrationForm> {
+  final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
+
+  final _firstNameCtrl = TextEditingController();
+  final _secondNameCtrl = TextEditingController();
+  final _thirdNameCtrl = TextEditingController();
+  final _lastNameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _idNumberCtrl = TextEditingController();
+
+  String? _selectedGrade;
+  String? _selectedClass;
+
+  final List<String> grades = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس', 'السادس'];
+  final List<String> classes = ['أ', 'ب', 'ج'];
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedGrade == null || _selectedClass == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار الصف والفصل')));
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('عذراً، فقدت جلسة الاتصال. يرجى تسجيل الدخول مجدداً')));
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseFirestore.instance.collection('pending_students').doc(user.uid).set({
+        'uid': user.uid,
+        'email': user.email,
+        'firstName': _firstNameCtrl.text.trim(),
+        'secondName': _secondNameCtrl.text.trim(),
+        'thirdName': _thirdNameCtrl.text.trim(),
+        'lastName': _lastNameCtrl.text.trim(),
+        'fullName': '${_firstNameCtrl.text.trim()} ${_secondNameCtrl.text.trim()} ${_thirdNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}',
+        'idNumber': _idNumberCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
+        'grade': _selectedGrade,
+        'classRoom': _selectedClass,
+        'requestDate': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e')));
+    } finally {
+      if(mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('بيانات الطالب الجديد'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pushReplacementNamed('/registration'),
+        ),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      const Text('يرجى تعبئة جميع البيانات بدقة ليتم مراجعتها من قبل الإدارة', style: TextStyle(color: Colors.grey)),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(child: _buildTextField(_firstNameCtrl, 'الاسم الأول')),
+                          const SizedBox(width: 10),
+                          Expanded(child: _buildTextField(_secondNameCtrl, 'الاسم الثاني')),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(child: _buildTextField(_thirdNameCtrl, 'الاسم الثالث')),
+                          const SizedBox(width: 10),
+                          Expanded(child: _buildTextField(_lastNameCtrl, 'الاسم الأخير')),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(_idNumberCtrl, 'رقم الهوية', isNumber: true),
+                      const SizedBox(height: 16),
+                      _buildTextField(_phoneCtrl, 'رقم هاتف ولي الأمر', isNumber: true),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              decoration: const InputDecoration(labelText: 'الصف الدراسي'),
+                              value: _selectedGrade,
+                              items: grades.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                              onChanged: (v) => setState(() => _selectedGrade = v),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              decoration: const InputDecoration(labelText: 'الفصل'),
+                              value: _selectedClass,
+                              items: classes.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                              onChanged: (v) => setState(() => _selectedClass = v),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: _isLoading
+                            ? const Center(child: CircularProgressIndicator())
+                            : ElevatedButton(
+                          onPressed: _submit,
+                          child: const Text('إرسال الطلب للإدارة'),
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController ctrl, String label, {bool isNumber = false}) {
+    return TextFormField(
+      controller: ctrl,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      decoration: InputDecoration(labelText: label),
+      validator: (v) => (v == null || v.isEmpty) ? 'مطلوب' : null,
     );
   }
 }

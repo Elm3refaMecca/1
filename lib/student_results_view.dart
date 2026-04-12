@@ -211,7 +211,7 @@ class AdviceEngine {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Main View
+// 3. Main View (محدث ليعمل بنظام الاستجابة اللحظية والتزامن)
 // ---------------------------------------------------------------------------
 
 class StudentResultsView extends StatefulWidget {
@@ -235,20 +235,15 @@ class StudentResultsView extends StatefulWidget {
 }
 
 class _StudentResultsViewState extends State<StudentResultsView> {
-  late Map<String, List<_AnalysisResult>> _cachedSubjectAnalyses;
-  late List<_OverallSubjectMetric> _cachedOverallMetrics;
   final Map<String, TeacherContactInfo> _subjectTeachers = {};
-  bool _isAnalyzing = true;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchTeachersAndAnalyze();
-    });
+    _fetchTeachers();
   }
 
-  Future<void> _fetchTeachersAndAnalyze() async {
+  Future<void> _fetchTeachers() async {
     try {
       final String studentStage = widget.studentData['stages'] ?? '';
       final String studentGrade = widget.studentData['grades'] ?? '';
@@ -324,37 +319,35 @@ class _StudentResultsViewState extends State<StudentResultsView> {
           }
         }
       }
-
+      if (mounted) setState(() {});
     } catch (e) {
       debugPrint("Error fetching teachers: $e");
     }
-
-    final analyses = _buildSubjectAnalyses();
-    final metrics = _calculateOverallMetrics(analyses);
-
-    if (mounted) {
-      setState(() {
-        _cachedSubjectAnalyses = analyses;
-        _cachedOverallMetrics = metrics;
-        _isAnalyzing = false;
-      });
-    }
   }
 
-  Map<String, List<_AnalysisResult>> _buildSubjectAnalyses() {
+  int _getTermFromKey(String key) {
+    if (key.startsWith('t2_')) return 2;
+    if (key.startsWith('e4') || key.startsWith('e5') || key.startsWith('e6')) return 2;
+    if (key.startsWith('e17') || key.startsWith('e18') || key.startsWith('e19')) return 2;
+    return 1;
+  }
+
+  Map<String, List<_AnalysisResult>> _buildSubjectAnalyses(int targetTerm) {
     final Map<String, Map<String, Map<String, dynamic>>> subjectGroupedData = {};
     String studentGrade = widget.studentData['grades'] ?? 'عام';
 
     widget.studentData.forEach((key, value) {
       if (value is num && widget.allTestsMap.containsKey(key)) {
-        final testInfo = widget.allTestsMap[key]!;
-        subjectGroupedData.putIfAbsent(testInfo.subject, () => {});
-        subjectGroupedData[testInfo.subject]!.putIfAbsent(testInfo.testGroup, () => {'grades': <String, num>{}, 'evaluations': <String, dynamic>{}});
-        (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['grades'] as Map<String, num>)[testInfo.key] = value;
+        if (_getTermFromKey(key) == targetTerm) {
+          final testInfo = widget.allTestsMap[key]!;
+          subjectGroupedData.putIfAbsent(testInfo.subject, () => {});
+          subjectGroupedData[testInfo.subject]!.putIfAbsent(testInfo.testGroup, () => {'grades': <String, num>{}, 'evaluations': <String, dynamic>{}});
+          (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['grades'] as Map<String, num>)[testInfo.key] = value;
 
-        final evalKey = 'eval_${testInfo.key}';
-        if (widget.studentData.containsKey(evalKey) && widget.studentData[evalKey] != null) {
-          (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['evaluations'] as Map<String, dynamic>)[testInfo.key] = widget.studentData[evalKey];
+          final evalKey = 'eval_${testInfo.key}';
+          if (widget.studentData.containsKey(evalKey) && widget.studentData[evalKey] != null) {
+            (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['evaluations'] as Map<String, dynamic>)[testInfo.key] = widget.studentData[evalKey];
+          }
         }
       }
     });
@@ -452,7 +445,7 @@ class _StudentResultsViewState extends State<StudentResultsView> {
       detailedResults.add(TestResultDetail(
         testName: testInfo?.name ?? entry.key,
         grade: entry.value,
-        maxGrade: (testInfo?.key.contains('profession13') == true) ? 10.0 : 20.0,
+        maxGrade: (testInfo?.key.contains('profession13') == true || testInfo?.key.contains('nafes') == true) ? 10.0 : 20.0,
         specificNotes: specificNotes,
       ));
     }
@@ -551,21 +544,86 @@ class _StudentResultsViewState extends State<StudentResultsView> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isAnalyzing) return const Center(child: CircularProgressIndicator());
-    if (_cachedSubjectAnalyses.isEmpty) {
-      return Center(child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.school_outlined, size: 80, color: Colors.grey),
-          const SizedBox(height: 16),
-          const Text("لا توجد نتائج تحليلية لعرضها حالياً.", style: TextStyle(color: Colors.grey, fontSize: 16)),
-        ],
-      ));
+    // ✅ الحساب اللحظي المباشر لتحليل الدرجات
+    final analysesTerm1 = _buildSubjectAnalyses(1);
+    final metricsTerm1 = _calculateOverallMetrics(analysesTerm1);
+
+    final analysesTerm2 = _buildSubjectAnalyses(2);
+    final metricsTerm2 = _calculateOverallMetrics(analysesTerm2);
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('settings').doc('terms_locks').snapshots(),
+      builder: (context, snapshot) {
+        bool term1Locked = false;
+        bool term2Locked = false;
+
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>?;
+          term1Locked = data?['term1_locked'] ?? false;
+          term2Locked = data?['term2_locked'] ?? false;
+        }
+
+        // ✅ الذكاء الافتراضي للترم: إذا تم إغلاق الأول، يفتح فوراً على الثاني
+        int initialIndex = (term1Locked && !term2Locked) ? 1 : 0;
+        if (term1Locked && term2Locked) initialIndex = 1;
+
+        return DefaultTabController(
+          key: ValueKey('results_tabs_$initialIndex'), // مفتاح التغيير الفوري
+          length: 2,
+          initialIndex: initialIndex,
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: TabBar(
+                  indicator: BoxDecoration(
+                    color: Colors.blue.shade700,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.black87,
+                  labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  tabs: const [
+                    Tab(text: "الترم الأول"),
+                    Tab(text: "الترم الثاني"),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _buildTermView(1, analysesTerm1, metricsTerm1),
+                    _buildTermView(2, analysesTerm2, metricsTerm2),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTermView(int term, Map<String, List<_AnalysisResult>> analyses, List<_OverallSubjectMetric> metrics) {
+    if (analyses.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.school_outlined, size: 80, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text("لا توجد نتائج تحليلية لعرضها حالياً للترم ${term == 1 ? 'الأول' : 'الثاني'}.", style: const TextStyle(color: Colors.grey, fontSize: 16)),
+          ],
+        ),
+      );
     }
 
-    // ✅✅✅ الإصلاح الأساسي: إضافة SingleChildScrollView هنا ليتحكم هو بالتمرير ويحفظ حالته ✅✅✅
     return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(), // يسمح بالتمرير دائماً للعمل مع RefreshIndicator
+      physics: const AlwaysScrollableScrollPhysics(),
       child: RepaintBoundary(
         key: widget.printKey,
         child: Padding(
@@ -574,18 +632,18 @@ class _StudentResultsViewState extends State<StudentResultsView> {
             children: [
               _buildWelcomeMessage(widget.studentData['name'] ?? 'ولي الأمر'),
               const SizedBox(height: 16),
-              _OverallSummaryCard(metrics: _cachedOverallMetrics),
+              _OverallSummaryCard(metrics: metrics),
               const SizedBox(height: 20),
-              ..._cachedSubjectAnalyses.entries.map((entry) {
+              ...analyses.entries.map((entry) {
                 final subjectName = entry.key;
-                final analyses = entry.value;
+                final subjectAnalyses = entry.value;
                 final subjectIcon = widget.subjects.firstWhere((s) => s.name == subjectName, orElse: () => Subject(name: '', icon: Icons.book)).icon;
                 final subjectColor = widget.subjectColors[subjectName] ?? Colors.blue;
 
                 final TeacherContactInfo? teacherInfo = _subjectTeachers[subjectName];
 
                 return Column(
-                  children: analyses.map((analysis) => _DetailedSubjectCard(
+                  children: subjectAnalyses.map((analysis) => _DetailedSubjectCard(
                     analysis: analysis,
                     icon: subjectIcon,
                     color: subjectColor,

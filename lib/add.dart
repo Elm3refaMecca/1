@@ -3,14 +3,12 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:almarefamecca/add1.dart';
-import 'package:almarefamecca/card.dart';
 import 'package:almarefamecca/secondary_pages.dart';
 import 'package:almarefamecca/student_view.dart';
 import 'package:almarefamecca/teacher_excellence.dart';
 
 import 'package:badges/badges.dart' as badges;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:excel/excel.dart' hide Border;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -22,7 +20,11 @@ import 'package:percent_indicator/percent_indicator.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class QRSessionTimer {
   static Timer? _timer;
@@ -92,7 +94,7 @@ class QRSessionOverlay extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.timer_outlined, color: Colors.white, size: 20),
+                  const Icon(Icons.timer_rounded, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
                   Text(
                     'جلسة سبورة مؤقتة: ${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
@@ -120,7 +122,7 @@ class QRSessionOverlay extends StatelessWidget {
                       ),
                       child: const Row(
                         children: [
-                          Icon(Icons.logout, size: 14, color: Colors.red),
+                          Icon(Icons.logout_rounded, size: 14, color: Colors.red),
                           SizedBox(width: 4),
                           Text('خروج الآن', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
                         ],
@@ -220,7 +222,7 @@ class _BehaviorSelectionSheetState extends State<_BehaviorSelectionSheet> with S
         'title': type == 'like' ? '🌟 نقاط تميز' : '⚠️ تنبيه سلوكي',
         'message': type == 'like'
             ? 'حصل الطالب ${widget.studentName} على إشارة حسنة من أ. $teacherName.\nالسبب: $reason'
-            : 'تم تسجيل ملاحظة سلوكية على الطالب ${widget.studentName} من أ. $teacherName.\nالسبب: $reason',
+            : 'تم تسجيل ملاحظة سلوكية على الطالب ${widget.studentName} من أ. $teacherName.\nالسبب المباشر: $reason',
         'type': 'behavior',
         'timestamp': FieldValue.serverTimestamp(),
         'isRead': false,
@@ -260,8 +262,8 @@ class _BehaviorSelectionSheetState extends State<_BehaviorSelectionSheet> with S
               labelColor: Colors.black,
               indicatorColor: Colors.blue,
               tabs: const [
-                Tab(text: 'إيجابي (Like)', icon: Icon(Icons.thumb_up, color: Colors.green)),
-                Tab(text: 'سلبي (Dislike)', icon: Icon(Icons.thumb_down, color: Colors.red)),
+                Tab(text: 'إيجابي (Like)', icon: Icon(Icons.thumb_up_alt_rounded, color: Colors.green)),
+                Tab(text: 'سلبي (Dislike)', icon: Icon(Icons.thumb_down_alt_rounded, color: Colors.red)),
               ],
             ),
             const SizedBox(height: 10),
@@ -349,7 +351,6 @@ class AddPage extends StatefulWidget {
 class _AddPageState extends State<AddPage> {
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
-  bool _isExporting = false;
   bool _isAdmin = false;
   User? _user;
 
@@ -439,13 +440,6 @@ class _AddPageState extends State<AddPage> {
         content: Text('هذه الميزة غير متاحة لحساب الضيف.'),
         backgroundColor: Colors.orange,
       ),
-    );
-  }
-
-  Future<void> _handleSmartBoardLogin() async {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const SmartBoardQRScanner()),
     );
   }
 
@@ -564,124 +558,6 @@ class _AddPageState extends State<AddPage> {
     );
   }
 
-  Future<void> _showBroadcastNotificationDialog() async {
-    final _formKey = GlobalKey<FormState>();
-    final _titleController = TextEditingController();
-    final _bodyController = TextEditingController();
-    bool _isSending = false;
-
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Row(
-                children: [
-                  Icon(Icons.campaign, color: Colors.amber),
-                  SizedBox(width: 10),
-                  Text('إرسال إشعار عام'),
-                ],
-              ),
-              content: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      controller: _titleController,
-                      readOnly: _isSending,
-                      decoration: const InputDecoration(
-                        labelText: 'عنوان الإشعار',
-                        hintText: 'مثال: "تذكير هام"',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'الرجاء إدخال عنوان';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _bodyController,
-                      readOnly: _isSending,
-                      decoration: const InputDecoration(
-                        labelText: 'نص الرسالة',
-                        hintText: 'اكتب محتوى الرسالة هنا...',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 3,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'الرجاء إدخال نص الرسالة';
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: _isSending ? null : () {
-                    Navigator.of(dialogContext).pop();
-                  },
-                  child: const Text('إلغاء'),
-                ),
-                ElevatedButton.icon(
-                  icon: _isSending
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.send),
-                  label: Text(_isSending ? 'جاري الإرسال...' : 'إرسال الآن'),
-                  onPressed: _isSending ? null : () async {
-                    if (_formKey.currentState!.validate()) {
-                      setDialogState(() {
-                        _isSending = true;
-                      });
-
-                      try {
-                        await FirebaseFirestore.instance.collection('broadcast_notifications').add({
-                          'title': _titleController.text.trim(),
-                          'body': _bodyController.text.trim(),
-                          'senderId': _user?.uid ?? 'admin',
-                          'senderName': _userData?['name'] ?? 'Admin',
-                          'timestamp': FieldValue.serverTimestamp(),
-                        });
-
-                        Navigator.of(dialogContext).pop();
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('تم إرسال طلب الإشعار بنجاح!'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-
-                      } catch (e) {
-                        setDialogState(() {
-                          _isSending = false;
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('فشل إرسال الإشعار: $e'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
   Future<void> _launchEduFormsUrl() async {
     final Uri url = Uri.parse('https://edu-forms.com/');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
@@ -753,7 +629,7 @@ class _AddPageState extends State<AddPage> {
                             : '..';
 
                         return ListTile(
-                          leading: const Icon(Icons.check_circle, color: Colors.green),
+                          leading: const Icon(Icons.check_circle_outline_rounded, color: Colors.green),
                           title: Text(data['message'] ?? '...'),
                           subtitle: Text(formattedDate),
                         );
@@ -776,191 +652,7 @@ class _AddPageState extends State<AddPage> {
         batch.update(doc.reference, {'isRead': true});
       }
     }
-    batch.commit().catchError((e) {
-    });
-  }
-
-  Future<void> _exportFullSchoolDataToExcel() async {
-    setState(() => _isExporting = true);
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    try {
-      final studentsSnapshot = await FirebaseFirestore.instance.collection('students').get();
-      final students = studentsSnapshot.docs;
-
-      final Map<String, String> testToSubjectMap = {};
-      final Map<String, String> subjects = {
-        'profession1': 'رياضيات',
-        'profession2': 'لغتي',
-        'profession3': 'إسلاميات',
-        'profession4': 'علوم',
-        'profession5': 'نشاط',
-        'profession6': 'انجليزي',
-        'profession7': 'اجتماعيات',
-        'profession8': 'فنية',
-        'profession9': 'حياتية',
-        'profession10': 'بدنية',
-        'profession11': 'رقمية',
-        'profession12': 'تفكير',
-      };
-      subjects.forEach((profKey, subjName) {
-        for (int i = 1; i <= 16; i++) {
-          testToSubjectMap['e$i$profKey'] = subjName;
-        }
-      });
-      for (int i = 1; i <= 12; i++) {
-        testToSubjectMap['e${i}profession13'] = 'نافس';
-      }
-
-      final allSubjects = testToSubjectMap.values.toSet().toList()..sort();
-
-      final excel = Excel.createExcel();
-      final sheet = excel['بيانات المدرسة كاملة'];
-      sheet.isRTL = true;
-      excel.delete('Sheet1');
-
-      final headers = ['المرحلة', 'الصف', 'الفصل', 'اسم الطالب', ...allSubjects];
-
-      final headerStyle = CellStyle(
-          bold: true,
-          backgroundColorHex: ExcelColor.fromHexString("#FF1976D2"),
-          fontColorHex: ExcelColor.white,
-          horizontalAlign: HorizontalAlign.Center,
-          verticalAlign: VerticalAlign.Center);
-      final separatorStyle = CellStyle(
-          bold: true,
-          backgroundColorHex: ExcelColor.fromHexString("#FFFFEB3B"),
-          horizontalAlign: HorizontalAlign.Center);
-
-      final Map<String, Map<String, Map<String, List<DocumentSnapshot>>>> schoolStructure = {};
-      for (var studentDoc in students) {
-        final data = studentDoc.data() as Map<String, dynamic>?;
-        if (data == null) continue;
-
-        final stage = data['stages'] as String? ?? 'N/A';
-        final grade = data['grades'] as String? ?? 'N/A';
-        final className = data['classes'] as String? ?? 'N/A';
-        schoolStructure
-            .putIfAbsent(stage, () => {})
-            .putIfAbsent(grade, () => {})
-            .putIfAbsent(className, () => [])
-            .add(studentDoc);
-      }
-
-      final gradeOrder = [
-        'الصف السادس',
-        'الصف الخامس',
-        'الصف الرابع',
-        'الصف الثالث',
-        'الصف الثاني',
-        'الصف الأول',
-        'الصف الثالث المتوسط',
-        'الصف الثاني المتوسط',
-        'الصف الأول المتوسط',
-        'الصف الثالث الثانوي',
-        'الصف الثاني الثانوي',
-        'الصف الأول الثانوي'
-      ];
-
-      int processedCount = 0;
-
-      for(var stageEntry in schoolStructure.entries) {
-        final stage = stageEntry.key;
-        final grades = stageEntry.value;
-
-        for (final gradeName in gradeOrder) {
-          if (grades.containsKey(gradeName)) {
-            final classes = grades[gradeName];
-            if (classes == null) continue;
-
-            for(var classEntry in classes.entries) {
-              final className = classEntry.key;
-              final studentList = classEntry.value;
-
-              sheet.appendRow([]);
-              final separatorRowIndex = sheet.maxRows;
-              final classKey = '$stage - $gradeName - $className';
-              sheet.merge(
-                  CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: separatorRowIndex),
-                  CellIndex.indexByColumnRow(columnIndex: headers.length - 1, rowIndex: separatorRowIndex));
-              var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: separatorRowIndex));
-              cell.value = TextCellValue("كشف درجات: $classKey");
-              cell.cellStyle = separatorStyle;
-
-              sheet.appendRow(headers.map((h) => TextCellValue(h)).toList());
-              final headerRowIndex = sheet.maxRows - 1;
-              for (int i = 0; i < headers.length; i++) {
-                sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: headerRowIndex)).cellStyle = headerStyle;
-              }
-
-              studentList.sort((a, b) {
-                final aData = a.data() as Map<String, dynamic>?;
-                final bData = b.data() as Map<String, dynamic>?;
-                return (aData?['name'] as String? ?? '').compareTo(bData?['name'] as String? ?? '');
-              });
-
-              for (var studentDoc in studentList) {
-                processedCount++;
-                if (processedCount % 20 == 0) {
-                  await Future.delayed(Duration.zero);
-                }
-
-                final data = studentDoc.data() as Map<String, dynamic>?;
-                if (data == null) continue;
-
-                final studentName = data['name'] as String? ?? 'N/A';
-
-                final subjectAverages = <String, double>{};
-                final subjectScores = <String, List<num>>{};
-
-                data.forEach((key, value) {
-                  if (value is num && testToSubjectMap.containsKey(key)) {
-                    final subject = testToSubjectMap[key];
-                    if (subject != null) {
-                      subjectScores.putIfAbsent(subject, () => []).add(value);
-                    }
-                  }
-                });
-
-                subjectScores.forEach((subject, scores) {
-                  if (scores.isNotEmpty) {
-                    subjectAverages[subject] = scores.reduce((a, b) => a + b) / scores.length;
-                  }
-                });
-
-                final List<CellValue> row = [
-                  TextCellValue(stage),
-                  TextCellValue(gradeName),
-                  TextCellValue(className),
-                  TextCellValue(studentName),
-                  ...allSubjects.map((subject) {
-                    final avg = subjectAverages[subject];
-                    return avg != null ? DoubleCellValue(double.parse(avg.toStringAsFixed(2))) : TextCellValue('');
-                  })
-                ];
-                sheet.appendRow(row);
-              }
-            }
-          }
-        }
-      }
-
-      _saveAndDownloadExcel(context, excel, 'بيانات_المدرسة_الكاملة.xlsx');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل تصدير البيانات: $e'), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isExporting = false);
-    }
-  }
-
-  void _showComingSoonSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('هذه الميزة ستكون متاحة قريباً!')),
-    );
+    batch.commit().catchError((e) {});
   }
 
   @override
@@ -988,8 +680,9 @@ class _AddPageState extends State<AddPage> {
           );
         },
         child: Scaffold(
+          backgroundColor: Colors.grey.shade50,
           appBar: AppBar(
-            backgroundColor: Colors.lightBlue.shade300,
+            backgroundColor: Colors.lightBlue.shade400,
             elevation: 0,
             leading: Tooltip(
               message: 'تحديث الصفحة للحصول على آخر التعديلات',
@@ -1009,7 +702,7 @@ class _AddPageState extends State<AddPage> {
             ),
             title: const Text(
                 'لوحة التحكم',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20, fontFamily: 'Cairo')
             ),
             centerTitle: true,
             actions: [
@@ -1029,7 +722,7 @@ class _AddPageState extends State<AddPage> {
                     badgeContent: Text('$count', style: const TextStyle(color: Colors.white, fontSize: 10)),
                     position: badges.BadgePosition.topEnd(top: 4, end: 4),
                     child: IconButton(
-                      icon: const Icon(Icons.notifications),
+                      icon: const Icon(Icons.notifications_rounded),
                       tooltip: 'الإشعارات',
                       onPressed: _showNotifications,
                     ),
@@ -1037,7 +730,7 @@ class _AddPageState extends State<AddPage> {
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.person_outline),
+                icon: const Icon(Icons.person_outline_rounded),
                 tooltip: 'الملف الشخصي',
                 onPressed: () {
                   if (isGuest) {
@@ -1048,7 +741,7 @@ class _AddPageState extends State<AddPage> {
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.logout),
+                icon: const Icon(Icons.logout_rounded),
                 tooltip: 'تسجيل الخروج',
                 onPressed: () async {
                   QRSessionTimer.stopSession();
@@ -1107,16 +800,6 @@ class _AddPageState extends State<AddPage> {
             backgroundColor: Colors.white,
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _isExporting
-                ? const Center(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text(
-                    "جاري تصدير ملف الإدارة، قد يستغرق الأمر بعض الوقت...",
-                    textAlign: TextAlign.center,
-                  )
-                ]))
                 : ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
@@ -1124,7 +807,6 @@ class _AddPageState extends State<AddPage> {
               ],
             ),
           ),
-
           floatingActionButton: null,
         ),
       ),
@@ -1164,27 +846,28 @@ class _AddPageState extends State<AddPage> {
               end: Alignment.topRight,
             ),
             borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(25),
-              bottomRight: Radius.circular(25),
+              bottomLeft: Radius.circular(30),
+              bottomRight: Radius.circular(30),
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.blue.shade900.withOpacity(0.2),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
+                color: Colors.blue.shade900.withOpacity(0.15),
+                blurRadius: 15,
+                spreadRadius: 2,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(2),
+                padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withOpacity(0.6), width: 2),
+                  color: Colors.white.withOpacity(0.2),
                 ),
                 child: CircleAvatar(
-                  radius: 22,
+                  radius: 24,
                   backgroundColor: Colors.white,
                   backgroundImage: (_userData != null &&
                       _userData!.containsKey('photo') &&
@@ -1196,11 +879,11 @@ class _AddPageState extends State<AddPage> {
                       !_userData!.containsKey('photo') ||
                       _userData!['photo'] == null ||
                       _userData!['photo'].toString().isEmpty)
-                      ? const Icon(Icons.person, color: Colors.blue, size: 26)
+                      ? const Icon(Icons.person_rounded, color: Colors.blue, size: 26)
                       : null,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1210,7 +893,7 @@ class _AddPageState extends State<AddPage> {
                       'مرحباً، ${_userData?['name'] ?? '...'}',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 14,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Cairo',
                         height: 1.2,
@@ -1218,19 +901,19 @@ class _AddPageState extends State<AddPage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         jobTitle,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -1238,14 +921,14 @@ class _AddPageState extends State<AddPage> {
                 ),
               ),
               Opacity(
-                opacity: 0.7,
-                child: Icon(Icons.school_outlined, color: Colors.white.withOpacity(0.2), size: 40),
+                opacity: 0.8,
+                child: Icon(Icons.person_outline_rounded, color: Colors.white.withOpacity(0.3), size: 45),
               ),
             ],
           ),
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 25),
 
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1253,9 +936,9 @@ class _AddPageState extends State<AddPage> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: MediaQuery.of(context).size.width > 600 ? 8 : 4,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.75,
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 22,
+            childAspectRatio: 0.78,
             children: [
               if (showAdminFeatures)
                 StreamBuilder<QuerySnapshot>(
@@ -1267,8 +950,8 @@ class _AddPageState extends State<AddPage> {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return _AnimatedGridButton(
                         title: 'متصل حالياً',
-                        icon: Icons.wifi,
-                        color: Colors.green.shade600,
+                        icon: Icons.wifi_tethering_rounded,
+                        color: const Color(0xFF00BFA5),
                         onTap: () {},
                         statCount: '...',
                       );
@@ -1276,8 +959,8 @@ class _AddPageState extends State<AddPage> {
                     final count = snapshot.hasData ? snapshot.data!.docs.length : 0;
                     return _AnimatedGridButton(
                       title: 'متصل حالياً',
-                      icon: Icons.wifi,
-                      color: Colors.green.shade600,
+                      icon: Icons.wifi_tethering_rounded,
+                      color: const Color(0xFF00BFA5),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -1297,7 +980,7 @@ class _AddPageState extends State<AddPage> {
                       return _AnimatedGridButton(
                         title: 'الغياب',
                         icon: Icons.people_alt_rounded,
-                        color: Colors.blue.shade700,
+                        color: const Color(0xFF546E7A),
                         onTap: () {},
                         statCount: '...',
                       );
@@ -1306,7 +989,7 @@ class _AddPageState extends State<AddPage> {
                     return _AnimatedGridButton(
                       title: 'الغياب',
                       icon: Icons.people_alt_rounded,
-                      color: Colors.blue.shade700,
+                      color: const Color(0xFF546E7A),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -1318,11 +1001,10 @@ class _AddPageState extends State<AddPage> {
                   },
                 ),
 
-              _buildDashboardButton(
+              _AnimatedGridButton(
                 title: 'رصد الدرجات',
-                icon: Icons.edit_note,
-                assetPath: 'assets/b1.png',
-                color: Colors.blue.shade700,
+                icon: Icons.edit_document,
+                color: const Color(0xFF2962FF),
                 onTap: () {
                   if (isGuest) {
                     _showGuestError();
@@ -1334,11 +1016,69 @@ class _AddPageState extends State<AddPage> {
                   }
                 },
               ),
-              _buildDashboardButton(
+
+              _AnimatedGridButton(
+                title: 'فصولي وطلباتي',
+                icon: Icons.class_rounded,
+                color: const Color(0xFF00897B),
+                onTap: () {
+                  if (isGuest) {
+                    _showGuestError();
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const TeacherClassesManagerPage()),
+                    );
+                  }
+                },
+              ),
+
+              if (_isAdmin)
+                StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('teacher_class_requests')
+                      .where('status', isEqualTo: 'pending')
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    int requestsCount = 0;
+                    if (snapshot.hasData) {
+                      requestsCount = snapshot.data!.docs.length;
+                    }
+                    return _AnimatedGridButton(
+                      title: 'طلبات الفصول',
+                      icon: Icons.assignment_ind_rounded,
+                      color: const Color(0xFF00ACC1),
+                      badgeCount: requestsCount,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AdminTeacherRequestsPage()),
+                        );
+                      },
+                    );
+                  },
+                ),
+
+              _AnimatedGridButton(
+                title: 'ربط حساب جوجل',
+                svgPath: 'assets/g1.svg',
+                color: const Color(0xFF651FFF),
+                onTap: () {
+                  if (isGuest) {
+                    _showGuestError();
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const GoogleAccountLinkerPage()),
+                    );
+                  }
+                },
+              ),
+
+              _AnimatedGridButton(
                 title: 'الطالب المنضبط',
-                icon: Icons.sentiment_very_satisfied,
-                assetPath: 'assets/b2.png',
-                color: Colors.teal.shade600,
+                icon: Icons.star_rounded,
+                color: const Color(0xFFFF9100),
                 onTap: () {
                   if (isGuest) {
                     _showGuestError();
@@ -1350,11 +1090,11 @@ class _AddPageState extends State<AddPage> {
                   }
                 },
               ),
-              _buildDashboardButton(
+
+              _AnimatedGridButton(
                 title: 'تعميم النماذج',
-                icon: Icons.assignment,
-                assetPath: 'assets/b3.png',
-                color: Colors.indigo.shade600,
+                icon: Icons.dynamic_form_rounded,
+                color: const Color(0xFF3D5AFE),
                 onTap: _launchEduFormsUrl,
               ),
 
@@ -1376,9 +1116,8 @@ class _AddPageState extends State<AddPage> {
 
                   return _AnimatedGridButton(
                     title: 'صندوق الشكاوى',
-                    icon: Icons.inbox,
-                    assetPath: 'assets/b4.png',
-                    color: Colors.orange.shade800,
+                    icon: Icons.mark_email_unread_rounded,
+                    color: const Color(0xFFFF3D00),
                     badgeCount: msgCount,
                     onTap: () {
                       if (isGuest) {
@@ -1391,61 +1130,37 @@ class _AddPageState extends State<AddPage> {
                 },
               ),
 
-              _buildDashboardButton(
+              _AnimatedGridButton(
                 title: 'تحليل المخالفات',
-                icon: Icons.flag,
-                assetPath: 'assets/b5.png',
-                color: Colors.red.shade700,
+                icon: Icons.analytics_rounded,
+                color: const Color(0xFFD50000),
                 onTap: () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const ViolationsLogPage()));
                 },
               ),
-              _buildDashboardButton(
-                title: 'دخول السبورة الذكية',
-                icon: Icons.cast_connected,
-                color: Colors.blueGrey.shade800,
-                onTap: _handleSmartBoardLogin,
-              ),
+
               if (showAdminFeatures)
-                _buildDashboardButton(
+                _AnimatedGridButton(
                   title: 'بحث نتائج طالب',
-                  icon: Icons.person_search,
-                  assetPath: 'assets/b6.png',
-                  color: Colors.green.shade700,
+                  icon: Icons.person_search_rounded,
+                  color: const Color(0xFF00C853),
                   onTap: () {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentSearchPage()));
                   },
                 ),
-              if (showAdminFeatures)
-                _buildDashboardButton(
-                  title: 'استخراج PDF',
-                  icon: Icons.picture_as_pdf,
-                  assetPath: 'assets/b7.png',
-                  color: Colors.red.shade600,
-                  onTap: _showComingSoonSnackBar,
-                ),
-              if (showAdminFeatures)
-                _buildDashboardButton(
-                  title: 'بيانات Excel',
-                  icon: Icons.corporate_fare,
-                  assetPath: 'assets/b8.png',
-                  color: Colors.blueGrey.shade700,
-                  onTap: _exportFullSchoolDataToExcel,
-                ),
+
               if (_isAdmin)
-                _buildDashboardButton(
+                _AnimatedGridButton(
                   title: 'رمز الضيف',
-                  icon: Icons.vpn_key,
-                  assetPath: 'assets/b9.png',
-                  color: Colors.purple.shade600,
+                  icon: Icons.vpn_key_rounded,
+                  color: const Color(0xFFAA00FF),
                   onTap: _showChangeGuestPinDialog,
                 ),
               if (showAdminFeatures)
-                _buildDashboardButton(
+                _AnimatedGridButton(
                   title: 'استكمال الرصد',
-                  icon: Icons.pie_chart,
-                  assetPath: 'assets/b10.png',
-                  color: Colors.cyan.shade600,
+                  icon: Icons.donut_large_rounded,
+                  color: const Color(0xFF00B8D4),
                   onTap: () {
                     Navigator.push(
                       context,
@@ -1453,43 +1168,21 @@ class _AddPageState extends State<AddPage> {
                     );
                   },
                 ),
+
               if (_isAdmin)
-                _buildDashboardButton(
-                  title: 'إشعار عام',
-                  icon: Icons.campaign,
-                  assetPath: 'assets/b11.png',
-                  color: Colors.amber.shade700,
-                  onTap: _showBroadcastNotificationDialog,
-                ),
-              if (_isAdmin)
-                _buildDashboardButton(
-                  title: 'إضافة فيزا الطلاب',
-                  icon: Icons.credit_card,
-                  assetPath: 'assets/a2.png',
-                  color: Colors.deepPurple.shade600,
+                _AnimatedGridButton(
+                  title: 'تحميل الشهادات',
+                  icon: Icons.picture_as_pdf_rounded,
+                  color: const Color(0xFFE65100),
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const VisaManagementPage()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const BulkCertificateDownloadPage()));
                   },
                 ),
-              if (_isAdmin)
-                _buildDashboardButton(
-                  title: 'جائزة التميز',
-                  icon: Icons.workspace_premium,
-                  color: const Color(0xFFD4AF37),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ExcellenceHubPage()),
-                    );
-                  },
-                ),
-              _buildDashboardButton(
-                title: 'ملف إنجاز المعلمين',
-                icon: Icons.folder_shared,
-                color: Colors.blue.shade800, // لون أزرق كما هو مطلوب
+
+              _AnimatedGridButton(
+                title: 'ملف الإنجاز',
+                icon: Icons.folder_shared_rounded,
+                color: const Color(0xFF37474F),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -1504,34 +1197,12 @@ class _AddPageState extends State<AddPage> {
       ],
     );
   }
-
-  Widget _buildDashboardButton({
-    required String title,
-    required IconData icon,
-    String? assetPath,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return _AnimatedGridButton(
-      title: title,
-      icon: icon,
-      assetPath: assetPath,
-      color: color,
-      onTap: onTap,
-    );
-  }
-
-  void showComingSoonSnackBar() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('هذه الميزة ستكون متاحة قريباً!')),
-    );
-  }
 }
 
 class _AnimatedGridButton extends StatefulWidget {
   final String title;
-  final IconData icon;
-  final String? assetPath;
+  final IconData? icon;
+  final String? svgPath;
   final Color color;
   final VoidCallback onTap;
   final String? statCount;
@@ -1539,8 +1210,8 @@ class _AnimatedGridButton extends StatefulWidget {
 
   const _AnimatedGridButton({
     required this.title,
-    required this.icon,
-    this.assetPath,
+    this.icon,
+    this.svgPath,
     required this.color,
     required this.onTap,
     this.statCount,
@@ -1560,10 +1231,10 @@ class _AnimatedGridButtonState extends State<_AnimatedGridButton> with SingleTic
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 100),
-      reverseDuration: const Duration(milliseconds: 100),
+      duration: const Duration(milliseconds: 120),
+      reverseDuration: const Duration(milliseconds: 120),
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.90).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }
@@ -1591,80 +1262,883 @@ class _AnimatedGridButtonState extends State<_AnimatedGridButton> with SingleTic
             child: child,
           );
         },
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Expanded(
-              child: badges.Badge(
-                showBadge: widget.badgeCount != null && widget.badgeCount! > 0,
-                badgeContent: Text('${widget.badgeCount}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                position: badges.BadgePosition.topEnd(top: -5, end: -5),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [widget.color.withOpacity(0.8), widget.color],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: widget.color.withOpacity(0.4),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1,
-                    ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final double boxSize = constraints.maxWidth;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                badges.Badge(
+                  showBadge: widget.badgeCount != null && widget.badgeCount! > 0,
+                  badgeContent: Text('${widget.badgeCount}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  position: badges.BadgePosition.topEnd(top: -4, end: -4),
+                  badgeAnimation: const badges.BadgeAnimation.scale(),
+                  badgeStyle: badges.BadgeStyle(
+                    badgeColor: Colors.red.shade600,
+                    elevation: 3,
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    width: boxSize,
+                    height: boxSize,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: widget.color.withOpacity(0.12),
+                          blurRadius: 15,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 8),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.02),
+                          blurRadius: 4,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                      border: Border.all(
+                        color: widget.color.withOpacity(0.08),
+                        width: 1.5,
+                      ),
+                    ),
                     child: widget.statCount != null
                         ? Center(
-                      child: Text(
-                        widget.statCount!,
-                        style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(blurRadius: 2, color: Colors.black26, offset: Offset(1, 1))
-                            ]
-                        ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          widget.svgPath != null
+                              ? SvgPicture.asset(widget.svgPath!, width: boxSize * 0.32, height: boxSize * 0.32)
+                              : Icon(widget.icon, size: boxSize * 0.32, color: widget.color.withOpacity(0.6)),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.statCount!,
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                color: widget.color,
+                                fontFamily: 'Cairo'
+                            ),
+                          ),
+                        ],
                       ),
                     )
-                        : (widget.assetPath != null
-                        ? Image.asset(
-                      widget.assetPath!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (c, e, s) => Center(
-                          child: Icon(widget.icon, size: 28, color: Colors.white)),
-                    )
                         : Center(
-                        child: Icon(widget.icon, size: 28, color: Colors.white))),
+                      child: Container(
+                        padding: EdgeInsets.all(widget.svgPath != null ? boxSize * 0.15 : boxSize * 0.20),
+                        decoration: BoxDecoration(
+                          color: widget.svgPath != null ? Colors.transparent : widget.color.withOpacity(0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: widget.svgPath != null
+                            ? SvgPicture.asset(widget.svgPath!, width: boxSize * 0.45, height: boxSize * 0.45)
+                            : Icon(widget.icon, size: boxSize * 0.40, color: widget.color),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              widget.title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 10,
-                color: Colors.black87,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+                const SizedBox(height: 10),
+                Text(
+                  widget.title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11.5,
+                    color: Colors.grey.shade800,
+                    height: 1.3,
+                    fontFamily: 'Cairo',
+                    letterSpacing: 0.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
+  }
+}
+
+class TeacherClassesManagerPage extends StatefulWidget {
+  const TeacherClassesManagerPage({super.key});
+
+  @override
+  _TeacherClassesManagerPageState createState() => _TeacherClassesManagerPageState();
+}
+
+class _TeacherClassesManagerPageState extends State<TeacherClassesManagerPage> {
+  bool _isLoading = true;
+  bool _isSubmitting = false;
+
+  List<Map<String, String>> _currentAssignments = [];
+  final List<Map<String, String>> _requestedAdditions = [];
+  final List<Map<String, String>> _requestedRemovals = [];
+
+  String? _selectedStage;
+  String? _selectedGrade;
+  String? _selectedClass;
+  String? _selectedSubject;
+
+  final List<String> _stages = ['المرحلة الابتدائية', 'المرحلة المتوسطة', 'المرحلة الثانوية'];
+
+  // ✅ القوائم الافتراضية الشاملة مع صيغة "الفصل 1"
+  List<String> _classesList = [
+    'الفصل 1', 'الفصل 2', 'الفصل 3', 'الفصل 4', 'الفصل 5', 'الفصل 6',
+    'الفصل 7', 'الفصل 8', 'الفصل 9', 'الفصل 10', 'أ', 'ب', 'ج', 'د', 'هـ'
+  ];
+  List<String> _subjectsList = [
+    'رياضيات', 'لغتي', 'علوم', 'انجليزي', 'إسلاميات', 'اجتماعيات', 'فنية', 'بدنية', 'رقمية', 'حياتية', 'تفكير', 'نشاط'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTeacherSubjectsAndClasses();
+    _fetchCurrentClasses();
+  }
+
+  Future<void> _fetchTeacherSubjectsAndClasses() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (userDoc.exists && userDoc.data() != null) {
+        final data = userDoc.data()!;
+        List<String> teacherSubjects = [];
+
+        if (data.containsKey('subjects') && data['subjects'] is List) {
+          teacherSubjects = List<String>.from(data['subjects']);
+        } else if (data.containsKey('subject')) {
+          final subjData = data['subject'];
+          if (subjData is String && subjData.isNotEmpty) {
+            teacherSubjects = subjData.split(RegExp(r'[,،]')).map((e) => e.trim()).toList();
+          } else if (subjData is List) {
+            teacherSubjects = List<String>.from(subjData);
+          }
+        }
+
+        if (mounted && teacherSubjects.isNotEmpty) {
+          setState(() {
+            _subjectsList = teacherSubjects;
+          });
+        }
+      }
+
+      final appData = await FirebaseFirestore.instance.collection('settings').doc('app_data').get();
+      if (appData.exists && appData.data() != null) {
+        if (appData.data()!.containsKey('classes')) {
+          if (mounted) {
+            setState(() {
+              // ✅ حماية برمجية لضمان وجود كلمة "الفصل"
+              _classesList = (appData.data()!['classes'] as List).map((e) {
+                String c = e.toString().trim();
+                return int.tryParse(c) != null ? 'الفصل $c' : c;
+              }).toList();
+            });
+          }
+        }
+
+        if (_subjectsList.isEmpty && appData.data()!.containsKey('subjects')) {
+          if (mounted) {
+            setState(() {
+              _subjectsList = List<String>.from(appData.data()!['subjects']);
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching teacher data: $e");
+    }
+  }
+
+  List<String> _getGradesForStage(String? stage) {
+    if (stage == 'المرحلة الابتدائية') return ['الصف الأول', 'الصف الثاني', 'الصف الثالث', 'الصف الرابع', 'الصف الخامس', 'الصف السادس'];
+    if (stage == 'المرحلة المتوسطة') return ['الصف الأول المتوسط', 'الصف الثاني المتوسط', 'الصف الثالث المتوسط'];
+    if (stage == 'المرحلة الثانوية') return ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي'];
+    return [];
+  }
+
+  Future<void> _fetchCurrentClasses() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final data = userDoc.data();
+      if (data == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final structure = {
+        'المرحلة الابتدائية': {
+          'field': 'stage1',
+          'grades': {
+            'الصف الأول': {'field': 'grade1', 'classField': 'class1'},
+            'الصف الثاني': {'field': 'grade2', 'classField': 'class2'},
+            'الصف الثالث': {'field': 'grade3', 'classField': 'class3'},
+            'الصف الرابع': {'field': 'grade4', 'classField': 'class4'},
+            'الصف الخامس': {'field': 'grade5', 'classField': 'class5'},
+            'الصف السادس': {'field': 'grade6', 'classField': 'class6'},
+          }
+        },
+        'المرحلة المتوسطة': {
+          'field': 'stage2',
+          'grades': {
+            'الصف الأول المتوسط': {'field': 'grade11', 'classField': 'class11'},
+            'الصف الثاني المتوسط': {'field': 'grade22', 'classField': 'class22'},
+            'الصف الثالث المتوسط': {'field': 'grade33', 'classField': 'class33'},
+          }
+        },
+        'المرحلة الثانوية': {
+          'field': 'stage3',
+          'grades': {
+            'الصف الأول الثانوي': {'field': 'grade111', 'classField': 'class111'},
+            'الصف الثاني الثانوي': {'field': 'grade222', 'classField': 'class222'},
+            'الصف الثالث الثانوي': {'field': 'grade333', 'classField': 'class333'},
+          }
+        },
+      };
+
+      List<Map<String, String>> parsedAssignments = [];
+
+      structure.forEach((stageName, stageInfo) {
+        final stageData = stageInfo as Map<String, dynamic>;
+        if (data[stageData['field']] != null && data[stageData['field']] != '0') {
+          final gradesMap = stageData['grades'] as Map<String, dynamic>?;
+          if (gradesMap != null) {
+            gradesMap.forEach((gradeName, gradeInfo) {
+              final gradeData = gradeInfo as Map<String, dynamic>;
+              if (data[gradeData['field']] != null && data[gradeData['field']] != '0') {
+                final classValue = data[gradeData['classField']];
+                if (classValue is String && classValue.isNotEmpty && classValue != '0') {
+                  final pairs = classValue.split(',');
+                  for (final pair in pairs) {
+                    final parts = pair.split('=');
+                    if (parts.length == 2) {
+                      String className = parts[0].trim();
+                      // ✅ توحيد الصيغة حتى تظهر زر الإزالة بشكل صحيح
+                      if(int.tryParse(className) != null) className = 'الفصل $className';
+                      parsedAssignments.add({
+                        'stage': stageName,
+                        'grade': gradeName,
+                        'className': className,
+                        'subject': parts[1].trim(),
+                      });
+                    }
+                  }
+                }
+              }
+            });
+          }
+        }
+      });
+
+      if (mounted) {
+        setState(() {
+          _currentAssignments = parsedAssignments;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ في تحميل الفصول: $e')));
+      }
+    }
+  }
+
+  void _markForRemoval(Map<String, String> assignment) {
+    setState(() {
+      _currentAssignments.remove(assignment);
+      _requestedRemovals.add(assignment);
+    });
+  }
+
+  void _undoRemoval(Map<String, String> assignment) {
+    setState(() {
+      _requestedRemovals.remove(assignment);
+      _currentAssignments.add(assignment);
+    });
+  }
+
+  void _addNewAssignmentRequest() {
+    if (_selectedStage == null || _selectedGrade == null || _selectedClass == null || _selectedSubject == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار جميع الحقول من القوائم للإضافة.')));
+      return;
+    }
+
+    final newAssignment = {
+      'stage': _selectedStage!,
+      'grade': _selectedGrade!,
+      'className': _selectedClass!,
+      'subject': _selectedSubject!,
+    };
+
+    setState(() {
+      _requestedAdditions.add(newAssignment);
+      _selectedClass = null;
+      _selectedSubject = null;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت الإضافة لقائمة الطلبات (لم يتم الإرسال بعد)'), backgroundColor: Colors.blue));
+  }
+
+  void _undoAddition(Map<String, String> assignment) {
+    setState(() {
+      _requestedAdditions.remove(assignment);
+    });
+  }
+
+  Future<void> _submitRequestToAdmin() async {
+    if (_requestedAdditions.isEmpty && _requestedRemovals.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا توجد تعديلات لإرسالها.')));
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user?.uid).get();
+      final teacherName = userDoc.data()?['name'] ?? 'معلم';
+
+      await FirebaseFirestore.instance.collection('teacher_class_requests').add({
+        'teacherId': user?.uid,
+        'teacherName': teacherName,
+        'additions': _requestedAdditions,
+        'removals': _requestedRemovals,
+        'status': 'pending',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        setState(() {
+          _requestedAdditions.clear();
+          _requestedRemovals.clear();
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إرسال طلب التعديل للإدارة بنجاح. يرجى انتظار الموافقة.'), backgroundColor: Colors.green),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ في الإرسال: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('إدارة الفصول والمواد', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('الفصول المسندة لك حالياً:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            const SizedBox(height: 8),
+            if (_currentAssignments.isEmpty)
+              const Text('لا توجد فصول مسندة حالياً.', style: TextStyle(color: Colors.grey))
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _currentAssignments.length,
+                itemBuilder: (context, index) {
+                  final item = _currentAssignments[index];
+                  return Card(
+                    elevation: 2,
+                    child: ListTile(
+                      leading: const Icon(Icons.check_circle_rounded, color: Colors.green),
+                      title: Text('${item['stage']} - ${item['grade']}'),
+                      subtitle: Text('الفصل: ${item['className']} | المادة: ${item['subject']}'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.remove_circle_outline_rounded, color: Colors.red),
+                        tooltip: 'طلب إزالة هذا الفصل',
+                        onPressed: () => _markForRemoval(item),
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+            const Divider(height: 40, thickness: 2),
+
+            const Text('إضافة فصل جديد لجدولك:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+            const SizedBox(height: 12),
+            Card(
+              elevation: 3,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'السنة الدراسية (المرحلة)', border: OutlineInputBorder()),
+                      value: _selectedStage,
+                      items: _stages.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedStage = val;
+                          _selectedGrade = null;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'الصف', border: OutlineInputBorder()),
+                      value: _selectedGrade,
+                      items: _getGradesForStage(_selectedStage).map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                      onChanged: (val) => setState(() => _selectedGrade = val),
+                      disabledHint: const Text('اختر المرحلة أولاً'),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(labelText: 'الفصل (الشعبة)', border: OutlineInputBorder()),
+                            value: _classesList.contains(_selectedClass) ? _selectedClass : null,
+                            items: _classesList.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                            onChanged: (val) => setState(() => _selectedClass = val),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(labelText: 'المادة', border: OutlineInputBorder()),
+                            value: _subjectsList.contains(_selectedSubject) ? _selectedSubject : null,
+                            items: _subjectsList.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                            onChanged: (val) => setState(() => _selectedSubject = val),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('إضافة إلى مسودة الطلب'),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade100, foregroundColor: Colors.blue.shade900),
+                      onPressed: _addNewAssignmentRequest,
+                    )
+                  ],
+                ),
+              ),
+            ),
+
+            const Divider(height: 40, thickness: 2),
+
+            const Text('مسودة الطلب (التعديلات المقترحة):', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
+            const SizedBox(height: 8),
+            if (_requestedAdditions.isEmpty && _requestedRemovals.isEmpty)
+              const Text('لا توجد تعديلات مقترحة حتى الآن.', style: TextStyle(color: Colors.grey)),
+
+            if (_requestedAdditions.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.only(top: 8, bottom: 4),
+                child: Text('سيتم إضافة الفصول التالية:', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+              ),
+              ..._requestedAdditions.map((item) => Card(
+                color: Colors.green.shade50,
+                child: ListTile(
+                  leading: const Icon(Icons.add_box_rounded, color: Colors.green),
+                  title: Text('${item['stage']} - ${item['grade']}'),
+                  subtitle: Text('الفصل: ${item['className']} | المادة: ${item['subject']}'),
+                  trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.grey), onPressed: () => _undoAddition(item)),
+                ),
+              )).toList(),
+            ],
+
+            if (_requestedRemovals.isNotEmpty) ...[
+              const Padding(
+                padding: EdgeInsets.only(top: 12, bottom: 4),
+                child: Text('سيتم إزالة الفصول التالية من جدولك:', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              ),
+              ..._requestedRemovals.map((item) => Card(
+                color: Colors.red.shade50,
+                child: ListTile(
+                  leading: const Icon(Icons.indeterminate_check_box_rounded, color: Colors.red),
+                  title: Text('${item['stage']} - ${item['grade']}'),
+                  subtitle: Text('الفصل: ${item['className']} | المادة: ${item['subject']}'),
+                  trailing: IconButton(icon: const Icon(Icons.undo_rounded, color: Colors.blue), onPressed: () => _undoRemoval(item)),
+                ),
+              )).toList(),
+            ],
+
+            const SizedBox(height: 80),
+          ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: _requestedAdditions.isNotEmpty || _requestedRemovals.isNotEmpty
+          ? SizedBox(
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: 50,
+        child: ElevatedButton.icon(
+          icon: _isSubmitting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.send_rounded),
+          label: Text(_isSubmitting ? 'جاري الإرسال...' : 'إرسال الطلب النهائي للإدارة', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white),
+          onPressed: _isSubmitting ? null : _submitRequestToAdmin,
+        ),
+      )
+          : null,
+    );
+  }
+}
+
+class AdminTeacherRequestsPage extends StatefulWidget {
+  const AdminTeacherRequestsPage({super.key});
+
+  @override
+  State<AdminTeacherRequestsPage> createState() => _AdminTeacherRequestsPageState();
+}
+
+class _AdminTeacherRequestsPageState extends State<AdminTeacherRequestsPage> {
+  bool _isProcessing = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('طلبات تعديل فصول المعلمين'),
+        backgroundColor: const Color(0xFF00ACC1),
+      ),
+      body: Stack(
+        children: [
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('teacher_class_requests')
+                .where('status', isEqualTo: 'pending')
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+              }
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.assignment_turned_in_rounded, size: 80, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text('لا توجد طلبات معلقة', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                );
+              }
+
+              final docs = snapshot.data!.docs.toList();
+              docs.sort((a, b) {
+                final aData = a.data() as Map<String, dynamic>?;
+                final bData = b.data() as Map<String, dynamic>?;
+                final aTime = aData?['timestamp'] as Timestamp?;
+                final bTime = bData?['timestamp'] as Timestamp?;
+
+                if (aTime == null && bTime == null) return 0;
+                if (aTime == null) return 1;
+                if (bTime == null) return -1;
+                return bTime.compareTo(aTime);
+              });
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: docs.length,
+                itemBuilder: (context, index) {
+                  final doc = docs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final teacherName = data['teacherName'] ?? 'معلم غير معروف';
+                  final additions = List<Map<String, dynamic>>.from(data['additions'] ?? []);
+                  final removals = List<Map<String, dynamic>>.from(data['removals'] ?? []);
+                  final timestamp = data['timestamp'] as Timestamp?;
+                  final dateString = timestamp != null
+                      ? intl.DateFormat('yyyy/MM/dd - hh:mm a', 'ar').format(timestamp.toDate())
+                      : 'غير محدد';
+
+                  return Card(
+                    elevation: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: Colors.blue.shade100,
+                                child: const Icon(Icons.person, color: Colors.blue),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(teacherName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                    Text(dateString, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 24, thickness: 1.5),
+
+                          if (additions.isNotEmpty) ...[
+                            Row(
+                              children: [
+                                const Icon(Icons.add_circle, color: Colors.green, size: 20),
+                                const SizedBox(width: 8),
+                                const Text('المطلوب إضافته لجدول المعلم:', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 15)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ...additions.map((item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 4, right: 28),
+                              child: Text('• ${item['stage']} - ${item['grade']} (${item['className']}) | مادة: ${item['subject']}', style: const TextStyle(fontSize: 14)),
+                            )),
+                            const SizedBox(height: 12),
+                          ],
+
+                          if (removals.isNotEmpty) ...[
+                            Row(
+                              children: [
+                                const Icon(Icons.remove_circle, color: Colors.red, size: 20),
+                                const SizedBox(width: 8),
+                                const Text('المطلوب إزالته من جدول المعلم:', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 15)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ...removals.map((item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 4, right: 28),
+                              child: Text('• ${item['stage']} - ${item['grade']} (${item['className']}) | مادة: ${item['subject']}', style: const TextStyle(fontSize: 14)),
+                            )),
+                            const SizedBox(height: 16),
+                          ],
+
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.auto_awesome, color: Colors.green, size: 20),
+                                SizedBox(width: 8),
+                                Expanded(child: Text('ملاحظة: الموافقة هنا ستقوم بتحديث فصول المعلم في قاعدة البيانات وإضافتها لجدوله تلقائياً.', style: TextStyle(fontSize: 12, color: Colors.green))),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  icon: const Icon(Icons.check_circle_outline),
+                                  label: const Text('موافقة وتحديث'),
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                                  onPressed: _isProcessing ? null : () => _updateRequestStatus(context, doc.id, 'approved', data),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.cancel_outlined),
+                                  label: const Text('رفض'),
+                                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red)),
+                                  onPressed: _isProcessing ? null : () => _updateRequestStatus(context, doc.id, 'rejected', data),
+                                ),
+                              ),
+                            ],
+                          )
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          if (_isProcessing)
+            Container(
+              color: Colors.black45,
+              child: const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateRequestStatus(BuildContext context, String docId, String status, Map<String, dynamic> requestData) async {
+    setState(() => _isProcessing = true);
+
+    try {
+      if (status == 'approved') {
+        final teacherId = requestData['teacherId'];
+        if (teacherId == null) throw Exception("معرف المعلم غير موجود في الطلب");
+
+        final userRef = FirebaseFirestore.instance.collection('users').doc(teacherId);
+        final userDoc = await userRef.get();
+        if (!userDoc.exists) throw Exception("لم يتم العثور على ملف المعلم");
+
+        final userData = userDoc.data() ?? {};
+        Map<String, dynamic> updates = {};
+
+        final additions = List<Map<String, dynamic>>.from(requestData['additions'] ?? []);
+        final removals = List<Map<String, dynamic>>.from(requestData['removals'] ?? []);
+
+        final structure = {
+          'المرحلة الابتدائية': {
+            'field': 'stage1',
+            'grades': {
+              'الصف الأول': {'field': 'grade1', 'classField': 'class1'},
+              'الصف الثاني': {'field': 'grade2', 'classField': 'class2'},
+              'الصف الثالث': {'field': 'grade3', 'classField': 'class3'},
+              'الصف الرابع': {'field': 'grade4', 'classField': 'class4'},
+              'الصف الخامس': {'field': 'grade5', 'classField': 'class5'},
+              'الصف السادس': {'field': 'grade6', 'classField': 'class6'},
+            }
+          },
+          'المرحلة المتوسطة': {
+            'field': 'stage2',
+            'grades': {
+              'الصف الأول المتوسط': {'field': 'grade11', 'classField': 'class11'},
+              'الصف الثاني المتوسط': {'field': 'grade22', 'classField': 'class22'},
+              'الصف الثالث المتوسط': {'field': 'grade33', 'classField': 'class33'},
+            }
+          },
+          'المرحلة الثانوية': {
+            'field': 'stage3',
+            'grades': {
+              'الصف الأول الثانوي': {'field': 'grade111', 'classField': 'class111'},
+              'الصف الثاني الثانوي': {'field': 'grade222', 'classField': 'class222'},
+              'الصف الثالث الثانوي': {'field': 'grade333', 'classField': 'class333'},
+            }
+          },
+        };
+
+        String getClassStr(String classField) {
+          if (updates.containsKey(classField)) return updates[classField];
+          final val = userData[classField];
+          return (val != null && val != '0') ? val.toString() : '';
+        }
+
+        for (var item in removals) {
+          final stage = item['stage'];
+          final grade = item['grade'];
+          String className = item['className'].toString().trim();
+          // ✅ معالجة الحماية: إذا كان الرقم موجوداً نضيف له كلمة "الفصل" للبحث الصحيح في الحذف
+          if (int.tryParse(className) != null) className = "الفصل $className";
+
+          final subject = item['subject'];
+
+          final stageInfo = structure[stage];
+          if (stageInfo != null) {
+            final gradeInfo = (stageInfo['grades'] as Map)[grade];
+            if (gradeInfo != null) {
+              String classField = gradeInfo['classField'] as String;
+              String currentStr = getClassStr(classField);
+
+              if (currentStr.isNotEmpty) {
+                List<String> pairs = currentStr.split(',').map((e) => e.trim()).toList();
+                String target1 = "$className=$subject";
+                String target2 = "${className.replaceAll('الفصل ', '')}=$subject";
+                pairs.removeWhere((p) => p == target1 || p == target2);
+                updates[classField] = pairs.join(', ');
+              }
+            }
+          }
+        }
+
+        for (var item in additions) {
+          final stage = item['stage'];
+          final grade = item['grade'];
+          String className = item['className'].toString().trim();
+          if (int.tryParse(className) != null) className = "الفصل $className";
+          final subject = item['subject'];
+
+          final stageInfo = structure[stage];
+          if (stageInfo != null) {
+            String stageField = stageInfo['field'] as String;
+
+            if (userData[stageField] == null || userData[stageField] == '' || userData[stageField] == '0') {
+              updates[stageField] = stage;
+            }
+
+            final gradeInfo = (stageInfo['grades'] as Map)[grade];
+            if (gradeInfo != null) {
+              String gradeField = gradeInfo['field'] as String;
+              String classField = gradeInfo['classField'] as String;
+
+              if (userData[gradeField] == null || userData[gradeField] == '' || userData[gradeField] == '0') {
+                updates[gradeField] = grade;
+              }
+
+              String currentStr = getClassStr(classField);
+              String newPair = "$className=$subject";
+
+              if (currentStr.isEmpty) {
+                updates[classField] = newPair;
+              } else {
+                if (!currentStr.contains(newPair)) {
+                  updates[classField] = "$currentStr, $newPair";
+                }
+              }
+            }
+          }
+        }
+
+        final batch = FirebaseFirestore.instance.batch();
+        if (updates.isNotEmpty) {
+          batch.update(userRef, updates);
+        }
+
+        batch.update(FirebaseFirestore.instance.collection('teacher_class_requests').doc(docId), {
+          'status': status,
+          'processedAt': FieldValue.serverTimestamp(),
+        });
+
+        await batch.commit();
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تمت الموافقة وتحديث بيانات فصول المعلم بنجاح!'), backgroundColor: Colors.green),
+          );
+        }
+      } else {
+        await FirebaseFirestore.instance.collection('teacher_class_requests').doc(docId).update({
+          'status': status,
+          'processedAt': FieldValue.serverTimestamp(),
+        });
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تم رفض الطلب بنجاح'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      setState(() => _isProcessing = false);
+    }
   }
 }
 
@@ -1931,7 +2405,7 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
               autofocus: true,
               decoration: InputDecoration(
                 labelText: 'اسم الطالب أو بريده الإلكتروني أو رقمه',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.clear),
                   onPressed: () {
@@ -1966,7 +2440,7 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
                 return Card(
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: ListTile(
-                    leading: const Icon(Icons.person),
+                    leading: const Icon(Icons.person_rounded),
                     title: Text(name),
                     subtitle: Text('$grade / $className'),
                     trailing: Row(
@@ -1994,7 +2468,7 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
                               value: 'view_profile',
                               child: Row(
                                 children: [
-                                  Icon(Icons.visibility, color: Colors.blue),
+                                  Icon(Icons.visibility_rounded, color: Colors.blue),
                                   SizedBox(width: 8),
                                   Text('عرض الملف'),
                                 ],
@@ -2014,7 +2488,7 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
                               value: 'behavior',
                               child: Row(
                                 children: [
-                                  Icon(Icons.thumb_up_alt, color: Colors.orange),
+                                  Icon(Icons.thumb_up_alt_rounded, color: Colors.orange),
                                   SizedBox(width: 8),
                                   Text('تسجيل سلوك'),
                                 ],
@@ -2056,7 +2530,6 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
     return FirebaseFirestore.instance
         .collection('behavior_reports')
         .where('status', whereIn: ['replied_by_student', 'closed'])
-        .orderBy('replyTimestamp', descending: true)
         .snapshots();
   }
 
@@ -2100,7 +2573,7 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.inbox, size: 80, color: Colors.grey),
+                        Icon(Icons.inbox_rounded, size: 80, color: Colors.grey),
                         SizedBox(height: 16),
                         Text('صندوق الشكاوى فارغ', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                         Text('لم تصل أي ردود من أولياء الأمور بعد.', style: TextStyle(fontSize: 16, color: Colors.grey)),
@@ -2109,7 +2582,15 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
                   );
                 }
 
-                final docs = snapshot.data!.docs;
+                final docs = snapshot.data!.docs.toList();
+                docs.sort((a, b) {
+                  final aTime = (a.data() as Map<String, dynamic>)['replyTimestamp'] as Timestamp?;
+                  final bTime = (b.data() as Map<String, dynamic>)['replyTimestamp'] as Timestamp?;
+                  if (aTime == null && bTime == null) return 0;
+                  if (aTime == null) return 1;
+                  if (bTime == null) return -1;
+                  return bTime.compareTo(aTime);
+                });
 
                 return ListView.builder(
                   padding: const EdgeInsets.all(12.0),
@@ -2217,10 +2698,10 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
     final data = widget.reportDoc.data() as Map<String, dynamic>;
     final studentName = data['studentName'] ?? 'طالب';
     final subject = data['subject'] ?? 'مادة';
-    final teacherNote = data['teacherNote'] ?? '...';
+
+    final teacherNote = data['reason'] ?? data['teacherNote'] ?? 'لا يوجد تفصيل.';
     final studentReply = data['studentReply'] ?? '...';
     final teacherFinalReply = data['teacherFinalReply'] as String?;
-
     final finalReplierName = data['finalReplierName'] as String?;
     final originalTeacherName = data['teacherName'] ?? 'المعلم';
     final timestamp = data['timestamp'] as Timestamp?;
@@ -2238,7 +2719,7 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
           children: [
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: const CircleAvatar(child: Icon(Icons.person)),
+              leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
               title: Text(studentName, style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text("مادة: $subject"),
               trailing: Chip(
@@ -2302,7 +2783,7 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
                                 child: _isSubmitting
                                     ? const Center(child: CircularProgressIndicator())
                                     : ElevatedButton.icon(
-                                  icon: const Icon(Icons.send),
+                                  icon: const Icon(Icons.send_rounded),
                                   label: const Text('إرسال الرد وإغلاق الشكوى'),
                                   onPressed: _submitTeacherFinalReply,
                                 ),
@@ -2339,7 +2820,15 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
     return Column(
       crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        Text(author, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+        Text(
+          author,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade600,
+            height: 1.5,
+          ),
+        ),
         const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -2347,10 +2836,25 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
             color: bubbleColor,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(text, style: TextStyle(color: textColor, fontSize: 15)),
+          child: Text(
+            text,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 15,
+              height: 1.5,
+            ),
+          ),
         ),
         const SizedBox(height: 4),
-        Text(formattedDate, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        Text(
+          formattedDate,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.grey,
+            height: 1.5,
+          ),
+          textDirection: TextDirection.ltr,
+        ),
       ],
     );
   }
@@ -2395,8 +2899,7 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
   Stream<QuerySnapshot> _buildStream() {
     Query query = FirebaseFirestore.instance
         .collection('behavior_reports')
-        .where('type', isEqualTo: 'dislike')
-        .orderBy('timestamp', descending: true);
+        .where('type', isEqualTo: 'dislike');
 
     if (!_isAdmin) {
       query = query.where('teacherId', isEqualTo: _currentUser?.uid);
@@ -2426,7 +2929,7 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.check_circle_outline, color: Colors.green, size: 80),
+                  Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 80),
                   SizedBox(height: 16),
                   Text('لا توجد مخالفات مسجلة', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   Padding(
@@ -2439,11 +2942,20 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
             );
           }
 
-          final reports = snapshot.data!.docs;
+          final reports = snapshot.data!.docs.toList();
+          reports.sort((a, b) {
+            final aTime = (a.data() as Map<String, dynamic>)['timestamp'] as Timestamp?;
+            final bTime = (b.data() as Map<String, dynamic>)['timestamp'] as Timestamp?;
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return bTime.compareTo(aTime);
+          });
+
           final Map<String, List<DocumentSnapshot>> violationsByStudent = {};
 
           for (var report in reports) {
-            final studentName = report['studentName'] as String? ?? 'طالب غير معروف';
+            final studentName = (report.data() as Map<String, dynamic>)['studentName'] as String? ?? 'طالب غير معروف';
             violationsByStudent.putIfAbsent(studentName, () => []).add(report);
           }
 
@@ -2475,7 +2987,7 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
                   subtitle: Text(_isAdmin ? "عرض مخالفات الطالب" : 'اضغط لعرض تفاصيل المخالفات'),
                   children: studentViolations.map((violationDoc) {
                     final data = violationDoc.data() as Map<String, dynamic>;
-                    final note = data['teacherNote'] ?? 'لا يوجد تفصيل.';
+                    final note = data['reason'] ?? data['teacherNote'] ?? 'لا يوجد تفصيل.';
                     final teacherName = data['teacherName'] ?? 'معلم';
                     final timestamp = data['timestamp'] as Timestamp?;
                     final formattedDate = timestamp != null
@@ -2495,43 +3007,6 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
         },
       ),
     );
-  }
-}
-
-extension on Sheet {
-  void setColAutoFit(int i) {}
-}
-
-Future<void> _saveAndDownloadExcel(BuildContext context, Excel excel, String fileName) async {
-  final fileBytes = excel.save();
-  if (fileBytes == null) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('فشل إنشاء ملف Excel.'), backgroundColor: Colors.red));
-    return;
-  }
-  try {
-    if (kIsWeb) {
-      final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      html.AnchorElement(href: url)
-        ..setAttribute("download", fileName)
-        ..click();
-      html.Url.revokeObjectUrl(url);
-    } else {
-      final directory = await getApplicationDocumentsDirectory();
-      final path = '${directory.path}/$fileName';
-      final file = File(path);
-      await file.writeAsBytes(fileBytes);
-      final result = await OpenFilex.open(path);
-      if (result.type != ResultType.done) {
-        throw Exception('لا يمكن فتح الملف: ${result.message}');
-      }
-    }
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('تم تصدير الملف بنجاح: $fileName'), backgroundColor: Colors.green));
-  } catch (e) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('فشل تصدير الملف: $e'), backgroundColor: Colors.red));
   }
 }
 
@@ -2992,7 +3467,7 @@ class _GradeCompletionAnalyticsPageState extends State<GradeCompletionAnalyticsP
           children: [
             Row(
               children: [
-                Icon(Icons.pie_chart, color: Theme.of(context).primaryColor, size: 28),
+                Icon(Icons.pie_chart_rounded, color: Theme.of(context).primaryColor, size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -3160,89 +3635,471 @@ class AbsenceStatsPage extends StatelessWidget {
   }
 }
 
-class SmartBoardQRScanner extends StatefulWidget {
-  const SmartBoardQRScanner({super.key});
+class BulkCertificateDownloadPage extends StatefulWidget {
+  const BulkCertificateDownloadPage({super.key});
 
   @override
-  State<SmartBoardQRScanner> createState() => _SmartBoardQRScannerState();
+  State<BulkCertificateDownloadPage> createState() => _BulkCertificateDownloadPageState();
 }
 
-class _SmartBoardQRScannerState extends State<SmartBoardQRScanner> {
-  bool _isProcessing = false;
+class _BulkCertificateDownloadPageState extends State<BulkCertificateDownloadPage> {
+  String? _selectedStage;
+  String? _selectedGrade;
+  String? _selectedClass;
+  int? _selectedTerm;
+  bool _isGenerating = false;
+
+  final List<String> _stages = ['المرحلة الابتدائية', 'المرحلة المتوسطة', 'المرحلة الثانوية'];
+
+  // ✅ القائمة الافتراضية للشهادات
+  List<String> _classesList = [
+    'الكل', 'الفصل 1', 'الفصل 2', 'الفصل 3', 'الفصل 4', 'الفصل 5',
+    'الفصل 6', 'الفصل 7', 'الفصل 8', 'الفصل 9', 'الفصل 10', 'أ', 'ب', 'ج', 'د', 'هـ'
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchClassesFromFirestore();
+  }
+
+  Future<void> _fetchClassesFromFirestore() async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('settings').doc('app_data').get();
+      if (doc.exists && doc.data() != null && doc.data()!.containsKey('classes')) {
+        if (mounted) {
+          setState(() {
+            // ✅ حماية برمجية: تحويل الرقم الصريح إلى "الفصل X"
+            List<String> fetched = (doc.data()!['classes'] as List).map((e) {
+              String c = e.toString().trim();
+              return int.tryParse(c) != null ? 'الفصل $c' : c;
+            }).toList();
+            _classesList = ['الكل', ...fetched];
+          });
+        }
+      }
+    } catch(e) {
+      debugPrint("Error fetching classes: $e");
+    }
+  }
+
+  List<String> _getGradesForStage(String? stage) {
+    if (stage == 'المرحلة الابتدائية') return ['الصف الأول', 'الصف الثاني', 'الصف الثالث', 'الصف الرابع', 'الصف الخامس', 'الصف السادس'];
+    if (stage == 'المرحلة المتوسطة') return ['الصف الأول المتوسط', 'الصف الثاني المتوسط', 'الصف الثالث المتوسط'];
+    if (stage == 'المرحلة الثانوية') return ['الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي'];
+    return [];
+  }
+
+  double _calculateTermPercentage(Map<String, dynamic> data, int term) {
+    final Map<String, String> standardSubjects = {
+      'profession1': 'رياضيات', 'profession2': 'لغتي', 'profession3': 'إسلاميات',
+      'profession4': 'علوم', 'profession5': 'نشاط', 'profession6': 'انجليزي',
+      'profession7': 'اجتماعيات', 'profession8': 'فنية', 'profession9': 'حياتية',
+      'profession10': 'بدنية', 'profession11': 'رقمية', 'profession12': 'تفكير',
+    };
+
+    List<double> subjectPercents = [];
+
+    standardSubjects.forEach((profKey, subjName) {
+      List<num> grades = [];
+      int startIdx = term == 1 ? 1 : 4;
+      int endIdx = term == 1 ? 3 : 6;
+      for (int i = startIdx; i <= endIdx; i++) {
+        String key = 'e$i$profKey';
+        if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
+      }
+      int eStart = term == 1 ? 14 : 17;
+      int eEnd = term == 1 ? 16 : 19;
+      for (int i = eStart; i <= eEnd; i++) {
+        String key = 'e$i$profKey';
+        if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
+      }
+
+      if (grades.isNotEmpty) {
+        double avg = grades.reduce((a, b) => a + b) / grades.length;
+        subjectPercents.add((avg / 20) * 100);
+      }
+    });
+
+    final List<String> nafesKeys = ['math', 'lughati', 'science'];
+    for (String n in nafesKeys) {
+      List<num> grades = [];
+      for (int i = 1; i <= 12; i++) {
+        String key = term == 1 ? 'e${i}profession13_$n' : 't2_e${i}profession13_$n';
+        if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
+      }
+      if (grades.isNotEmpty) {
+        double avg = grades.reduce((a, b) => a + b) / grades.length;
+        subjectPercents.add((avg / 10) * 100);
+      }
+    }
+
+    if (subjectPercents.isEmpty) return 0.0;
+    return subjectPercents.reduce((a, b) => a + b) / subjectPercents.length;
+  }
+
+  List<Map<String, dynamic>> _getSubjectGrades(Map<String, dynamic> data, int term) {
+    final Map<String, String> standardSubjects = {
+      'profession1': 'رياضيات', 'profession2': 'لغتي', 'profession3': 'إسلاميات',
+      'profession4': 'علوم', 'profession6': 'انجليزي', 'profession7': 'اجتماعيات',
+      'profession8': 'فنية', 'profession10': 'بدنية', 'profession11': 'رقمية', 'profession12': 'تفكير',
+    };
+    List<Map<String, dynamic>> subjectGrades = [];
+    standardSubjects.forEach((profKey, subjName) {
+      List<num> grades = [];
+      int startIdx = term == 1 ? 1 : 4;
+      int endIdx = term == 1 ? 3 : 6;
+      for (int i = startIdx; i <= endIdx; i++) {
+        String key = 'e$i$profKey';
+        if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
+      }
+      if (grades.isNotEmpty) {
+        double avg = grades.reduce((a, b) => a + b) / grades.length;
+        subjectGrades.add({'name': subjName, 'percent': ((avg / 20) * 100).clamp(0, 100)});
+      }
+    });
+    return subjectGrades;
+  }
+
+  Future<void> _generateAndDownloadPDF() async {
+    if (_selectedStage == null || _selectedGrade == null || _selectedClass == null || _selectedTerm == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يرجى اختيار جميع الحقول أولاً')));
+      return;
+    }
+
+    setState(() => _isGenerating = true);
+
+    try {
+      Query query = FirebaseFirestore.instance.collection('students')
+          .where('stages', isEqualTo: _selectedStage)
+          .where('grades', isEqualTo: _selectedGrade);
+
+      if (_selectedClass != 'الكل') {
+        query = query.where('classes', isEqualTo: _selectedClass);
+      }
+
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا يوجد طلاب في هذا التحديد')));
+        setState(() => _isGenerating = false);
+        return;
+      }
+
+      List<Map<String, dynamic>> studentsList = [];
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        double p = _calculateTermPercentage(data, _selectedTerm!);
+        data['calculated_percent'] = p;
+        studentsList.add(data);
+      }
+
+      studentsList.sort((a, b) => (b['calculated_percent'] as double).compareTo(a['calculated_percent'] as double));
+
+      for (int i = 0; i < studentsList.length; i++) {
+        studentsList[i]['rank'] = i + 1;
+        studentsList[i]['subject_grades'] = _getSubjectGrades(studentsList[i], _selectedTerm!);
+      }
+
+      final pdf = pw.Document();
+      final font = await PdfGoogleFonts.amiriBold();
+
+      pw.MemoryImage? m1Image;
+      try {
+        final ByteData m1Data = await rootBundle.load('assets/m1.png');
+        m1Image = pw.MemoryImage(m1Data.buffer.asUint8List());
+      } catch (e) {
+        debugPrint("Image m1 missing, using fallback.");
+      }
+
+      pw.MemoryImage? m2Image;
+      try {
+        final ByteData m2Data = await rootBundle.load('assets/2.png');
+        m2Image = pw.MemoryImage(m2Data.buffer.asUint8List());
+      } catch (e) {
+        debugPrint("Image m2 missing, using fallback.");
+      }
+
+      // ✅ استدعاء كلتا الصورتين (فوق 90 وأقل من 90)
+      String? svgRaw1;
+      String? svgRaw2;
+      try {
+        svgRaw1 = await rootBundle.loadString('assets/sh1.svg');
+      } catch (e) {}
+      try {
+        svgRaw2 = await rootBundle.loadString('assets/sh2.svg');
+      } catch (e) {}
+
+      final String termName = _selectedTerm == 1 ? 'الترم الأول' : 'الترم الثاني';
+
+      for (var student in studentsList) {
+        if (student['calculated_percent'] == 0.0) continue;
+
+        final studentName = student['name'] ?? 'الطالب';
+        final double percentDouble = student['calculated_percent'] as double;
+        final percent = percentDouble.toStringAsFixed(1);
+        final rank = student['rank'];
+        final rankText = (rank > 0 && rank <= 10) ? 'وحصوله على المركز (الـ $rank) على مستوى المرحلة،' : '';
+        final subjects = student['subject_grades'] as List<Map<String, dynamic>>;
+
+        // ✅ شرط ديناميكي لاختيار ملف الـ SVG بناءً على النسبة
+        final String? svgRaw = percentDouble >= 90.0 ? svgRaw1 : svgRaw2;
+
+        // --- الصفحة الأولى: واجهة التكريم ---
+        pdf.addPage(pw.Page(
+            pageFormat: PdfPageFormat.a4.landscape,
+            margin: pw.EdgeInsets.zero,
+            theme: pw.ThemeData.withFont(base: font),
+            textDirection: pw.TextDirection.rtl,
+            build: (pw.Context context) {
+              return pw.Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  padding: const pw.EdgeInsets.all(35),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.amber, width: 8),
+                    color: const PdfColor.fromInt(0xFFFDFBF7),
+                  ),
+                  child: pw.Column(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              m1Image != null ? pw.Image(m1Image, width: 100, height: 100) : pw.SizedBox(width: 100, height: 100),
+                              pw.Expanded(
+                                child: pw.Padding(
+                                  padding: const pw.EdgeInsets.only(top: 20),
+                                  child: pw.Center(
+                                    child: svgRaw != null
+                                        ? pw.SvgImage(svg: svgRaw, width: 150)
+                                        : pw.Text("شهادة شكر وتقدير", style: pw.TextStyle(font: font, fontSize: 35, color: PdfColors.indigo)),
+                                  ),
+                                ),
+                              ),
+                              pw.Column(
+                                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                                  children: [
+                                    m2Image != null ? pw.Image(m2Image, width: 80, height: 80) : pw.SizedBox(width: 80, height: 80),
+                                    pw.SizedBox(height: 4),
+                                    pw.Text('elm3rfa.vip', style: pw.TextStyle(font: font, fontSize: 12)),
+                                  ]
+                              ),
+                            ]
+                        ),
+                        pw.SizedBox(height: 35),
+                        // ✅ إزالة كلمة المتميز
+                        pw.Text('تسر إدارة المدرسة أن تمنح هذا التقدير للطالب:', style: pw.TextStyle(font: font, fontSize: 20)),
+                        pw.SizedBox(height: 10),
+                        pw.Text(studentName, style: pw.TextStyle(font: font, fontSize: 44, color: PdfColors.black, fontWeight: pw.FontWeight.bold)),
+                        pw.SizedBox(height: 15),
+                        pw.Text('لتفوقه واجتهاده الملحوظ خلال $termName، وحصوله على نسبة $percent%', textAlign: pw.TextAlign.center, style: pw.TextStyle(font: font, fontSize: 20)),
+                        if (rankText.isNotEmpty)
+                          pw.Text(rankText, textAlign: pw.TextAlign.center, style: pw.TextStyle(font: font, fontSize: 20)),
+                        pw.Text('متمنين له دوام التوفيق والنجاح.', textAlign: pw.TextAlign.center, style: pw.TextStyle(font: font, fontSize: 20)),
+                        pw.Spacer(),
+                        pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.end, // ✅ نقل مدير المدرسة لليسار
+                            crossAxisAlignment: pw.CrossAxisAlignment.end,
+                            children: [
+                              // ✅ تمت إزالة توقيع وكيل الشؤون التعليمية
+                              pw.Column(children: [
+                                pw.Text('مدير المدرسة', style: pw.TextStyle(font: font, color: PdfColors.indigo, fontSize: 16)),
+                                pw.SizedBox(height: 25),
+                                pw.Text('أ. عبدالله عائش المطرفي', style: pw.TextStyle(font: font, fontSize: 16)),
+                              ]),
+                            ]
+                        )
+                      ]
+                  )
+              );
+            }
+        ));
+
+        // --- الصفحة الثانية: كشف الدرجات ---
+        pdf.addPage(pw.Page(
+            pageFormat: PdfPageFormat.a4.landscape,
+            margin: pw.EdgeInsets.zero,
+            theme: pw.ThemeData.withFont(base: font),
+            textDirection: pw.TextDirection.rtl,
+            build: (pw.Context context) {
+              return pw.Container(
+                  width: double.infinity,
+                  height: double.infinity,
+                  padding: const pw.EdgeInsets.all(35),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.amber, width: 8),
+                    color: const PdfColor.fromInt(0xFFFDFBF7),
+                  ),
+                  child: pw.Column(
+                      children: [
+                        pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                            children: [
+                              m1Image != null ? pw.Image(m1Image, width: 80, height: 80) : pw.SizedBox(width: 80, height: 80),
+                              pw.Text('كشف الدرجات الأكاديمية - $termName', style: pw.TextStyle(font: font, fontSize: 26, color: PdfColors.indigo)),
+                              pw.Column(
+                                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                                  children: [
+                                    m2Image != null ? pw.Image(m2Image, width: 80, height: 80) : pw.SizedBox(width: 80, height: 80),
+                                    pw.SizedBox(height: 4),
+                                    pw.Text('elm3rfa.vip', style: pw.TextStyle(font: font, fontSize: 12)),
+                                  ]
+                              ),
+                            ]
+                        ),
+                        pw.SizedBox(height: 20),
+                        pw.Row(
+                            mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
+                            children: [
+                              pw.Text('النسبة الكلية: $percent%', style: pw.TextStyle(font: font, fontSize: 22)),
+                              if (rank <= 10) pw.Text('الترتيب بالمرحلة: الـ $rank', style: pw.TextStyle(font: font, fontSize: 22)),
+                            ]
+                        ),
+                        pw.SizedBox(height: 30),
+                        pw.Expanded(
+                            child: pw.Wrap(
+                              spacing: 15,
+                              runSpacing: 15,
+                              alignment: pw.WrapAlignment.center,
+                              children: subjects.map((s) => pw.Container(
+                                  width: 230,
+                                  padding: const pw.EdgeInsets.all(12),
+                                  decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey)),
+                                  child: pw.Row(
+                                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        pw.Text(s['name'], style: pw.TextStyle(font: font, fontSize: 16)),
+                                        pw.Text('${(s['percent'] as double).toStringAsFixed(1)}%', style: pw.TextStyle(font: font, fontSize: 16, color: PdfColors.indigo)),
+                                      ]
+                                  )
+                              )).toList(),
+                            )
+                        ),
+                        pw.SizedBox(height: 20),
+                        pw.Text(
+                          'تنويه تربوي: هذه الدرجات مستمدة من تقييمات تشخيصية لقياس المهارات الأكاديمية، ولا تُضاف للمجموع العام، وإنما هي أداة قياس تساعدنا وإياكم في رسم رحلة التطوير والارتقاء بمستويات أبنائنا الطلاب الأعزاء.',
+                          textAlign: pw.TextAlign.center,
+                          style: pw.TextStyle(font: font, fontSize: 14, color: PdfColors.red, fontWeight: pw.FontWeight.bold),
+                        ),
+                      ]
+                  )
+              );
+            }
+        ));
+      }
+      final bytes = await pdf.save();
+      final fileName = "شهادات_${_selectedGrade}_${_selectedClass}_$termName.pdf";
+
+      if (kIsWeb) {
+        final blob = html.Blob([bytes], 'application/pdf');
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        html.AnchorElement(href: url)
+          ..setAttribute("download", fileName)
+          ..click();
+        html.Url.revokeObjectUrl(url);
+      } else {
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsBytes(bytes);
+        OpenFilex.open(file.path);
+      }
+
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم توليد وتحميل الشهادات بنجاح!'), backgroundColor: Colors.green));
+
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red));
+    } finally {
+      setState(() => _isGenerating = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('امسح كود السبورة للدخول')),
-      body: Stack(
-        children: [
-          MobileScanner(
-            onDetect: (capture) async {
-              if (_isProcessing) return;
-              final List<Barcode> barcodes = capture.barcodes;
-              for (final barcode in barcodes) {
-                if (barcode.rawValue != null) {
-                  setState(() => _isProcessing = true);
-                  final String sessionId = barcode.rawValue!;
+      appBar: AppBar(
+        title: const Text('تحميل شهادات الطلاب (PDF)'),
+        backgroundColor: const Color(0xFFE65100),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.picture_as_pdf, size: 60, color: Color(0xFFE65100)),
+                    const SizedBox(height: 16),
+                    const Text('استخراج شهادات التقدير', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    const Text('اختر بيانات الفصل لتحميل جميع الشهادات في ملف PDF واحد.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                    const Divider(height: 40),
 
-                  try {
-                    final user = FirebaseAuth.instance.currentUser;
-                    if (user != null) {
-                      await FirebaseFirestore.instance.collection('qr_logins').doc(sessionId).update({
-                        'teacher_uid': user.uid,
-                        'status': 'scanned',
-                        'scanned_at': FieldValue.serverTimestamp(),
-                      });
+                    DropdownButtonFormField<int>(
+                      decoration: const InputDecoration(labelText: 'الترم الدراسي', border: OutlineInputBorder()),
+                      value: _selectedTerm,
+                      items: const [
+                        DropdownMenuItem(value: 1, child: Text('الترم الأول')),
+                        DropdownMenuItem(value: 2, child: Text('الترم الثاني')),
+                      ],
+                      onChanged: (val) => setState(() => _selectedTerm = val),
+                    ),
+                    const SizedBox(height: 16),
 
-                      if (mounted) {
-                        HapticFeedback.heavyImpact();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('تم المسح بنجاح! سيفتح حسابك على السبورة خلال لحظات.'),
-                                backgroundColor: Colors.green
-                            )
-                        );
-                        Navigator.pop(context);
-                      }
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('خطأ أو الكود منتهي الصلاحية: $e'), backgroundColor: Colors.red)
-                      );
-                      setState(() => _isProcessing = false);
-                    }
-                  }
-                  break;
-                }
-              }
-            },
-          ),
-          Center(
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.green, width: 4),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                  child: Text(
-                    "وجه الكاميرا نحو الباركود\nالموجود في شاشة الدخول الرئيسية",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, backgroundColor: Colors.black45),
-                  )
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'المرحلة', border: OutlineInputBorder()),
+                      value: _selectedStage,
+                      items: _stages.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedStage = val;
+                          _selectedGrade = null;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'الصف', border: OutlineInputBorder()),
+                      value: _selectedGrade,
+                      items: _getGradesForStage(_selectedStage).map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                      onChanged: (val) => setState(() => _selectedGrade = val),
+                    ),
+                    const SizedBox(height: 16),
+
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'الفصل (أو الكل)', border: OutlineInputBorder()),
+                      value: _classesList.contains(_selectedClass) ? _selectedClass : null,
+                      items: _classesList.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                      onChanged: (val) => setState(() => _selectedClass = val),
+                    ),
+                    const SizedBox(height: 32),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        icon: _isGenerating
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.download),
+                        label: Text(_isGenerating ? 'جاري إنشاء الـ PDF...' : 'توليد وتحميل الشهادات'),
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE65100)),
+                        onPressed: _isGenerating ? null : _generateAndDownloadPDF,
+                      ),
+                    )
+                  ],
+                ),
               ),
             ),
           ),
-          if (_isProcessing)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              ),
-            )
-        ],
+        ),
       ),
     );
   }

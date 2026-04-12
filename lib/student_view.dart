@@ -10,6 +10,7 @@ import 'package:badges/badges.dart' as badges;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -70,8 +71,11 @@ class _StudentViewPageState extends State<StudentViewPage>
 
   late final Map<String, TestInfo> _allTestsMap;
   bool _isPrinting = false;
-  StreamSubscription? _notificationSubscription;
+
+  StreamSubscription<DocumentSnapshot>? _studentDataSub;
+  StreamSubscription<QuerySnapshot>? _notificationSubscription;
   final Set<String> _processedNotificationIds = {};
+  bool _listenersSetup = false;
 
   Timer? _lastSeenTimer;
   bool _isTeacherView = false;
@@ -119,6 +123,7 @@ class _StudentViewPageState extends State<StudentViewPage>
 
   @override
   void dispose() {
+    _studentDataSub?.cancel();
     _notificationSubscription?.cancel();
     _lastSeenTimer?.cancel();
     super.dispose();
@@ -165,9 +170,16 @@ class _StudentViewPageState extends State<StudentViewPage>
       tests.add(TestInfo(key: 'e1$profKey', name: 'الاختبار الأول (دوري)', subject: subjName, testGroup: 'periodic'));
       tests.add(TestInfo(key: 'e2$profKey', name: 'الاختبار الثاني (دوري)', subject: subjName, testGroup: 'periodic'));
       tests.add(TestInfo(key: 'e3$profKey', name: 'الاختبار الثالث (دوري)', subject: subjName, testGroup: 'periodic'));
+      tests.add(TestInfo(key: 'e4$profKey', name: 'الاختبار الأول (دوري)', subject: subjName, testGroup: 'periodic'));
+      tests.add(TestInfo(key: 'e5$profKey', name: 'الاختبار الثاني (دوري)', subject: subjName, testGroup: 'periodic'));
+      tests.add(TestInfo(key: 'e6$profKey', name: 'الاختبار الثالث (دوري)', subject: subjName, testGroup: 'periodic'));
+
       tests.add(TestInfo(key: 'e14$profKey', name: 'اختبار قبلي', subject: subjName, testGroup: 'additional'));
       tests.add(TestInfo(key: 'e15$profKey', name: 'اختبار بعدي', subject: subjName, testGroup: 'additional'));
       tests.add(TestInfo(key: 'e16$profKey', name: 'اختبار احتياطي', subject: subjName, testGroup: 'additional'));
+      tests.add(TestInfo(key: 'e17$profKey', name: 'اختبار قبلي', subject: subjName, testGroup: 'additional'));
+      tests.add(TestInfo(key: 'e18$profKey', name: 'اختبار بعدي', subject: subjName, testGroup: 'additional'));
+      tests.add(TestInfo(key: 'e19$profKey', name: 'اختبار احتياطي', subject: subjName, testGroup: 'additional'));
     });
 
     const String nafesBaseKey = 'profession13';
@@ -191,6 +203,19 @@ class _StudentViewPageState extends State<StudentViewPage>
         TestInfo(key: 'e10${nafesBaseKey}_$shortcode', name: 'الثامن ف نافس', subject: subjectName, testGroup: 'nafes'),
         TestInfo(key: 'e11${nafesBaseKey}_$shortcode', name: 'التاسع ف نافس', subject: subjectName, testGroup: 'nafes'),
         TestInfo(key: 'e12${nafesBaseKey}_$shortcode', name: 'العاشر ف نافس', subject: subjectName, testGroup: 'nafes'),
+
+        TestInfo(key: 't2_e1${nafesBaseKey}_$shortcode', name: 'الأول أساسي', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e2${nafesBaseKey}_$shortcode', name: 'الثاني أساسي', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e3${nafesBaseKey}_$shortcode', name: 'الاول ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e4${nafesBaseKey}_$shortcode', name: 'الثاني ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e5${nafesBaseKey}_$shortcode', name: 'الثالث ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e6${nafesBaseKey}_$shortcode', name: 'الرابع ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e7${nafesBaseKey}_$shortcode', name: 'الخامس ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e8${nafesBaseKey}_$shortcode', name: 'السادس ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e9${nafesBaseKey}_$shortcode', name: 'السابع ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e10${nafesBaseKey}_$shortcode', name: 'الثامن ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e11${nafesBaseKey}_$shortcode', name: 'التاسع ف نافس', subject: subjectName, testGroup: 'nafes'),
+        TestInfo(key: 't2_e12${nafesBaseKey}_$shortcode', name: 'العاشر ف نافس', subject: subjectName, testGroup: 'nafes'),
       ]);
     });
 
@@ -218,12 +243,13 @@ class _StudentViewPageState extends State<StudentViewPage>
       if (mounted) setState(() => _isLoading = false);
       return;
     }
-    try {
-      final docSnapshot = await FirebaseFirestore.instance
-          .collection('students')
-          .doc(studentDocumentId)
-          .get();
 
+    _studentDataSub?.cancel();
+    _studentDataSub = FirebaseFirestore.instance
+        .collection('students')
+        .doc(studentDocumentId)
+        .snapshots()
+        .listen((docSnapshot) {
       if (mounted && docSnapshot.exists) {
         setState(() {
           _studentData = docSnapshot.data();
@@ -231,19 +257,19 @@ class _StudentViewPageState extends State<StudentViewPage>
           _isLoading = false;
         });
 
-        if (!_isTeacherView && _studentDocId != null) {
+        if (!_isTeacherView && _studentDocId != null && !_listenersSetup) {
+          _listenersSetup = true;
           _listenForNewNotifications();
           _requestNotificationPermission();
           _startLastSeenTimer();
         }
-
       } else {
         if (mounted) setState(() => _isLoading = false);
       }
-    } catch (e) {
+    }, onError: (e) {
       debugPrint("Error fetching student data: $e");
       if (mounted) setState(() => _isLoading = false);
-    }
+    });
   }
 
   void _requestNotificationPermission() {
@@ -669,15 +695,14 @@ class _StudentViewPageState extends State<StudentViewPage>
   Widget _buildDashboard() {
     final int totalLikes = _studentData?['totalLikes'] ?? 0;
     final int totalDislikes = _studentData?['totalDislikes'] ?? 0;
-    final double walletBalance = (_studentData?['walletBalance'] ?? 0).toDouble();
 
     final Map<String, String> imageMap = {
       'النتائج والتحليل': 'assets/a13.png',
       'الطالب المنضبط': 'assets/a1.png',
       'الملاحظات السلوكية': 'assets/a9.png',
-      'فيزا الطلاب': 'assets/a2.png',
+      'الشهادات': 'assets/a2.png',
       'الكتاب المدرسي': 'assets/a3.png',
-      'ملف الإنجاز': 'assets/a5.png', // تم تغيير المفتاح ليتوافق مع المسمى الجديد
+      'ملف الإنجاز': 'assets/a5.png',
       'استديو الطالب': 'assets/a11.png',
       'التوكاتسو ': 'assets/a4.png',
       'المسابقات': 'assets/a10.png',
@@ -739,26 +764,26 @@ class _StudentViewPageState extends State<StudentViewPage>
         isWorking: true,
       ),
       _DashboardButtonData(
-        title: 'فيزا الطلاب',
-        icon: Icons.credit_card,
-        assetPath: imageMap['فيزا الطلاب'],
+        title: 'الشهادات والتقدير',
+        icon: Icons.workspace_premium_rounded,
+        assetPath: imageMap['الشهادات'],
         color: Colors.deepPurple.shade500,
-        badgeText: '${walletBalance.toStringAsFixed(2)} ﷼',
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => StudentVisaPage(studentData: _studentData!)),
-          );
+          if (_studentDocId != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => StudentCertificatesPage(studentData: _studentData!, studentId: _studentDocId!)),
+            );
+          }
         },
         isWorking: true,
       ),
-      // ✅✅✅ تم التعديل: تمييز أيقونة ملف الإنجاز لتكون مشعة ✅✅✅
       _DashboardButtonData(
         title: 'ملف الإنجاز',
-        icon: Icons.workspace_premium_rounded,
+        icon: Icons.folder_shared_rounded,
         assetPath: imageMap['ملف الإنجاز'],
         color: Colors.pink.shade600,
-        isFeatured: true, // تفعيل التمييز
+        isFeatured: true,
         onTap: () {
           if (_studentDocId != null) {
             Navigator.push(
@@ -769,7 +794,6 @@ class _StudentViewPageState extends State<StudentViewPage>
         },
         isWorking: true,
       ),
-      // ✅✅✅ ------------------------------------------- ✅✅✅
       _DashboardButtonData(
         title: 'استديو الطالب',
         icon: Icons.photo_library,
@@ -928,7 +952,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                                 onTap: data.onTap,
                                 badgeText: data.badgeText,
                                 isWorking: data.isWorking,
-                                isFeatured: data.isFeatured, // تمرير خاصية التمييز
+                                isFeatured: data.isFeatured,
                               ),
                             ),
                           ),
@@ -968,9 +992,8 @@ class _StudentViewPageState extends State<StudentViewPage>
     required VoidCallback onTap,
     String? badgeText,
     required bool isWorking,
-    bool isFeatured = false, // خاصية جديدة
+    bool isFeatured = false,
   }) {
-    // ✅ تخصيص زر الطالب المنضبط ليظهر العدد بداخله
     final bool isNobleButton = icon == Icons.thumb_up;
     final String? nobleCount = isNobleButton && badgeText != null ? badgeText : null;
 
@@ -988,10 +1011,10 @@ class _StudentViewPageState extends State<StudentViewPage>
               ),
               borderRadius: BorderRadius.circular(20),
               border: isFeatured
-                  ? Border.all(color: Colors.amberAccent, width: 2) // إطار ذهبي للمميز
+                  ? Border.all(color: Colors.amberAccent, width: 2)
                   : null,
               boxShadow: isFeatured
-                  ? [ // ✅✅ تأثير الإشعاع للعناصر المميزة ✅✅
+                  ? [
                 BoxShadow(
                   color: color.withOpacity(0.6),
                   blurRadius: 15,
@@ -1032,7 +1055,6 @@ class _StudentViewPageState extends State<StudentViewPage>
                     child: Icon(icon, size: 40, color: Colors.white),
                   ),
 
-                  // ✅ عرض عدد اللايكات للطالب المنضبط داخل الأيقونة
                   if (isNobleButton && nobleCount != null)
                     Container(
                       color: Colors.black.withOpacity(0.4),
@@ -1053,7 +1075,6 @@ class _StudentViewPageState extends State<StudentViewPage>
             ),
           ),
 
-          // ✅ شارة "جديد" للعناصر المميزة
           if (isFeatured)
             Positioned(
               top: -8,
@@ -1071,10 +1092,9 @@ class _StudentViewPageState extends State<StudentViewPage>
                   style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ).animate(onPlay: (controller) => controller.repeat(reverse: true))
-                  .scaleXY(begin: 1.0, end: 1.1, duration: 800.ms), // نبض خفيف للشارة
+                  .scaleXY(begin: 1.0, end: 1.1, duration: 800.ms),
             ),
 
-          // ✅ إعادة الرقم إلى أعلى الأيقونة (لغير الطالب المنضبط)
           if (badgeText != null && !isNobleButton)
             Positioned(
               top: -8,
@@ -1281,7 +1301,6 @@ class _StudentViewPageState extends State<StudentViewPage>
           ),
         ),
 
-        // ✅ عرض عدد نقاط الطالب الحالي
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           padding: const EdgeInsets.all(16),
@@ -1308,7 +1327,6 @@ class _StudentViewPageState extends State<StudentViewPage>
           ),
         ),
 
-        // ✅ قائمة أفضل 10 طلاب (Leaderboard)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: const Align(
@@ -1376,7 +1394,6 @@ class _StudentViewPageState extends State<StudentViewPage>
           },
         ),
 
-        // ✅ قائمة أفضل 10 فصول (Class Leaderboard)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
           child: const Align(
@@ -1386,8 +1403,6 @@ class _StudentViewPageState extends State<StudentViewPage>
         ),
 
         StreamBuilder<QuerySnapshot>(
-          // ملاحظة: لتحقيق هذا بدقة عالية يجب استخدام Cloud Functions،
-          // ولكن هنا سنقوم بجلب أفضل 50 طالب ونجمع نقاط فصولهم كحل تقريبي وسريع للعميل
           stream: FirebaseFirestore.instance
               .collection('students')
               .orderBy('totalLikes', descending: true)
@@ -1515,8 +1530,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       stream: FirebaseFirestore.instance
           .collection('behavior_reports')
           .where('studentId', isEqualTo: _studentDocId)
-          .where('type', isEqualTo: 'dislike')
-          .orderBy('timestamp', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -1525,7 +1538,24 @@ class _StudentViewPageState extends State<StudentViewPage>
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+
+        final docs = snapshot.data!.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return data['type'] == 'dislike' || data.containsKey('teacherNote');
+        }).toList();
+
+        docs.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aTime = aData['timestamp'] as Timestamp?;
+          final bTime = bData['timestamp'] as Timestamp?;
+          if (aTime == null && bTime == null) return 0;
+          if (aTime == null) return 1;
+          if (bTime == null) return -1;
+          return bTime.compareTo(aTime);
+        });
+
+        if (docs.isEmpty) {
           return ListView(
             children: [
               SizedBox(height: MediaQuery.of(context).size.height * 0.3),
@@ -1552,9 +1582,9 @@ class _StudentViewPageState extends State<StudentViewPage>
 
         return ListView.builder(
           padding: const EdgeInsets.all(12),
-          itemCount: snapshot.data!.docs.length,
+          itemCount: docs.length,
           itemBuilder: (context, index) {
-            final doc = snapshot.data!.docs[index];
+            final doc = docs[index];
             return _DislikeCard(
               reportDoc: doc,
               studentName: _studentData?['name'] ?? 'الطالب',
@@ -1565,7 +1595,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
-
   List<Widget> _buildDashboardActions() {
     final Color iconColor = Theme.of(context).primaryColor;
 
@@ -1574,35 +1603,33 @@ class _StudentViewPageState extends State<StudentViewPage>
         stream: FirebaseFirestore.instance
             .collection('broadcast_notifications')
             .orderBy('timestamp', descending: true)
-            .limit(100) // ✅ زيادة الحد لجلب العدد الصحيح للإشعارات المخزنة
+            .limit(100)
             .snapshots(),
         builder: (context, snapshot) {
           final int count = snapshot.hasData ? snapshot.data!.docs.length : 0;
           final bool hasNews = count > 0;
 
-          // ✅ تصميم الأيقونة المتوهجة
           Widget iconWidget = IconButton(
             icon: Icon(
               Icons.notifications_active,
-              color: hasNews ? Colors.blue : iconColor, // ✅ لون مميز إذا وجد جديد
+              color: hasNews ? Colors.blue : iconColor,
               size: 28,
             ),
             tooltip: 'التعاميم العامة',
             onPressed: () => _showNotifications(0),
           );
 
-          // ✅ إضافة نبض وتوهج للأيقونة
           if (hasNews) {
             iconWidget = iconWidget.animate(onPlay: (controller) => controller.repeat())
-                .shimmer(duration: 1200.ms, color: Colors.orange.withOpacity(0.5)) // ✅ لمعان مستمر
+                .shimmer(duration: 1200.ms, color: Colors.orange.withOpacity(0.5))
                 .then()
-                .shake(hz: 4, curve: Curves.easeInOutCubic); // ✅ اهتزاز خفيف للفت النظر
+                .shake(hz: 4, curve: Curves.easeInOutCubic);
           }
 
           return badges.Badge(
             showBadge: hasNews,
             badgeContent: Text(
-              '$count', // ✅ عرض العدد الفعلي للإشعارات المخزنة
+              '$count',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 12,
@@ -1610,13 +1637,12 @@ class _StudentViewPageState extends State<StudentViewPage>
               ),
             ),
             badgeStyle: badges.BadgeStyle(
-              badgeColor: Colors.blueAccent, // ✅ لون أحمر لافت للشارة
+              badgeColor: Colors.blueAccent,
               padding: const EdgeInsets.all(6),
               elevation: 4,
             ),
-            position: badges.BadgePosition.topEnd(top: -5, end: -5), // ✅ موقع دقيق فوق الأيقونة
+            position: badges.BadgePosition.topEnd(top: -5, end: -5),
             child: Container(
-              // ✅ هالة ضوئية خلف الأيقونة لزيادة الإشعاع
               decoration: hasNews ? BoxDecoration(
                 shape: BoxShape.circle,
                 boxShadow: [
@@ -1776,8 +1802,8 @@ class _StudentViewPageState extends State<StudentViewPage>
                 ? intl.DateFormat('yyyy/MM/dd - hh:mm a', 'ar').format(ts.toDate())
                 : '..';
 
-            String title = isPublic ? (data['title'] ?? 'إشعار عام') : 'تنبيه';
-            String body = isPublic ? (data['body'] ?? '...') : (data['message'] ?? '...');
+            String title = data['title'] ?? (isPublic ? 'إشعار عام' : 'تنبيه سلوكي');
+            String body = data['message'] ?? data['body'] ?? data['reason'] ?? 'لا يوجد تفاصيل';
             String senderName = isPublic ? (data['senderName'] ?? 'الإدارة') : 'النظام';
 
             return ListTile(
@@ -1839,12 +1865,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       Navigator.of(context)
           .pushNamedAndRemoveUntil('/', (Route<dynamic> route) => false);
     }
-  }
-
-  String _formatTimestamp(Timestamp? timestamp) {
-    if (timestamp == null) return 'غير متوفر';
-    return intl.DateFormat('yyyy/MM/dd - hh:mm a', 'ar')
-        .format(timestamp.toDate());
   }
 }
 
@@ -2050,7 +2070,9 @@ class _DislikeCardState extends State<_DislikeCard> {
     final teacherName = data['teacherName'] ?? 'معلم';
     final teacherId = data['teacherId'];
     final subject = data['subject'] ?? 'مادة';
-    final teacherNote = data['teacherNote'] ?? '...';
+
+    final teacherNote = data['reason'] ?? data['teacherNote'] ?? 'لم يتم كتابة تفاصيل السلوك.';
+
     final studentReply = data['studentReply'] as String?;
     final teacherFinalReply = data['teacherFinalReply'] as String?;
     final status = data['status'];
@@ -2702,10 +2724,6 @@ class SchoolBooksPage extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// ✅✅✅ صفحة ملف الإنجاز (StudentPortfolioPage) المطورة ✅✅✅
-// ---------------------------------------------------------------------------
-
 class StudentPortfolioPage extends StatefulWidget {
   final String studentId;
 
@@ -2721,24 +2739,20 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
 
   Future<void> _pickAndUploadImage() async {
     try {
-      // 1. اختيار الصورة مع ضغطها لتقليل الحجم (أقل من 2 ميجا)
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 70, // جودة 70% تضمن حجماً صغيراً
-        maxWidth: 1024, // تقليص العرض
+        imageQuality: 70,
+        maxWidth: 1024,
       );
 
       if (pickedFile == null) return;
 
-      // 2. طلب وصف للصورة من الطالب (اختياري)
       final String? caption = await _showCaptionDialog();
 
-      // إذا ضغط الطالب إلغاء في الديالوج، لا نرفع الصورة
       if (caption == null) return;
 
       setState(() => _isUploading = true);
 
-      // 3. رفع الصورة إلى Storage
       final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       final String fileName = '${widget.studentId}_$timestamp.jpg';
       final Reference ref = FirebaseStorage.instance
@@ -2750,17 +2764,15 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
       Uint8List fileBytes = await pickedFile.readAsBytes();
       await ref.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
 
-      // 4. الحصول على الرابط
       final String downloadUrl = await ref.getDownloadURL();
 
-      // 5. الحفظ في Firestore مع الوصف
       await FirebaseFirestore.instance
           .collection('students')
           .doc(widget.studentId)
           .collection('portfolio')
           .add({
         'imageUrl': downloadUrl,
-        'caption': caption, // النص المكتوب
+        'caption': caption,
         'timestamp': FieldValue.serverTimestamp(),
       });
 
@@ -2781,7 +2793,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     }
   }
 
-  // ديالوج لإدخال وصف الصورة
   Future<String?> _showCaptionDialog() async {
     final TextEditingController captionController = TextEditingController();
     return showDialog<String>(
@@ -2808,11 +2819,11 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context, null), // إلغاء
+              onPressed: () => Navigator.pop(context, null),
               child: const Text("إلغاء", style: TextStyle(color: Colors.red)),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(context, captionController.text.trim()), // تأكيد
+              onPressed: () => Navigator.pop(context, captionController.text.trim()),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.pink.shade600, foregroundColor: Colors.white),
               child: const Text("نشر"),
             ),
@@ -2822,7 +2833,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     );
   }
 
-  // حذف الصورة
   Future<void> _deleteImage(String docId, String imageUrl) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -2839,7 +2849,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     if (confirm != true) return;
 
     try {
-      // حذف من Firestore
       await FirebaseFirestore.instance
           .collection('students')
           .doc(widget.studentId)
@@ -2847,7 +2856,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
           .doc(docId)
           .delete();
 
-      // محاولة حذف من Storage (اختياري، لتوفير المساحة)
       try {
         await FirebaseStorage.instance.refFromURL(imageUrl).delete();
       } catch (_) {}
@@ -2860,7 +2868,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
 
   @override
   Widget build(BuildContext context) {
-    // التحقق مما إذا كان المستخدم هو الطالب نفسه لعرض زر الإضافة
     final bool isMe = FirebaseAuth.instance.currentUser?.uid == widget.studentId;
 
     return Scaffold(
@@ -2926,10 +2933,10 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
               child: GridView.builder(
                 padding: const EdgeInsets.all(12),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2, // عمودين لعرض أجمل
+                  crossAxisCount: 2,
                   crossAxisSpacing: 12,
                   mainAxisSpacing: 12,
-                  childAspectRatio: 0.8, // نسبة الطول للعرض (شكل بطاقة)
+                  childAspectRatio: 0.8,
                 ),
                 itemCount: snapshot.data!.docs.length,
                 itemBuilder: (context, index) {
@@ -3003,7 +3010,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     );
   }
 
-  // دالة لعرض الصورة بحجم كامل مع التكبير والنص
   void _showFullImage(BuildContext context, String imageUrl, String caption) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -3024,7 +3030,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                 child: InteractiveViewer(
                   panEnabled: true,
                   minScale: 0.5,
-                  maxScale: 4.0, // تكبير حتى 4 أضعاف
+                  maxScale: 4.0,
                   child: Hero(
                     tag: imageUrl,
                     child: Image.network(imageUrl),
@@ -3061,742 +3067,395 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// ✅✅✅ صفحة الفيزا للطالب (StudentVisaPage)  ✅✅✅
-// ---------------------------------------------------------------------------
-
-class StudentVisaPage extends StatefulWidget {
+// -----------------------------------------------------------------------------
+// النظام الجديد: الشهادات والتقدير (الاعتماد الرسمي بعد الإغلاق) بصفحتين
+// -----------------------------------------------------------------------------
+class StudentCertificatesPage extends StatefulWidget {
   final Map<String, dynamic> studentData;
+  final String studentId;
 
-  const StudentVisaPage({super.key, required this.studentData});
+  const StudentCertificatesPage({super.key, required this.studentData, required this.studentId});
 
   @override
-  State<StudentVisaPage> createState() => _StudentVisaPageState();
+  State<StudentCertificatesPage> createState() => _StudentCertificatesPageState();
 }
 
-class _StudentVisaPageState extends State<StudentVisaPage> {
-  late Map<String, dynamic> _currentData;
-  double _currentBalance = 0.0;
-  double _dailyLimit = 0.0;
-  bool _isUploading = false;
+class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
 
-  @override
-  void initState() {
-    super.initState();
-    _currentData = widget.studentData;
-    _currentBalance = (_currentData['walletBalance'] ?? 0).toDouble();
-    _dailyLimit = (_currentData['dailyLimit'] ?? 15.0).toDouble();
-  }
+  double _calculateTermPercentage(Map<String, dynamic> data, int term) {
+    final Map<String, String> standardSubjects = {
+      'profession1': 'رياضيات',
+      'profession2': 'لغتي',
+      'profession3': 'إسلاميات',
+      'profession4': 'علوم',
+      'profession5': 'نشاط',
+      'profession6': 'انجليزي',
+      'profession7': 'اجتماعيات',
+      'profession8': 'فنية',
+      'profession9': 'حياتية',
+      'profession10': 'بدنية',
+      'profession11': 'رقمية',
+      'profession12': 'تفكير',
+    };
 
-  Future<void> _refreshData() async {
-    try {
-      final doc = await FirebaseFirestore.instance.collection('students').doc(FirebaseAuth.instance.currentUser!.uid).get();
-      if(doc.exists && mounted) {
-        setState(() {
-          _currentData = doc.data()!;
-          _currentBalance = (_currentData['walletBalance'] ?? 0).toDouble();
-          _dailyLimit = (_currentData['dailyLimit'] ?? 15.0).toDouble();
-        });
+    List<double> subjectPercents = [];
+
+    standardSubjects.forEach((profKey, subjName) {
+      List<num> grades = [];
+      int startIdx = term == 1 ? 1 : 4;
+      int endIdx = term == 1 ? 3 : 6;
+      for (int i = startIdx; i <= endIdx; i++) {
+        String key = 'e$i$profKey';
+        if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
       }
-    } catch (_) {}
-  }
-  Future<void> _pickAndUploadImage() async {
-    try {
-      final picker = ImagePicker();
-      final XFile? pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80, // تقليل الجودة قليلاً للتسريع
-        maxWidth: 600,
-      );
-
-      if (pickedFile == null) return;
-
-      setState(() => _isUploading = true); // إظهار مؤشر التحميل
-
-      final String userId = FirebaseAuth.instance.currentUser!.uid;
-      Uint8List fileBytes = await pickedFile.readAsBytes();
-
-      // 1. تحديد المسار الصحيح في Storage
-      final ref = FirebaseStorage.instance.ref().child('students_photos').child('$userId.jpg');
-
-      // 2. رفع الصورة مع تحديد نوع الملف
-      await ref.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
-
-      // 3. الحصول على الرابط
-      String url = await ref.getDownloadURL();
-
-      // 4. ✅ الإصلاح الجوهري: التحقق من الفاصل الصحيح (? أو &)
-      final String separator = url.contains('?') ? '&' : '?';
-      final String uniqueUrl = '$url${separator}v=${DateTime.now().millisecondsSinceEpoch}';
-
-      // 5. تحديث فيرفويس
-      await FirebaseFirestore.instance.collection('students').doc(userId).update({'photo': uniqueUrl});
-
-      // 6. ✅ أهم خطوة: تحديث الواجهة فوراً
-      if (mounted) {
-        setState(() {
-          _currentData['photo'] = uniqueUrl; // تحديث المتغير المحلي ليعرض الصورة الجديدة
-          _isUploading = false; // إخفاء مؤشر التحميل
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تحديث الصورة بنجاح ✅'), backgroundColor: Colors.green),
-        );
+      int eStart = term == 1 ? 14 : 17;
+      int eEnd = term == 1 ? 16 : 19;
+      for (int i = eStart; i <= eEnd; i++) {
+        String key = 'e$i$profKey';
+        if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
       }
 
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isUploading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل الرفع: $e'), backgroundColor: Colors.red),
-        );
+      if (grades.isNotEmpty) {
+        double avg = grades.reduce((a, b) => a + b) / grades.length;
+        subjectPercents.add((avg / 20) * 100);
+      }
+    });
+
+    final List<String> nafesKeys = ['math', 'lughati', 'science'];
+    for (String n in nafesKeys) {
+      List<num> grades = [];
+      for (int i = 1; i <= 12; i++) {
+        String key = term == 1 ? 'e${i}profession13_$n' : 't2_e${i}profession13_$n';
+        if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
+      }
+      if (grades.isNotEmpty) {
+        double avg = grades.reduce((a, b) => a + b) / grades.length;
+        subjectPercents.add((avg / 10) * 100);
       }
     }
+
+    if (subjectPercents.isEmpty) return 0.0;
+    return subjectPercents.reduce((a, b) => a + b) / subjectPercents.length;
+  }
+
+  Future<Map<String, dynamic>> _fetchTermStats(int term) async {
+    double myPercent = _calculateTermPercentage(widget.studentData, term);
+    if (myPercent == 0.0) return {'percent': 0.0, 'rank': -1, 'subjects': []};
+
+    String grade = widget.studentData['grades'] ?? '';
+    String className = widget.studentData['classes'] ?? '';
+
+    // جلب الطلاب في نفس الصف والفصل لحساب الترتيب
+    final snap = await FirebaseFirestore.instance.collection('students')
+        .where('grades', isEqualTo: grade)
+        .where('classes', isEqualTo: className)
+        .get();
+
+    List<Map<String, dynamic>> allStudents = [];
+    for(var doc in snap.docs) {
+      double p = _calculateTermPercentage(doc.data(), term);
+      allStudents.add({'id': doc.id, 'percent': p});
+    }
+
+    allStudents.sort((a,b) => b['percent'].compareTo(a['percent']));
+    int rank = allStudents.indexWhere((s) => s['id'] == widget.studentId) + 1;
+
+    // استخراج درجات المواد للطالب الحالي
+    final Map<String, String> standardSubjects = {
+      'profession1': 'رياضيات', 'profession2': 'لغتي', 'profession3': 'إسلاميات',
+      'profession4': 'علوم', 'profession6': 'انجليزي', 'profession7': 'اجتماعيات',
+      'profession8': 'فنية', 'profession10': 'بدنية', 'profession11': 'رقمية', 'profession12': 'تفكير',
+    };
+
+    List<Map<String, dynamic>> subjectGrades = [];
+
+    standardSubjects.forEach((profKey, subjName) {
+      List<num> grades = [];
+      int startIdx = term == 1 ? 1 : 4;
+      int endIdx = term == 1 ? 3 : 6;
+      for (int i = startIdx; i <= endIdx; i++) {
+        String key = 'e$i$profKey';
+        if (widget.studentData[key] != null && widget.studentData[key] is num) {
+          if (widget.studentData[key] >= 0) grades.add(widget.studentData[key]);
+        }
+      }
+      if (grades.isNotEmpty) {
+        double avg = grades.reduce((a, b) => a + b) / grades.length;
+        subjectGrades.add({'name': subjName, 'percent': ((avg / 20) * 100).clamp(0, 100)});
+      }
+    });
+
+    return {'percent': myPercent, 'rank': rank, 'subjects': subjectGrades};
   }
 
   @override
   Widget build(BuildContext context) {
-    final String? visaCode = _currentData['visaCode'];
+    return StreamBuilder<DocumentSnapshot>(
+        stream: FirebaseFirestore.instance.collection('settings').doc('terms_locks').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA), // خلفية هادئة
-      appBar: AppBar(
-        title: const Text('المحفظة الرقمية', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: const Color(0xFF1A237E),
-        centerTitle: true,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: visaCode == null || visaCode.isEmpty
-          ? _buildNoVisaView()
-          : RefreshIndicator(
-        onRefresh: _refreshData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              _buildVisaCard(visaCode),
-              const SizedBox(height: 25),
-              _buildBalanceDisplay(),
-              const SizedBox(height: 30),
-              _buildActionButtons(),
-              const SizedBox(height: 30),
+          bool term1Locked = false;
+          bool term2Locked = false;
+          if (snapshot.hasData && snapshot.data!.exists) {
+            final data = snapshot.data!.data() as Map<String, dynamic>?;
+            term1Locked = data?['term1_locked'] ?? false;
+            term2Locked = data?['term2_locked'] ?? false;
+          }
+          int initialIndex = 0;
 
-              // ✅ تنبيه فقدان الفيزا
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  border: Border.all(color: Colors.red.shade200),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.report_problem, color: Colors.red),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        "في حال ضياع الفيزا، يرجى إبلاغ الأستاذ عماد الجندي فوراً لإلغائها واستخراج بدل فاقد.",
-                        style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
-                    ),
+          return DefaultTabController(
+            key: const ValueKey('cert_tabs_force_first'),
+            length: 2,
+            initialIndex: initialIndex,
+            child: Scaffold(
+              appBar: AppBar(
+                title: const Text('الشهادات والتقدير', style: TextStyle(fontWeight: FontWeight.bold)),
+                centerTitle: true,
+                backgroundColor: const Color(0xFF1A237E),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                bottom: const TabBar(
+                  indicatorColor: Colors.amber,
+                  indicatorWeight: 4,
+                  labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.white70,
+                  tabs: [
+                    Tab(text: "الترم الأول"),
+                    Tab(text: "الترم الثاني"),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+              body: Container(
+                color: Colors.grey.shade100,
+                child: TabBarView(
+                  children: [
+                    _buildTermView(1, term1Locked),
+                    _buildTermView(2, term2Locked),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
     );
   }
 
-  Widget _buildNoVisaView() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.credit_card_off, size: 80, color: Colors.grey),
-          SizedBox(height: 20),
-          Text('لم يتم إصدار بطاقة للطالب بعد', style: TextStyle(fontSize: 18, color: Colors.grey)),
-        ],
-      ),
-    );
-  }
-
-  // ✅ تصميم البطاقة الجديد
-  Widget _buildVisaCard(String code) {
-    final double cardWidth = math.min(MediaQuery.of(context).size.width - 40, 400);
-    final double cardHeight = cardWidth / 1.586;
-
+  // ✅ تم جعل الحاوية ديناميكية وتصغير الحواف لتناسب جميع الشاشات
+  Widget _buildCertificateContainer({required Widget child}) {
     return Container(
-      width: cardWidth,
-      height: cardHeight,
+      margin: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
-          colors: [Color(0xFF283593), Color(0xFF1A237E)], // ألوان زرقاء غامقة فخمة
+          colors: [Color(0xFFD4AF37), Color(0xFFFFF1C5), Color(0xFFD4AF37)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1A237E).withOpacity(0.4),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))],
       ),
-      child: Stack(
-        children: [
-          // الخلفية والزخرفة
-          _buildWatermark(),
-
-          // 1. الشريحة والواي فاي (أقصى اليسار)
-          Positioned(
-            top: 40,
-            left: 25,
-            child: Row(
-              children: [
-                Container(
-                  width: 45,
-                  height: 35,
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade200,
-                    borderRadius: BorderRadius.circular(6),
-                    gradient: LinearGradient(
-                      colors: [Colors.amber.shade300, Colors.amber.shade600],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: CustomPaint(painter: ChipPainter()),
-                ),
-                const SizedBox(width: 10),
-                const Icon(Icons.wifi, color: Colors.white54, size: 24),
-              ],
-            ),
+      child: Container(
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFD4AF37), width: 1.5),
+            borderRadius: BorderRadius.circular(8),
           ),
-
-          // ✅ الباركود أسفل الواي فاي مباشرة
-          Positioned(
-            top: 90,
-            left: 25,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Image.network(
-                'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=$code',
-                height: 50,
-                width: 50,
-                fit: BoxFit.cover,
-                errorBuilder: (c, e, s) => const Icon(Icons.qr_code, size: 50, color: Colors.black),
-              ),
-            ),
-          ),
-
-          // 2. شعار المدرسة (في المنتصف - أبيض)
-          Align(
-            alignment: Alignment.center,
-            child: Opacity(
-              opacity: 0.9,
-              child: Image.asset(
-                'assets/m1.png',
-                height: 80,
-                color: Colors.white, // تحويل الشعار للأبيض
-                colorBlendMode: BlendMode.srcIn,
-                errorBuilder: (c,e,s) => const Icon(Icons.school, size: 80, color: Colors.white24),
-              ),
-            ),
-          ),
-
-          // 3. صورة الطالب (يمين - دائرية ومضبوطة) مع زر الرفع
-          Positioned(
-            top: 20,
-            right: 20,
-            child: GestureDetector(
-              onTap: _isUploading ? null : _pickAndUploadImage,
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  Container(
-                    width: 70,
-                    height: 70,
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.8), width: 2),
-                      boxShadow: const [BoxShadow(blurRadius: 5, color: Colors.black26)],
-                      color: Colors.white,
-                    ),
-                    child: ClipOval(
-                      child: _isUploading
-                          ? const Center(child: CircularProgressIndicator(strokeWidth: 2)) // إظهار تحميل أثناء الرفع
-                          : (_currentData['photo'] != null && _currentData['photo'].toString().isNotEmpty
-                          ? Image.network(
-                        _currentData['photo'],
-                        fit: BoxFit.cover, // ✅ يملأ الدائرة بالكامل
-                        errorBuilder: (c, e, s) => const Icon(Icons.person, size: 40, color: Colors.grey),
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                  : null,
-                            ),
-                          );
-                        },
-                      )
-                          : const Icon(Icons.person, size: 40, color: Colors.grey)),
-                    ),
-                  ),
-                  // أيقونة الكاميرا
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Colors.blue,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-
-          // 4. البيانات السفلية (الاسم والكود)
-          Positioned(
-            bottom: 25,
-            left: 25,
-            right: 25,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('CARD HOLDER', style: TextStyle(color: Colors.white54, fontSize: 8, letterSpacing: 1)),
-                      const SizedBox(height: 2),
-                      Text(
-                        (_currentData['name'] ?? 'Student').toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          shadows: [Shadow(blurRadius: 2, color: Colors.black38)],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      // ✅ عرض الفصل تحت الاسم
-                      Text(
-                        _currentData['classes'] ?? '',
-                        style: const TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  _formatVisaCode(code),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'monospace',
-                    fontSize: 12, // تصغير الكود
-                    letterSpacing: 1.2,
-                    shadows: [Shadow(blurRadius: 2, color: Colors.black38)],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          child: child,
+        ),
       ),
     );
   }
 
-  // عرض الرصيد أسفل البطاقة
-  Widget _buildBalanceDisplay() {
+  Widget _buildFrontPage(String studentName, String termName, double percent, int rank) {
+    String rankText = (rank > 0 && rank <= 10) ? ' وحصوله على المركز (الـ $rank) على مستوى المرحلة،' : '';
+
+    return _buildCertificateContainer(
+        child: Column(
+            mainAxisSize: MainAxisSize.min, // ✅ الارتفاع تلقائي وذكي بناءً على المحتوى
+            children: [
+              Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Image.asset('assets/m1.png', width: 85, height: 85, fit: BoxFit.contain),
+
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6.0),
+                        child: SvgPicture.asset(
+                          // ✅ شرط ديناميكي لتغيير الصورة بناءً على النسبة
+                          percent >= 90.0 ? 'assets/sh1.svg' : 'assets/sh2.svg',
+                          height: 160,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    Image.asset('assets/2.png', width: 60, height: 60, fit: BoxFit.contain),
+                  ]
+              ),
+              const SizedBox(height: 20),
+              // ✅ إزالة كلمة المتميز
+              const Text("تسر إدارة المدرسة أن تمنح هذا التقدير للطالب:", textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              Text(studentName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1A237E))),
+              const SizedBox(height: 16),
+              Text(
+                  "لتفوقه واجتهاده الملحوظ خلال $termName، وحصوله على نسبة ${percent.toStringAsFixed(1)}%$rankText\nمتمنين له دوام التوفيق والنجاح.",
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, color: Colors.black87, height: 1.6, fontWeight: FontWeight.bold)
+              ),
+              const SizedBox(height: 25),
+              Row(
+                  mainAxisAlignment: MainAxisAlignment.end, // ✅ نقل مدير المدرسة لليسار بعد إزالة الوكيل
+                  children: [
+                    // ✅ تمت إزالة توقيع وكيل الشؤون التعليمية
+                    Column(
+                        children: [
+                          const Text('مدير المدرسة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF1A237E))),
+                          const SizedBox(height: 25),
+                          const Text('أ. عبدالله عائش المطرفي', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
+                        ]
+                    )
+                  ]
+              )
+            ]
+        )
+    ).animate().fadeIn(duration: 800.ms).scale(begin: const Offset(0.95, 0.95));
+  }
+  Widget _buildBackPage(int term, String termName, double overallPercent, int rank, List<Map<String, dynamic>> subjects) {
+    return _buildCertificateContainer(
+        child: Column(
+            mainAxisSize: MainAxisSize.min, // ✅ الطول متجاوب مع عدد المواد والهواتف الصغيرة
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Image.asset('assets/m1.png', width: 40, height: 40),
+                  Text("مستوي - $termName", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+                  Image.asset('assets/2.png', width: 40, height: 40),
+                ],
+              ),
+              const Divider(color: Color(0xFFD4AF37), thickness: 1.5),
+              const SizedBox(height: 12),
+              Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildStatBadge("النسبة الكلية", "${overallPercent.toStringAsFixed(1)}%"),
+                    if (rank > 0 && rank <= 10)
+                      _buildStatBadge("الترتيب بالمرحلة", "الـ $rank", isGold: true),
+                  ]
+              ),
+              const SizedBox(height: 16),
+              // ✅ استبدال ListView.builder بـ Map داخل Column ليعمل بنجاح مع الارتفاع الديناميكي
+              ...subjects.map((sg) => Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8)
+                  ),
+                  child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(sg['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                        Text('${sg['percent'].toStringAsFixed(1)}%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF1A237E))),
+                      ]
+                  )
+              )).toList()
+            ]
+        )
+    ).animate().fadeIn(duration: 800.ms).scale(begin: const Offset(0.95, 0.95));
+  }
+
+  Widget _buildStatBadge(String title, String value, {bool isGold = false}) {
     return Column(
       children: [
-        const Text("الرصيد المتوفر", style: TextStyle(color: Colors.grey, fontSize: 14)),
-        const SizedBox(height: 5),
-        Text(
-          "${_currentBalance.toStringAsFixed(2)} ﷼",
-          style: TextStyle(
-            fontSize: 36,
-            fontWeight: FontWeight.w900,
-            color: _currentBalance > 0 ? Colors.green.shade700 : Colors.red.shade700,
-            fontFamily: 'Arial',
+        Text(title, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isGold ? const Color(0xFFFFF1C5) : Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isGold ? const Color(0xFFD4AF37) : Colors.blue.shade200),
           ),
-        ),
+          child: Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: isGold ? const Color(0xFFD4AF37) : const Color(0xFF1A237E))),
+        )
       ],
     );
   }
 
-  // الأيقونات الحرة (Free Icons)
-  Widget _buildActionButtons() {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Wrap(
-        spacing: 25,
-        runSpacing: 25,
-        alignment: WrapAlignment.start,
-        children: [
-          _buildFreeIcon(Icons.edit_attributes_outlined, 'الحد اليومي', Colors.purple, () => _showDailyLimitDialog()),
-          _buildFreeIcon(Icons.shopping_bag_outlined, 'سجل المشتريات', Colors.blue, () => _showHistoryDialog(context, 'purchases')),
-          _buildFreeIcon(Icons.account_balance_wallet_outlined, 'سجل الشحن', Colors.orange, () => _showHistoryDialog(context, 'deposits')),
-          _buildFreeIcon(Icons.add_card, 'شحن الرصيد', Colors.teal, () => _showRechargeInfoDialog()),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFreeIcon(IconData icon, String label, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 65,
-            height: 65,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-              border: Border.all(color: color.withOpacity(0.3), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                )
-              ],
-            ),
-            child: Icon(icon, color: color, size: 32),
+  Widget _buildTermView(int term, bool isLocked) {
+    if (!isLocked) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.lock_clock, size: 80, color: Colors.grey.shade400),
+              const SizedBox(height: 16),
+              Text('لم يتم اعتماد نتيجة الترم ${term == 1 ? 'الأول' : 'الثاني'} بعد',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text('الرصد لا يزال مستمراً، ستصدر الشهادة فور إغلاق الترم من قبل الإدارة.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- نافذة تعليمات الشحن ---
-  void _showRechargeInfoDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.info_outline, size: 50, color: Colors.teal),
-            const SizedBox(height: 16),
-            const Text("تعليمات شحن الفيزا", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            const Text(
-              "تتم عملية شحن الفيزا حصرياً من خلال المدرسة. يرجى من الطالب التوجه بالبطاقة إلى الوكيل التعليمي لإتمام عملية الشحن.",
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, height: 1.5, color: Colors.black87),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(10)),
-              child: const Column(
+      );
+    }
+
+    final String studentName = widget.studentData['name'] ?? 'الطالب';
+    final String termName = term == 1 ? 'الترم الأول' : 'الترم الثاني';
+
+    return FutureBuilder<Map<String, dynamic>>(
+        future: _fetchTermStats(term),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final double percent = snapshot.data?['percent'] ?? 0.0;
+          final int rank = snapshot.data?['rank'] ?? -1;
+          final List<Map<String, dynamic>> subjects = snapshot.data?['subjects'] ?? [];
+
+          if (percent == 0.0) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("⚠️ ملاحظات هامة", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
-                  SizedBox(height: 8),
-                  Text("• الحد الأدنى للإيداع: 50 ريال", style: TextStyle(fontSize: 14)),
-                  Text("• لسحب الرصيد: يجب تواصل ولي الأمر مع الإدارة", style: TextStyle(fontSize: 14)),
+                  Icon(Icons.warning_amber_rounded, size: 80, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  const Text('لا توجد درجات مرصودة لطباعة الشهادة.', style: TextStyle(color: Colors.grey, fontSize: 18)),
                 ],
               ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  final Uri url = Uri.parse('https://wa.me/966502361091');
-                  if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا يمكن فتح الواتساب')));
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF25D366),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: const Icon(Icons.chat),
-                label: const Text("تواصل مع الوكيل (أ. عماد)", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
-        ),
-      ),
-    );
-  }
+            );
+          }
 
-  // --- نافذة الحد اليومي الأنيقة ---
-  void _showDailyLimitDialog() {
-    final TextEditingController limitController = TextEditingController(text: _dailyLimit.toInt().toString());
-    bool isSaving = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 20, top: 20, left: 20, right: 20),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             children: [
-              Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
-              const SizedBox(height: 20),
-              const Text("ضبط الحد اليومي للصرف", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              const Text("حدد المبلغ الأقصى الذي يمكن للطالب صرفه يومياً", style: TextStyle(color: Colors.grey, fontSize: 12)),
-              const SizedBox(height: 25),
-              TextField(
-                controller: limitController,
-                keyboardType: TextInputType.number,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.purple),
-                decoration: InputDecoration(
-                  suffixText: "ريال",
-                  filled: true,
-                  fillColor: Colors.purple.shade50,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 25),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: isSaving ? null : () async {
-                    final double? val = double.tryParse(limitController.text);
-                    if (val == null || val <= 0) return;
-
-                    setModalState(() => isSaving = true);
-                    try {
-                      await FirebaseFirestore.instance.collection('students').doc(FirebaseAuth.instance.currentUser!.uid).update({
-                        'dailyLimit': val
-                      });
-                      setState(() => _dailyLimit = val); // تحديث الواجهة الرئيسية
-                      if(mounted) {
-                        Navigator.pop(context);
-                        _showSuccessDialog("تم حفظ الحد اليومي بنجاح");
-                      }
-                    } catch (e) {
-                      setModalState(() => isSaving = false);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: isSaving ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white)) : const Text("تأكيد وحفظ", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
-              ),
+              _buildFrontPage(studentName, termName, percent, rank),
+              _buildBackPage(term, termName, percent, rank, subjects),
+              const SizedBox(height: 40),
             ],
-          ),
-        ),
-      ),
+          );
+        }
     );
   }
-
-  void _showSuccessDialog(String message) {
-    showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.check_circle, color: Colors.green, size: 60),
-              const SizedBox(height: 16),
-              Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        )
-    );
-  }
-
-  // --- نافذة السجلات الموحدة (مشتريات/شحن) ---
-  void _showHistoryDialog(BuildContext context, String type) {
-    final bool isPurchase = type == 'purchases';
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.85,
-        maxChildSize: 0.95,
-        builder: (_, controller) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(isPurchase ? "سجل المشتريات والخصومات" : "سجل الإيداع والشحن", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            ),
-            const Divider(),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                // ✅ القراءة من wallet_transactions السجل الموحد
-                stream: FirebaseFirestore.instance
-                    .collection('wallet_transactions')
-                    .where('studentId', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
-                    .where('type', whereIn: isPurchase ? ['purchase', 'deduction'] : ['deposit']) // فلترة حسب النوع
-                    .orderBy('timestamp', descending: true)
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("لا توجد سجلات"));
-
-                  return ListView.separated(
-                    controller: controller,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: snapshot.data!.docs.length,
-                    separatorBuilder: (c, i) => const Divider(),
-                    itemBuilder: (context, index) {
-                      final data = snapshot.data!.docs[index].data() as Map<String, dynamic>;
-                      final amount = (data['amount'] ?? 0).toDouble();
-                      final desc = data['description'] ?? 'عملية مالية';
-                      final date = (data['timestamp'] as Timestamp?)?.toDate();
-                      final type = data['type'];
-
-                      // تنسيق العناصر إذا كانت مشتريات
-                      Widget detailWidget;
-                      if (type == 'purchase' && data['items'] != null) {
-                        List items = data['items'];
-                        detailWidget = Text(items.join(', '), style: const TextStyle(fontSize: 12, color: Colors.grey));
-                      } else {
-                        detailWidget = Text(desc, style: const TextStyle(fontSize: 12, color: Colors.grey));
-                      }
-
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: amount > 0 ? Colors.green.shade100 : Colors.red.shade100,
-                          child: Icon(
-                            amount > 0 ? Icons.arrow_downward : Icons.shopping_cart,
-                            color: amount > 0 ? Colors.cyan : Colors.blue,
-                          ),
-                        ),
-                        title: Text(amount > 0 ? "إيداع" : "مشتريات", style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            detailWidget,
-                            Text(date != null ? intl.DateFormat('yyyy/MM/dd hh:mm a').format(date) : '-', style: const TextStyle(fontSize: 10)),
-                          ],
-                        ),
-                        trailing: Text(
-                          '${amount > 0 ? '+' : ''}${amount.toStringAsFixed(2)} ﷼',
-                          style: TextStyle(
-                            color: amount > 0 ? Colors.green : Colors.blue,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Helpers ---
-  Widget _buildWatermark() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Stack(
-          children: [
-            for (double i = -50; i < constraints.maxWidth + 50; i += 80)
-              for (double j = -50; j < constraints.maxHeight + 50; j += 50)
-                Positioned(
-                  left: i,
-                  top: j,
-                  child: Transform.rotate(
-                    angle: -math.pi / 12,
-                    child: Text(
-                      "ابتدائية المعرفة الاهلية",
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.08),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-          ],
-        );
-      },
-    );
-  }
-
-  String _formatVisaCode(String code) {
-    if (code.length != 16) return code;
-    return '**** **** **** ${code.substring(12, 16)}'; // إخفاء للكود للجمالية
-  }
-}
-
-class ChipPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = Colors.black26
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-
-    final w = size.width;
-    final h = size.height;
-
-    // رسم خطوط الشريحة
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), const Radius.circular(6)), paint);
-    canvas.drawLine(Offset(w * 0.3, 0), Offset(w * 0.3, h), paint);
-    canvas.drawLine(Offset(w * 0.7, 0), Offset(w * 0.7, h), paint);
-    canvas.drawLine(Offset(0, h * 0.5), Offset(w, h * 0.5), paint);
-
-    // الدائرة المركزية
-    final centerPaint = Paint()..style = PaintingStyle.stroke..color = Colors.black26..strokeWidth = 1.0;
-    canvas.drawRect(Rect.fromCenter(center: Offset(w/2, h/2), width: w*0.25, height: h*0.35), centerPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

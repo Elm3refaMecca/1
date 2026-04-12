@@ -1,8 +1,3 @@
-// add1.dart
-// ✅ (MODIFIED) تم تحديث معايير السلوك (Likes/Dislikes) لتكون إلزامية وشاملة
-// ✅ تم إضافة ميزة الرصد الجماعي (Bulk Action) للفصل كاملاً
-// ✅ تم دمج التقييم مع رصد الدرجة ورفعه على Firebase
-
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -17,10 +12,6 @@ import 'package:intl/intl.dart' as intl;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_html/html.dart' as html;
-
-// ---------------------------------------------------------------------------
-// 1. صفحة اختيار المرحلة والصف والفصل والمادة (البوابة الرئيسية)
-// ---------------------------------------------------------------------------
 
 class GradeEntrySelectionPage extends StatefulWidget {
   final bool isBehaviorMode;
@@ -38,42 +29,37 @@ class GradeEntrySelectionPage extends StatefulWidget {
 
 class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
   Map<String, dynamic>? _userData;
-  String? _selectedStage, _selectedGrade, _selectedClass;
+  String? _selectedTerm, _selectedGrade, _selectedClass;
   bool _isLoading = true;
 
   Map<String, Map<String, List<String>>> _classSubjectMapByGrade = {};
 
-  List<String> _subjectsForSelectedClass = [];
-  List<String> _availableStages = [];
-  Map<String, List<String>> _gradesByStage = {};
-  List<String> _gradesForSelectedStage = [];
+  List<String> _availableGrades = [];
   List<String> _classesForSelectedGrade = [];
+  List<String> _subjectsForSelectedClass = [];
 
-  final List<String> _allStages = ['المرحلة الابتدائية', 'المرحلة المتوسطة', 'المرحلة الثانوية'];
   final List<String> _allGrades = [
     'الصف الأول', 'الصف الثاني', 'الصف الثالث', 'الصف الرابع', 'الصف الخامس', 'الصف السادس',
     'الصف الأول المتوسط', 'الصف الثاني المتوسط', 'الصف الثالث المتوسط',
     'الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي'
   ];
-  final List<String> _allClasses = ['الفصل 1', 'الفصل 2', 'الفصل 3', 'الفصل 4', 'الفصل 5', 'الفصل 6'];
-  final List<String> _allSubjects = [
-    'رياضيات', 'لغتي', 'إسلاميات', 'علوم', 'نشاط', 'انجليزي',
-    'اجتماعيات', 'فنية', 'حياتية', 'بدنية', 'رقمية', 'تفكير'
+
+  // ✅ التعديل الرئيسي: توافق أسماء الفصول
+  List<String> _allClasses = [
+    'الفصل 1', 'الفصل 2', 'الفصل 3', 'الفصل 4', 'الفصل 5', 'الفصل 6',
+    'الفصل 7', 'الفصل 8', 'الفصل 9', 'الفصل 10', 'أ', 'ب', 'ج', 'د', 'هـ', 'و'
+  ];
+  List<String> _allSubjects = [
+    'رياضيات', 'لغتي', 'علوم', 'انجليزي', 'إسلاميات', 'اجتماعيات', 'فنية', 'بدنية', 'رقمية', 'حياتية', 'تفكير', 'نشاط'
   ];
 
   final Map<String, String> _subjectToProfessionKeyMap = {
-    'رياضيات': 'profession1',
-    'لغتي': 'profession2',
-    'إسلاميات': 'profession3',
-    'علوم': 'profession4',
-    'نشاط': 'profession5',
-    'انجليزي': 'profession6',
-    'اجتماعيات': 'profession7',
-    'فنية': 'profession8',
-    'حياتية': 'profession9',
-    'بدنية': 'profession10',
-    'رقمية': 'profession11',
-    'تفكير': 'profession12',
+    'رياضيات': 'profession1', 'لغتي': 'profession2', 'إسلاميات': 'profession3',
+    'علوم': 'profession4', 'نشاط': 'profession5', 'انجليزي': 'profession6',
+    'اجتماعيات': 'profession7', 'فنية': 'profession8', 'حياتية': 'profession9',
+    'بدنية': 'profession10', 'رقمية': 'profession11', 'تفكير': 'profession12',
+    'قرآن': 'profession14', 'تجويد': 'profession15', 'توحيد': 'profession16',
+    'فقه': 'profession17', 'حديث': 'profession18', 'تفسير': 'profession19', 'أخرى': 'profession20',
   };
 
   @override
@@ -90,6 +76,21 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     }
 
     try {
+      final appDataDoc = await FirebaseFirestore.instance.collection('settings').doc('app_data').get();
+      if (appDataDoc.exists && appDataDoc.data() != null) {
+        final data = appDataDoc.data()!;
+        if (data.containsKey('classes') && (data['classes'] as List).isNotEmpty) {
+          // ضمان تنسيق "الفصل X"
+          _allClasses = (data['classes'] as List).map((e) {
+            String c = e.toString().trim();
+            return int.tryParse(c) != null ? 'الفصل $c' : c;
+          }).toList();
+        }
+        if (data.containsKey('subjects') && (data['subjects'] as List).isNotEmpty) {
+          _allSubjects = List<String>.from(data['subjects']);
+        }
+      }
+
       DocumentSnapshot userDataSnapshot = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
       if (!mounted) return;
 
@@ -101,7 +102,7 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
 
       _userData = data;
       if (widget.isAdmin) {
-        _availableStages = _allStages;
+        _availableGrades = _allGrades;
       } else {
         _parseTeacherPermissions(data);
       }
@@ -113,8 +114,7 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
   }
 
   void _parseTeacherPermissions(Map<String, dynamic> data) {
-    final stages = <String>{};
-    final grades = <String, Set<String>>{};
+    final grades = <String>{};
     final classSubjects = <String, Map<String, List<String>>>{};
 
     final structure = {
@@ -150,15 +150,12 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     structure.forEach((stageName, stageInfo) {
       final stageData = stageInfo as Map<String, dynamic>;
       if (data[stageData['field']] != null && data[stageData['field']] != '0') {
-        stages.add(stageName);
-        grades.putIfAbsent(stageName, () => <String>{});
-
         final gradesMap = stageData['grades'] as Map<String, dynamic>?;
         if (gradesMap != null) {
           gradesMap.forEach((gradeName, gradeInfo) {
             final gradeData = gradeInfo as Map<String, dynamic>;
             if (data[gradeData['field']] != null && data[gradeData['field']] != '0') {
-              grades[stageName]!.add(gradeName);
+              grades.add(gradeName);
 
               final classValue = data[gradeData['classField']];
               if (classValue is String && classValue.isNotEmpty && classValue != '0') {
@@ -168,7 +165,10 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
                 for (final pair in pairs) {
                   final parts = pair.split('=');
                   if (parts.length == 2) {
-                    final className = parts[0].trim();
+                    // ✅ معالجة الحماية لاسم الفصل لتطابق قاعدة بياناتك
+                    String className = parts[0].trim();
+                    if (int.tryParse(className) != null) className = 'الفصل $className';
+
                     final subjectName = parts[1].trim();
                     if (className.isNotEmpty && subjectName.isNotEmpty) {
                       classSubjects[gradeName]!.putIfAbsent(className, () => []).add(subjectName);
@@ -182,9 +182,14 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
       }
     });
 
-    _availableStages = stages.toList();
-    _gradesByStage = grades.map((key, value) => MapEntry(key, value.toList()));
+    _availableGrades = grades.toList();
     _classSubjectMapByGrade = classSubjects;
+  }
+
+  String _getStageForGrade(String grade) {
+    if (grade.contains('المتوسط')) return 'المرحلة المتوسطة';
+    if (grade.contains('الثانوي')) return 'المرحلة الثانوية';
+    return 'المرحلة الابتدائية';
   }
 
   @override
@@ -196,58 +201,159 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-        padding: const EdgeInsets.all(16.0),
-        children: [
-          _buildSectionTitle('1. اختر المرحلة الدراسية', Icons.layers),
-          const SizedBox(height: 12),
-          _buildDropdown(_availableStages, _selectedStage, 'اختر المرحلة', (val) => setState(() {
-            _selectedStage = val;
-            _selectedGrade = null;
-            _selectedClass = null;
-            _gradesForSelectedStage = val != null ? (widget.isAdmin ? _allGrades : (_gradesByStage[val] ?? [])) : [];
-            _classesForSelectedGrade = [];
-            _subjectsForSelectedClass = [];
-          })),
-          const SizedBox(height: 24),
-          if (_selectedStage != null) ...[
-            _buildSectionTitle('2. اختر الصف الدراسي', Icons.school),
-            const SizedBox(height: 12),
-            _buildDropdown(_gradesForSelectedStage, _selectedGrade, 'اختر الصف', (val) => setState(() {
-              _selectedGrade = val;
-              _selectedClass = null;
-              _classesForSelectedGrade = val != null
-                  ? (widget.isAdmin
-                  ? _allClasses
-                  : (_classSubjectMapByGrade[val]?.keys.toList() ?? []))
-                  : [];
-              _subjectsForSelectedClass = [];
-            })),
-            const SizedBox(height: 24),
-          ],
-          if (_selectedGrade != null) ...[
-            _buildSectionTitle('3. اختر الفصل', Icons.class_),
-            const SizedBox(height: 12),
-            _buildDropdown(_classesForSelectedGrade, _selectedClass, 'اختر الفصل', (val) => setState(() {
-              _selectedClass = val;
-              if (val != null && _selectedGrade != null && !widget.isAdmin) {
-                _subjectsForSelectedClass = _classSubjectMapByGrade[_selectedGrade!]?[val] ?? [];
-              } else {
-                _subjectsForSelectedClass = widget.isAdmin ? _allSubjects : [];
+          : StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance.collection('settings').doc('terms_locks').snapshots(),
+          builder: (context, snapshot) {
+            bool term1Locked = false;
+            bool term2Locked = false;
+
+            if (snapshot.hasData && snapshot.data!.exists) {
+              final data = snapshot.data!.data() as Map<String, dynamic>?;
+              if (data != null) {
+                term1Locked = data['term1_locked'] ?? false;
+                term2Locked = data['term2_locked'] ?? false;
               }
-            })),
-            const SizedBox(height: 24),
-          ],
-          if (_selectedClass != null) ...[
-            const Divider(thickness: 1, height: 30),
-            _buildSectionTitle(widget.isBehaviorMode ? '4. تقييم سلوك الفصل' : '4. اختر المادة',
-                widget.isBehaviorMode ? Icons.sentiment_very_satisfied : Icons.book),
+            }
+
+            return ListView(
+              padding: const EdgeInsets.all(16.0),
+              children: [
+                _buildSectionTitle('1. اختر الترم الدراسي', Icons.date_range),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(child: _buildTermCard('الترم الأول', term1Locked, 'term1_locked')),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildTermCard('الترم الثاني', term2Locked, 'term2_locked')),
+                  ],
+                ),
+                const SizedBox(height: 30),
+
+                if (_selectedTerm != null) ...[
+                  _buildSectionTitle('2. اختر الصف الدراسي', Icons.school),
+                  const SizedBox(height: 12),
+                  _buildDropdown(_availableGrades, _selectedGrade, 'اختر الصف', (val) => setState(() {
+                    _selectedGrade = val;
+                    _selectedClass = null;
+                    _classesForSelectedGrade = val != null
+                        ? (widget.isAdmin
+                        ? _allClasses
+                        : (_classSubjectMapByGrade[val]?.keys.toList() ?? []))
+                        : [];
+                    _subjectsForSelectedClass = [];
+                  })),
+                  const SizedBox(height: 24),
+                ],
+                if (_selectedGrade != null) ...[
+                  _buildSectionTitle('3. اختر الفصل', Icons.class_),
+                  const SizedBox(height: 12),
+                  _buildDropdown(_classesForSelectedGrade, _selectedClass, 'اختر الفصل', (val) => setState(() {
+                    _selectedClass = val;
+                    if (val != null && _selectedGrade != null && !widget.isAdmin) {
+                      _subjectsForSelectedClass = _classSubjectMapByGrade[_selectedGrade!]?[val] ?? [];
+                    } else {
+                      _subjectsForSelectedClass = widget.isAdmin ? _allSubjects : [];
+                    }
+                  })),
+                  const SizedBox(height: 24),
+                ],
+                if (_selectedClass != null) ...[
+                  const Divider(thickness: 1, height: 30),
+                  _buildSectionTitle(widget.isBehaviorMode ? '4. تقييم سلوك الفصل' : '4. اختر المادة',
+                      widget.isBehaviorMode ? Icons.sentiment_very_satisfied : Icons.book),
+                  const SizedBox(height: 16),
+                  _buildSubjectGrid(
+                    widget.isAdmin ? _allSubjects : _subjectsForSelectedClass,
+                    _selectedTerm == 'الترم الأول' ? term1Locked : term2Locked,
+                  ),
+                ],
+              ],
+            );
+          }
+      ),
+    );
+  }
+
+  Widget _buildTermCard(String termName, bool isLocked, String lockKey) {
+    bool isSelected = _selectedTerm == termName;
+    Color baseColor = isSelected ? (widget.isBehaviorMode ? Colors.teal.shade700 : Colors.blue.shade700) : Colors.white;
+    Color textColor = isSelected ? Colors.white : Colors.black87;
+
+    return InkWell(
+      onTap: () {
+        if (isLocked && !widget.isAdmin) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('عفواً، $termName مغلق للرصد حالياً من قبل الإدارة.'),
+            backgroundColor: Colors.red,
+          ));
+          return;
+        }
+        setState(() {
+          _selectedTerm = termName;
+          _selectedGrade = null;
+          _selectedClass = null;
+          _classesForSelectedGrade = [];
+          _subjectsForSelectedClass = [];
+        });
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+        decoration: BoxDecoration(
+          color: baseColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isSelected ? (widget.isBehaviorMode ? Colors.teal : Colors.blue) : Colors.grey.shade300, width: 2),
+          boxShadow: isSelected ? [BoxShadow(color: (widget.isBehaviorMode ? Colors.teal : Colors.blue).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : [],
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.date_range, color: textColor, size: 36),
+            const SizedBox(height: 12),
+            Text(termName, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 16),
-            _buildSubjectGrid(
-              widget.isAdmin ? _allSubjects : _subjectsForSelectedClass,
-            ),
+            if (widget.isAdmin)
+              InkWell(
+                onTap: () {
+                  FirebaseFirestore.instance.collection('settings').doc('terms_locks').set({
+                    lockKey: !isLocked
+                  }, SetOptions(merge: true));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(isLocked ? 'تم فتح $termName للرصد' : 'تم قفل $termName بالكامل')));
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                      color: isLocked ? Colors.red.shade50 : Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: isLocked ? Colors.red.shade200 : Colors.green.shade200)
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(isLocked ? Icons.lock : Icons.lock_open, color: isLocked ? Colors.red : Colors.green, size: 16),
+                      const SizedBox(width: 4),
+                      Text(isLocked ? 'مغلق (اضغط للفتح)' : 'مفتوح (اضغط للقفل)', style: TextStyle(color: isLocked ? Colors.red : Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isLocked ? Colors.red.shade50 : Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(isLocked ? Icons.lock : Icons.lock_open, color: isLocked ? Colors.red : Colors.green, size: 16),
+                    const SizedBox(width: 4),
+                    Text(isLocked ? 'مغلق حالياً' : 'مفتوح للرصد', style: TextStyle(color: isLocked ? Colors.red : Colors.green, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -264,7 +370,7 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
 
   Widget _buildDropdown(List<String> items, String? currentValue, String hint, ValueChanged<String?> onChanged) {
     return DropdownButtonFormField<String>(
-      value: currentValue,
+      value: items.contains(currentValue) ? currentValue : null,
       hint: Text(hint),
       isExpanded: true,
       items: items.map((String value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(),
@@ -276,7 +382,7 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     );
   }
 
-  Widget _buildSubjectGrid(List<String> subjects) {
+  Widget _buildSubjectGrid(List<String> subjects, bool isTermLocked) {
     if (subjects.isEmpty && !widget.isAdmin) {
       return const Center(
           child: Padding(
@@ -296,17 +402,17 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
             padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
           ),
           onPressed: () {
-            if (_selectedStage != null && _selectedGrade != null && _selectedClass != null) {
+            if (_selectedGrade != null && _selectedClass != null) {
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => GradeEntryPage(
-                    stage: _selectedStage!,
+                    stage: _getStageForGrade(_selectedGrade!),
                     grade: _selectedGrade!,
                     className: _selectedClass!,
                     subject: 'سلوك',
                     testFieldKey: 'behavior',
-                    testName: 'تقييم السلوك والمواظبة',
+                    testName: 'تقييم السلوك والمواظبة - $_selectedTerm',
                     isBehaviorMode: true,
                   ),
                 ),
@@ -340,23 +446,19 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
             padding: const EdgeInsets.all(8),
           ),
           onPressed: () {
-            if (_selectedStage != null && _selectedGrade != null && _selectedClass != null) {
-              final professionKey = _subjectToProfessionKeyMap[subject];
-              if (professionKey == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('خطأ: المادة "$subject" غير قابلة للاختيار هنا.')),
-                );
-                return;
-              }
+            if (_selectedGrade != null && _selectedClass != null && _selectedTerm != null) {
+              final professionKey = _subjectToProfessionKeyMap[subject] ?? 'profession20';
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => TestSelectionPage(
-                    stage: _selectedStage!,
+                    stage: _getStageForGrade(_selectedGrade!),
                     grade: _selectedGrade!,
                     className: _selectedClass!,
                     subject: subject,
                     professionKey: professionKey,
+                    term: _selectedTerm!,
+                    isTermLocked: isTermLocked,
                     isBehaviorMode: false,
                     isAdmin: widget.isAdmin,
                   ),
@@ -372,19 +474,15 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 2. صفحة اختيار الاختبار (TestSelectionPage)
-// ---------------------------------------------------------------------------
-
 class TestItem {
   final String testFieldKey;
   final String name;
-  final String term;
+  final String subCategory;
 
   TestItem({
     required this.testFieldKey,
     required this.name,
-    required this.term,
+    required this.subCategory,
   });
 }
 
@@ -394,6 +492,8 @@ class TestSelectionPage extends StatelessWidget {
   final String className;
   final String subject;
   final String professionKey;
+  final String term;
+  final bool isTermLocked;
   final bool isBehaviorMode;
   final bool isAdmin;
 
@@ -404,6 +504,8 @@ class TestSelectionPage extends StatelessWidget {
     required this.className,
     required this.subject,
     required this.professionKey,
+    required this.term,
+    required this.isTermLocked,
     required this.isBehaviorMode,
     required this.isAdmin,
   });
@@ -415,80 +517,121 @@ class TestSelectionPage extends StatelessWidget {
   };
 
   List<TestItem> _getTestsForSubject() {
-    final List<TestItem> allTests = [];
-    final bool isNafesSubject = ['رياضيات', 'لغتي', 'علوم'].contains(subject);
+    final List<TestItem> tests = [];
     final String currentSubjectShortcode = _subjectShortcodes[subject] ?? '';
 
-    if (!isNafesSubject || professionKey != 'profession13') {
-      allTests.addAll([
-        TestItem(testFieldKey: 'e1$professionKey', name: 'الاختبار الاول (دوري)', term: 'الترم الأول'),
-        TestItem(testFieldKey: 'e2$professionKey', name: 'الاختبار الثاني (دوري)', term: 'الترم الأول'),
-        TestItem(testFieldKey: 'e3$professionKey', name: 'الاختبار الثالث (دوري)', term: 'الترم الأول'),
-        TestItem(testFieldKey: 'e14$professionKey', name: 'اختبار قبلي', term: 'اختبارات إضافية'),
-        TestItem(testFieldKey: 'e15$professionKey', name: 'اختبار بعدي', term: 'اختبارات إضافية'),
-        TestItem(testFieldKey: 'e16$professionKey', name: 'اختبار احتياطي', term: 'اختبارات إضافية'),
+    if (term == 'الترم الأول') {
+      tests.addAll([
+        TestItem(testFieldKey: 'e1$professionKey', name: 'الاختبار الاول (دوري)', subCategory: 'دوري'),
+        TestItem(testFieldKey: 'e2$professionKey', name: 'الاختبار الثاني (دوري)', subCategory: 'دوري'),
+        TestItem(testFieldKey: 'e3$professionKey', name: 'الاختبار الثالث (دوري)', subCategory: 'دوري'),
+        TestItem(testFieldKey: 'e14$professionKey', name: 'اختبار قبلي', subCategory: 'إضافية'),
+        TestItem(testFieldKey: 'e15$professionKey', name: 'اختبار بعدي', subCategory: 'إضافية'),
+        TestItem(testFieldKey: 'e16$professionKey', name: 'اختبار احتياطي', subCategory: 'إضافية'),
+      ]);
+    } else if (term == 'الترم الثاني') {
+      tests.addAll([
+        TestItem(testFieldKey: 'e4$professionKey', name: 'الاختبار الاول (دوري)', subCategory: 'دوري'),
+        TestItem(testFieldKey: 'e5$professionKey', name: 'الاختبار الثاني (دوري)', subCategory: 'دوري'),
+        TestItem(testFieldKey: 'e6$professionKey', name: 'الاختبار الثالث (دوري)', subCategory: 'دوري'),
+        TestItem(testFieldKey: 'e17$professionKey', name: 'اختبار قبلي', subCategory: 'إضافية'),
+        TestItem(testFieldKey: 'e18$professionKey', name: 'اختبار بعدي', subCategory: 'إضافية'),
+        TestItem(testFieldKey: 'e19$professionKey', name: 'اختبار احتياطي', subCategory: 'إضافية'),
       ]);
     }
 
-    final bool isGrade6 = grade == 'الصف السادس';
-    final bool isGrade3 = grade == 'الصف الثالث';
-    final bool isScienceMathsLughati = ['علوم', 'رياضيات', 'لغتي'].contains(subject);
-    final bool isMathsLughati = ['رياضيات', 'لغتي'].contains(subject);
-
-    if (currentSubjectShortcode.isNotEmpty && ((isGrade6 && isScienceMathsLughati) || (isGrade3 && isMathsLughati))) {
+    if (currentSubjectShortcode.isNotEmpty && ((grade == 'الصف السادس' && ['علوم', 'رياضيات', 'لغتي'].contains(subject)) || (grade == 'الصف الثالث' && ['رياضيات', 'لغتي'].contains(subject)))) {
       const String nafesBaseKey = 'profession13';
-      allTests.addAll([
-        TestItem(testFieldKey: 'e1${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الأول أساسي', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e2${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثاني أساسي', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e5${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثالث ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e6${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الرابع ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e7${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الخامس ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e8${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار السادس ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e9${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار السابع ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e10${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثامن ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e11${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار التاسع ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e12${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار العاشر ف نافس', term: 'اختبارات نافس'),
-      ]);
+
+      if (term == 'الترم الأول') {
+        tests.addAll([
+          TestItem(testFieldKey: 'e1${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الأول أساسي', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e2${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثاني أساسي', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e3${nafesBaseKey}_$currentSubjectShortcode', name: 'الاول ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e4${nafesBaseKey}_$currentSubjectShortcode', name: 'الثاني ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e5${nafesBaseKey}_$currentSubjectShortcode', name: 'الثالث ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e6${nafesBaseKey}_$currentSubjectShortcode', name: 'الرابع ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e7${nafesBaseKey}_$currentSubjectShortcode', name: 'الخامس ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e8${nafesBaseKey}_$currentSubjectShortcode', name: 'السادس ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e9${nafesBaseKey}_$currentSubjectShortcode', name: 'السابع ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e10${nafesBaseKey}_$currentSubjectShortcode', name: 'الثامن ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e11${nafesBaseKey}_$currentSubjectShortcode', name: 'التاسع ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 'e12${nafesBaseKey}_$currentSubjectShortcode', name: 'العاشر ف نافس', subCategory: 'نافس'),
+        ]);
+      } else if (term == 'الترم الثاني') {
+        tests.addAll([
+          TestItem(testFieldKey: 't2_e1${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الأول أساسي', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e2${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثاني أساسي', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e3${nafesBaseKey}_$currentSubjectShortcode', name: 'الاول ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e4${nafesBaseKey}_$currentSubjectShortcode', name: 'الثاني ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e5${nafesBaseKey}_$currentSubjectShortcode', name: 'الثالث ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e6${nafesBaseKey}_$currentSubjectShortcode', name: 'الرابع ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e7${nafesBaseKey}_$currentSubjectShortcode', name: 'الخامس ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e8${nafesBaseKey}_$currentSubjectShortcode', name: 'السادس ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e9${nafesBaseKey}_$currentSubjectShortcode', name: 'السابع ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e10${nafesBaseKey}_$currentSubjectShortcode', name: 'الثامن ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e11${nafesBaseKey}_$currentSubjectShortcode', name: 'التاسع ف نافس', subCategory: 'نافس'),
+          TestItem(testFieldKey: 't2_e12${nafesBaseKey}_$currentSubjectShortcode', name: 'العاشر ف نافس', subCategory: 'نافس'),
+        ]);
+      }
     }
 
-    return allTests;
+    return tests;
   }
 
   @override
   Widget build(BuildContext context) {
     final allTests = _getTestsForSubject();
-    final term1Tests = allTests.where((t) => t.term == 'الترم الأول').toList();
-    final additionalTests = allTests.where((t) => t.term == 'اختبارات إضافية').toList();
-    final nafsTests = allTests.where((t) => t.term == 'اختبارات نافس').toList();
+    final periodicTests = allTests.where((t) => t.subCategory == 'دوري').toList();
+    final additionalTests = allTests.where((t) => t.subCategory == 'إضافية').toList();
+    final nafsTests = allTests.where((t) => t.subCategory == 'نافس').toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('اختر الاختبار - $subject'),
+        title: Text('اختبارات $term - $subject', style: const TextStyle(fontSize: 16)),
+        bottom: isTermLocked
+            ? PreferredSize(
+          preferredSize: const Size.fromHeight(30),
+          child: Container(
+            width: double.infinity,
+            color: Colors.red.shade700,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.lock, color: Colors.white, size: 16),
+                SizedBox(width: 8),
+                Text('هذا الترم مغلق بالكامل من قبل الإدارة', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        )
+            : null,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          if (term1Tests.isNotEmpty)
-            _buildTermSection(context, 'الاختبارات الدورية', term1Tests),
+          if (periodicTests.isNotEmpty)
+            _buildTestSection(context, 'الاختبارات الدورية', periodicTests),
 
-          if (term1Tests.isNotEmpty && (additionalTests.isNotEmpty || nafsTests.isNotEmpty))
+          if (periodicTests.isNotEmpty && (additionalTests.isNotEmpty || nafsTests.isNotEmpty))
             const SizedBox(height: 24),
 
           if (additionalTests.isNotEmpty)
-            _buildTermSection(context, 'اختبارات إضافية', additionalTests),
+            _buildTestSection(context, 'اختبارات إضافية', additionalTests),
 
           if (additionalTests.isNotEmpty && nafsTests.isNotEmpty)
             const SizedBox(height: 24),
 
           if (nafsTests.isNotEmpty)
-            _buildTermSection(context, 'اختبارات نافس', nafsTests),
+            _buildTestSection(context, 'اختبارات نافس', nafsTests),
         ],
       ),
     );
   }
 
-  Widget _buildTermSection(BuildContext context, String title, List<TestItem> termTests) {
-    if (termTests.isEmpty) return const SizedBox.shrink();
+  Widget _buildTestSection(BuildContext context, String title, List<TestItem> sectionTests) {
+    if (sectionTests.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -498,18 +641,22 @@ class TestSelectionPage extends StatelessWidget {
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Theme.of(context).primaryColor,
+            color: isTermLocked ? Colors.grey : Theme.of(context).primaryColor,
           ),
         ),
         const Divider(),
-        ...termTests.map((test) {
+        ...sectionTests.map((test) {
           return _TestTile(
             test: test,
             isAdmin: isAdmin,
-            onTap: (isLocked) {
-              if (isLocked && !isAdmin) {
+            isTermLocked: isTermLocked,
+            onTap: (isEffectivelyLocked) {
+              if (isEffectivelyLocked && !isAdmin) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('هذا الاختبار مغلق حالياً من قبل الإدارة.')),
+                  SnackBar(
+                      content: Text(isTermLocked ? 'عفواً، الترم مغلق بالكامل ولا يمكن التعديل.' : 'هذا الاختبار مغلق حالياً من قبل الإدارة.'),
+                      backgroundColor: Colors.red
+                  ),
                 );
               } else {
                 Navigator.push(
@@ -538,11 +685,13 @@ class TestSelectionPage extends StatelessWidget {
 class _TestTile extends StatefulWidget {
   final TestItem test;
   final bool isAdmin;
+  final bool isTermLocked;
   final Function(bool isLocked) onTap;
 
   const _TestTile({
     required this.test,
     required this.isAdmin,
+    required this.isTermLocked,
     required this.onTap,
   });
 
@@ -581,14 +730,14 @@ class __TestTileState extends State<_TestTile> {
     }, onError: (error) {
       if (mounted) {
         setState(() {
-          _isLocked = true; // Default to locked on error safety
+          _isLocked = true;
         });
       }
     });
   }
 
   Future<void> _toggleLockStatus() async {
-    if (_isLocked == null) return;
+    if (_isLocked == null || widget.isTermLocked) return;
     final newStatus = !_isLocked!;
 
     setState(() {
@@ -622,7 +771,8 @@ class __TestTileState extends State<_TestTile> {
       );
     }
 
-    final bool isEffectivelyLocked = _isLocked!;
+    final bool isEffectivelyLocked = _isLocked! || widget.isTermLocked;
+
     final Color iconColor = isEffectivelyLocked ? Colors.grey : Theme.of(context).primaryColor;
     final Color textColor = isEffectivelyLocked ? Colors.grey : Colors.black;
     final bool canTap = !isEffectivelyLocked || widget.isAdmin;
@@ -643,21 +793,19 @@ class __TestTileState extends State<_TestTile> {
           ),
         ),
         trailing: widget.isAdmin
-            ? IconButton(
-          icon: Icon(isEffectivelyLocked ? Icons.lock : Icons.lock_open, color: iconColor),
-          tooltip: isEffectivelyLocked ? 'فتح الاختبار للمعلمين' : 'قفل الاختبار على المعلمين',
+            ? (widget.isTermLocked
+            ? const Tooltip(message: 'الترم بأكمله مغلق', child: Icon(Icons.lock, color: Colors.red))
+            : IconButton(
+          icon: Icon(_isLocked! ? Icons.lock : Icons.lock_open, color: iconColor),
+          tooltip: _isLocked! ? 'فتح الاختبار للمعلمين' : 'قفل الاختبار على المعلمين',
           onPressed: _toggleLockStatus,
-        )
+        ))
             : (isEffectivelyLocked ? null : const Icon(Icons.arrow_forward_ios, size: 16)),
         onTap: canTap ? () => widget.onTap(isEffectivelyLocked) : null,
       ),
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// 3. صفحة رصد الدرجات / تسجيل السلوك (GradeEntryPage) مع التقييم الإلزامي والجماعي
-// ---------------------------------------------------------------------------
 
 class GradeEntryPage extends StatefulWidget {
   final String stage;
@@ -693,9 +841,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   final Map<String, int> _likes = {};
   final Map<String, int> _dislikes = {};
 
-  // -------------------------------------------
-  // 🟢 قوائم الإيجابيات (Likes Criteria)
-  // -------------------------------------------
   final Map<String, List<String>> _positiveBehaviors = {
     'القيم والأخلاق (Character)': [
       'الأمانة والصدق (اعترف بخطأه بشجاعة)',
@@ -716,7 +861,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       'الحفاظ على ممتلكات المدرسة',
       'إحضار أدوات إضافية لمساعدة زملائه (الإيثار)',
       'الإنصات الجيد واحترام المتحدث',
-      'الالتزام التام بالزي المدرسي والمظهر العام',
+      'الالزام التام بالزي المدرسي والمظهر العام',
     ],
     'التطوير الذاتي': [
       'تحسن ملحوظ في المستوى (لمن كان مستواه ضعيفاً)',
@@ -725,9 +870,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     ],
   };
 
-  // -------------------------------------------
-  // 🔴 قوائم السلبيات (Dislikes Criteria)
-  // -------------------------------------------
   final Map<String, List<String>> _negativeBehaviors = {
     'سلوكيات "الاستحقاق" والتعالي': [
       'التعامل بفوقية مع المعلم (نظرة "أنا أدفع راتبك")',
@@ -831,13 +973,131 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  // --------------------------------------------------------------------------
-  // نافذة اختيار سبب السلوك (موحدة للـ Like و Dislike)
-  // --------------------------------------------------------------------------
+  void _showBehaviorLogSheet(String studentId, String studentName, String type) {
+    final isLike = type == 'like';
+    showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (ctx) {
+          return Container(
+              height: MediaQuery.of(context).size.height * 0.65,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                  children: [
+                    Text('سجل ${isLike ? 'التميز' : 'الملاحظات'} للطالب: $studentName',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isLike ? Colors.green : Colors.red)),
+                    const Divider(),
+                    Expanded(
+                        child: StreamBuilder<QuerySnapshot>(
+                            stream: _firestore.collection('behavior_reports')
+                                .where('studentId', isEqualTo: studentId)
+                                .where('type', isEqualTo: type)
+                                .snapshots(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد سجلات.'));
+
+                              final docs = snapshot.data!.docs.toList();
+                              docs.sort((a,b) {
+                                final aTime = (a.data() as Map)['timestamp'] as Timestamp?;
+                                final bTime = (b.data() as Map)['timestamp'] as Timestamp?;
+                                if (aTime == null && bTime == null) return 0;
+                                if (aTime == null) return 1;
+                                if (bTime == null) return -1;
+                                return bTime.compareTo(aTime);
+                              });
+
+                              return ListView.builder(
+                                itemCount: docs.length,
+                                itemBuilder: (context, index) {
+                                  final doc = docs[index];
+                                  final data = doc.data() as Map<String, dynamic>;
+
+                                  final bool canDelete = data['teacherId'] == FirebaseAuth.instance.currentUser?.uid;
+
+                                  return Card(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    child: ListTile(
+                                      leading: Icon(isLike ? Icons.thumb_up : Icons.thumb_down, color: isLike ? Colors.green : Colors.red),
+                                      title: Text(data['reason'] ?? 'بدون تفاصيل', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                      subtitle: Text('أ. ${data['teacherName']} - ${data['dateString'] ?? ''}'),
+                                      trailing: canDelete
+                                          ? IconButton(
+                                        icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                        tooltip: 'حذف الملاحظة',
+                                        onPressed: () async {
+                                          Navigator.pop(ctx);
+                                          await _deleteBehaviorReport(doc.id, studentId, type);
+                                        },
+                                      )
+                                          : null,
+                                    ),
+                                  );
+                                },
+                              );
+                            }
+                        )
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('إغلاق')
+                    )
+                  ]
+              )
+          );
+        }
+    );
+  }
+
+  Future<void> _deleteBehaviorReport(String reportId, String studentId, String type) async {
+    bool confirm = await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('تأكيد الحذف'),
+          content: const Text('هل أنت متأكد من رغبتك في حذف هذا التقييم للطالب؟'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('نعم، احذف')
+            ),
+          ],
+        )
+    ) ?? false;
+
+    if (!confirm) return;
+
+    try {
+      await _firestore.runTransaction((transaction) async {
+        transaction.delete(_firestore.collection('behavior_reports').doc(reportId));
+        transaction.update(_firestore.collection('students').doc(studentId), {
+          type == 'like' ? 'totalLikes' : 'totalDislikes': FieldValue.increment(-1)
+        });
+      });
+
+      if (mounted) {
+        setState(() {
+          if (type == 'like') {
+            _likes[studentId] = (_likes[studentId] ?? 1) - 1;
+          } else {
+            _dislikes[studentId] = (_dislikes[studentId] ?? 1) - 1;
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف التقييم وتحديث رصيد الطالب بنجاح'), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ أثناء الحذف: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+
   Future<Map<String, String>?> _showBehaviorSelectionDialog({required bool isLike}) async {
     final Map<String, List<String>> dataSource = isLike ? _positiveBehaviors : _negativeBehaviors;
     String? selectedReason;
-    final noteController = TextEditingController();
+    final customReasonController = TextEditingController();
 
     return showDialog<Map<String, String>>(
       context: context,
@@ -847,14 +1107,28 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: Text(
-                isLike ? 'اختر سبب التميز (Like)' : 'اختر سبب الملاحظة (Dislike)',
-                style: TextStyle(color: isLike ? Colors.green : Colors.red),
+                isLike ? 'إرسال تميز للطالب (Like)' : 'إرسال ملاحظة للطالب (Dislike)',
+                style: TextStyle(color: isLike ? Colors.green : Colors.red, fontWeight: FontWeight.bold),
               ),
               content: SizedBox(
                 width: double.maxFinite,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    TextField(
+                      controller: customReasonController,
+                      decoration: InputDecoration(
+                        labelText: isLike ? 'سبب مخصص سريع (اكتب هنا)' : 'شكوى مخصصة سريعة (اكتب هنا)',
+                        hintText: 'سيتم اعتماد المكتوب هنا وتجاهل القوائم بالأسفل',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: isLike ? Colors.green.shade50 : Colors.red.shade50,
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('أو يمكنك الاختيار من القوائم السريعة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    const Divider(),
                     Expanded(
                       child: ListView(
                         shrinkWrap: true,
@@ -878,15 +1152,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
                         }).toList(),
                       ),
                     ),
-                    const Divider(),
-                    TextField(
-                      controller: noteController,
-                      decoration: const InputDecoration(
-                        labelText: 'ملاحظة إضافية (اختياري)',
-                        hintText: 'مثال: في حصة القرآن',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -900,15 +1165,24 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
                     backgroundColor: isLike ? Colors.green : Colors.red,
                     foregroundColor: Colors.white,
                   ),
-                  onPressed: selectedReason == null
-                      ? null // تعطيل الزر إذا لم يتم اختيار سبب
-                      : () {
+                  onPressed: () {
+                    String finalReason = customReasonController.text.trim();
+                    if (finalReason.isEmpty && selectedReason != null) {
+                      finalReason = selectedReason!;
+                    }
+
+                    if (finalReason.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('الرجاء كتابة السبب أو الاختيار من القائمة')),
+                      );
+                      return;
+                    }
+
                     Navigator.of(context).pop({
-                      'reason': selectedReason!,
-                      'note': noteController.text.trim(),
+                      'reason': finalReason,
                     });
                   },
-                  child: const Text('تأكيد وحفظ'),
+                  child: const Text('إرسال فوراً'),
                 ),
               ],
             );
@@ -918,20 +1192,15 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     );
   }
 
-  // --------------------------------------------------------------------------
-  // إضافة تقرير سلوك فردي
-  // --------------------------------------------------------------------------
   Future<void> _addBehaviorReport(String studentId, String studentName, String type) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     final isLike = (type == 'like');
-    // ✅ طلب اختيار السبب (إلزامي)
     final result = await _showBehaviorSelectionDialog(isLike: isLike);
 
-    if (result == null) return; // تم الإلغاء
+    if (result == null) return;
     final String reason = result['reason']!;
-    final String extraNote = result['note'] ?? '';
 
     try {
       final teacherDoc = await _firestore.collection('users').doc(user.uid).get();
@@ -941,6 +1210,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
       final studentRef = _firestore.collection('students').doc(studentId);
       final reportRef = _firestore.collection('behavior_reports').doc();
+      final notificationRef = studentRef.collection('notifications').doc();
 
       final reportData = {
         'studentId': studentId,
@@ -949,12 +1219,21 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         'teacherName': teacherName,
         'subject': widget.subject,
         'type': type,
-        'reason': reason, // ✅ تم حفظ السبب
-        'note': extraNote, // ✅ تم حفظ الملاحظة الإضافية
+        'reason': reason,
         'timestamp': FieldValue.serverTimestamp(),
         'dateString': intl.DateFormat('yyyy/MM/dd').format(now),
         'dayName': dayName,
         'status': type == 'dislike' ? 'pending_reply' : 'like_added',
+      };
+
+      final notificationData = {
+        'title': type == 'like' ? '🌟 نقاط تميز' : '⚠️ تنبيه وملاحظة سلوكية',
+        'message': type == 'like'
+            ? 'حصل الطالب $studentName على إشارة تميز (Like) من أ. $teacherName.\nالسبب: $reason'
+            : 'تم تسجيل ملاحظة (Dislike) على الطالب $studentName من أ. $teacherName.\nالسبب المباشر: $reason',
+        'type': 'behavior',
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
       };
 
       await _firestore.runTransaction((transaction) async {
@@ -962,6 +1241,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           type == 'like' ? 'totalLikes' : 'totalDislikes': FieldValue.increment(1),
         });
         transaction.set(reportRef, reportData);
+        transaction.set(notificationRef, notificationData);
       });
 
       if (mounted) {
@@ -973,7 +1253,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(type == 'like' ? 'تم إضافة اللايك: $reason' : 'تم إضافة الملاحظة: $reason'),
+          content: Text(type == 'like' ? 'تم إرسال التميز وإشعار الطالب' : 'تم إرسال الشكوى وإشعار الطالب'),
           backgroundColor: isLike ? Colors.green : Colors.redAccent,
         ));
       }
@@ -987,31 +1267,25 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  // --------------------------------------------------------------------------
-  //  إدارة الرصد الجماعي (Bulk Action)
-  // --------------------------------------------------------------------------
   Future<void> _handleBulkAction(bool isLike) async {
     if (_students.isEmpty) return;
 
-    // 1. اختيار السبب الموحد
     final result = await _showBehaviorSelectionDialog(isLike: isLike);
     if (result == null) return;
 
     final String reason = result['reason']!;
-    final String extraNote = result['note'] ?? '';
 
-    // 2. تأكيد نهائي
     final bool confirm = await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(isLike ? 'إرسال لايكات للكل' : 'إرسال ديسلايك للكل'),
-        content: Text('هل أنت متأكد من منح ${isLike ? 'لايك' : 'ديسلايك'} لجميع طلاب الفصل (${_students.length} طالب)؟\n\nالسبب: $reason'),
+        title: Text(isLike ? 'إرسال تميز للكل' : 'إرسال ملاحظة للكل'),
+        content: Text('هل أنت متأكد من منح ${isLike ? 'لايك' : 'ديسلايك'} لجميع طلاب الفصل (${_students.length} طالب) وإرسال إشعارات لهم؟\n\nالسبب الذي سيصلهم:\n$reason'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: isLike ? Colors.green : Colors.red),
-            child: const Text('نعم، نفذ'),
+            child: const Text('نعم، نفذ وأرسل للإشعارات'),
           ),
         ],
       ),
@@ -1031,21 +1305,20 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       final dayName = intl.DateFormat('EEEE', 'ar').format(now);
       final dateString = intl.DateFormat('yyyy/MM/dd').format(now);
 
-      // استخدام Batch للكتابة الجماعية (تحسين الأداء وضمان الذرية)
       WriteBatch batch = _firestore.batch();
 
       for (var student in _students) {
         final studentId = student.id;
         final studentName = student.data() != null ? (student.data() as Map)['name'] ?? '?' : '?';
 
-        // مرجع الطالب للتحديث
         final studentRef = _firestore.collection('students').doc(studentId);
+        final reportRef = _firestore.collection('behavior_reports').doc();
+        final notificationRef = studentRef.collection('notifications').doc();
+
         batch.update(studentRef, {
           isLike ? 'totalLikes' : 'totalDislikes': FieldValue.increment(1),
         });
 
-        // إنشاء تقرير جديد
-        final reportRef = _firestore.collection('behavior_reports').doc();
         final reportData = {
           'studentId': studentId,
           'studentName': studentName,
@@ -1054,19 +1327,28 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           'subject': widget.subject,
           'type': isLike ? 'like' : 'dislike',
           'reason': reason,
-          'note': extraNote,
           'timestamp': FieldValue.serverTimestamp(),
           'dateString': dateString,
           'dayName': dayName,
-          'isBulk': true, // علامة لتمييز الإرسال الجماعي
+          'isBulk': true,
           'status': isLike ? 'like_added' : 'pending_reply',
         };
         batch.set(reportRef, reportData);
+
+        final notificationData = {
+          'title': isLike ? '🌟 نقاط تميز جماعية' : '⚠️ تنبيه سلوكي للفصل',
+          'message': isLike
+              ? 'حصل الطالب $studentName على إشارة تميز (Like) من أ. $teacherName.\nالسبب: $reason'
+              : 'تم تسجيل ملاحظة (Dislike) على الطالب $studentName من أ. $teacherName.\nالسبب المباشر: $reason',
+          'type': 'behavior',
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+        };
+        batch.set(notificationRef, notificationData);
       }
 
       await batch.commit();
 
-      // تحديث الواجهة محلياً
       setState(() {
         for (var student in _students) {
           if (isLike) {
@@ -1080,7 +1362,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('تم تنفيذ العملية الجماعية بنجاح!'),
+          content: Text('تم إرسال الإشعارات والتقييم للجميع بنجاح!'),
           backgroundColor: Colors.blueAccent,
         ));
       }
@@ -1093,9 +1375,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  // --------------------------------------------------------------------------
-  // وظائف حفظ الدرجات القديمة (كما هي)
-  // --------------------------------------------------------------------------
   Future<void> _saveGrade(String studentId, num grade, Map<String, dynamic>? evaluationData) async {
     try {
       final studentRef = _firestore.collection('students').doc(studentId);
@@ -1194,7 +1473,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       );
     }
 
-    final bool isNafes = widget.testFieldKey.contains('profession13');
+    final bool isNafes = widget.testFieldKey.contains('profession13') || widget.testFieldKey.contains('nafes');
     final double maxGrade = isNafes ? 10.0 : 20.0;
 
     String getEvaluation(num grade) {
@@ -1371,9 +1650,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     );
   }
 
-  // --------------------------------------------------------------------------
-  // زر اختيار الإجراء الجماعي (Bulk Button)
-  // --------------------------------------------------------------------------
   void _showBulkActionSheet() {
     showModalBottomSheet(
       context: context,
@@ -1389,7 +1665,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
               ListTile(
                 leading: const Icon(Icons.thumb_up, color: Colors.green),
                 title: const Text('منح (لايك) للجميع'),
-                subtitle: const Text('سيتم طلب السبب وتطبيقه على كل الطلاب'),
+                subtitle: const Text('سيصل إشعار التميز لجميع الطلاب'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _handleBulkAction(true);
@@ -1399,7 +1675,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
               ListTile(
                 leading: const Icon(Icons.thumb_down, color: Colors.red),
                 title: const Text('منح (ديسلايك) للجميع'),
-                subtitle: const Text('سيتم طلب السبب وتطبيقه على كل الطلاب'),
+                subtitle: const Text('سيصل إشعار الملاحظة لجميع الطلاب'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _handleBulkAction(false);
@@ -1415,7 +1691,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   @override
   Widget build(BuildContext context) {
     final bool allGradesEntered = _areAllGradesEntered();
-    final bool isNafes = widget.testFieldKey.contains('profession13');
+    final bool isNafes = widget.testFieldKey.contains('profession13') || widget.testFieldKey.contains('nafes');
     final double maxGrade = isNafes ? 10.0 : 20.0;
     final double passingGrade = isNafes ? 5.0 : 10.0;
 
@@ -1433,14 +1709,12 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           ),
         ),
         actions: [
-          // زر الإجراء الجماعي (فقط في وضع السلوك)
           if (widget.isBehaviorMode)
             IconButton(
               icon: const Icon(Icons.groups_3_outlined),
               tooltip: 'إجراء جماعي (لايك/ديسلايك للكل)',
               onPressed: _showBulkActionSheet,
             ),
-          // زر التصدير (فقط في وضع الدرجات)
           if (!widget.isBehaviorMode)
             IconButton(
               icon: Icon(
@@ -1493,8 +1767,8 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
                 if (widget.isBehaviorMode) ...[
                   const SizedBox(width: 6),
                   if (likeCount > 0)
-                    SizedBox(
-                      height: 23,
+                    InkWell(
+                      onTap: () => _showBehaviorLogSheet(studentId, studentName, 'like'),
                       child: Chip(
                         avatar: const Icon(Icons.thumb_up, color: Colors.green, size: 10.5),
                         label: Text('$likeCount', style: const TextStyle(fontSize: 9.5)),
@@ -1508,8 +1782,8 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
                     ),
                   const SizedBox(width: 4),
                   if (dislikeCount > 0)
-                    SizedBox(
-                      height: 23,
+                    InkWell(
+                      onTap: () => _showBehaviorLogSheet(studentId, studentName, 'dislike'),
                       child: Chip(
                         avatar: const Icon(Icons.thumb_down, color: Colors.red, size: 10.5),
                         label: Text('$dislikeCount', style: const TextStyle(fontSize: 9.5)),
@@ -1562,7 +1836,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   }
 }
 
-
 class _GradeEntryDialog extends StatefulWidget {
   final String studentId;
   final String studentName;
@@ -1596,7 +1869,7 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
   bool _isSaving = false;
 
   List<String> _selectedWeaknesses = [];
-  String? _severityLevel; // منخفض، متوسط، مرتفع
+  String? _severityLevel;
 
   final Map<String, List<String>> _subjectCriteria = {
     'لغتي': [
