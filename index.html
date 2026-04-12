@@ -1,13 +1,13 @@
 <!DOCTYPE html>
-<html>
+<html lang="ar" dir="rtl">
 <head>
   <base href="/">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   
+  <meta name="google-signin-client_id" content="773233380314-t7nsjeim41v50fct8794k0rn9dm8do83.apps.googleusercontent.com">
   <meta name="description" content="موقع مدرسة المعرفة الأهلية بمكة المكرمة (القسم الابتدائي).">
-  
   <meta name="keywords" content="المعرفة الاهلية, مدرسة المعرفة الاهلية بمكة, المعرفة, ابتدائية المعرفة الاهلية, ابتدائية المعرفة, مدارس المعرفة, مجمع المعرفة">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -39,7 +39,7 @@
           Promise.allSettled(unregisterPromises).then(() => {
             console.log('All old service workers unregistered. Setting flag and reloading.');
             localStorage.setItem('sw_kill_switch_applied_v3', 'true');
-            window.location.reload(true); // إعادة تحميل قسري
+            window.location.reload(true); 
           });
         } else {
           localStorage.setItem('sw_kill_switch_applied_v3', 'true');
@@ -56,9 +56,11 @@
       background-color: #f5f5f5;
       margin: 0;
       padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     .loader-container {
       display: flex;
+      flex-direction: column; 
       justify-content: center;
       align-items: center;
       height: 100vh;
@@ -66,16 +68,21 @@
       top: 0;
       left: 0;
       width: 100%;
-      background-color: #ffffff; /* خلفية بيضاء كما طلبت */
+      background-color: #ffffff; 
       z-index: 9999;
       opacity: 1;
       transition: opacity 0.5s ease-out;
     }
-    /* تم إزالة CSS الخاص بالدائرة الدوارة واستبداله بتنسيق مشغل لوتي أدناه */
     lottie-player {
       width: 300px;
       height: 300px;
       max-width: 80%;
+    }
+    #loading-text {
+      margin-top: 10px;
+      color: #1976D2; 
+      font-size: 20px;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -88,6 +95,7 @@
       loop 
       autoplay>
     </lottie-player>
+    <div id="loading-text">جاري فتح المنصة...</div>
   </div>
 
   <script>
@@ -102,21 +110,35 @@
       }
     }
 
-    // مراقب ذكي (MutationObserver) يكتشف متى يبدأ تطبيق Flutter بالرسم على الشاشة
-    // الهدف: إخفاء شاشة الانتظار فوراً بمجرد عمل التطبيق لعدم إضاعة الوقت
+    // دالة جديدة لإظهار شاشة الانتظار وتغيير النص (تستخدم عند تسجيل الدخول)
+    window.showLoaderWithText = function(text) {
+      var loader = document.getElementById('loader');
+      var textElement = document.getElementById('loading-text');
+      
+      if (textElement) {
+        textElement.innerText = text;
+      }
+      
+      if (loader) {
+        loader.style.display = 'flex';
+        // مهلة بسيطة لضمان تطبيق العرض قبل تغيير الشفافية
+        setTimeout(function() {
+          loader.style.opacity = '1';
+        }, 10);
+      }
+    };
+
+    // مراقب ذكي يكتشف متى يبدأ تطبيق Flutter بالرسم على الشاشة
     const observer = new MutationObserver((mutationsList, observer) => {
-        // التحقق من وجود عناصر Flutter الرئيسية في الصفحة
         if (document.querySelector('flt-glass-pane') || document.querySelector('flutter-view') || document.querySelector('canvas')) {
             hideLoader();
-            observer.disconnect(); // إيقاف المراقبة بعد نجاح العملية
+            observer.disconnect(); 
         }
     });
     
-    // البدء بمراقبة التغييرات في جسم الصفحة
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // أمان إضافي: في حال تأخر التطبيق جداً أو حدث خطأ في المراقب، يتم الاخفاء بعد 15 ثانية كحد أقصى
-    // (يمكنك إلغاء هذا الجزء إذا كنت واثقاً أن التطبيق سيعمل دائماً)
+    // أمان إضافي
     setTimeout(hideLoader, 15000);
 
     let deferredPrompt;
@@ -145,7 +167,7 @@
       }
     }
 
-    // --- تسجيل ملف Firebase Service Worker (للإشعارات) ---
+    // تسجيل ملف Firebase Service Worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('firebase-messaging-sw.js').then(function (registration) {
@@ -155,9 +177,8 @@
         });
       });
     }
-
   </script>
 
   <script src="flutter_bootstrap.js" data-service-worker-version="none" async></script>
-  </body>
+</body>
 </html>
