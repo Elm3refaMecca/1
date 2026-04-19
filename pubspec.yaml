@@ -91,7 +91,7 @@ dev_dependencies:
   qr_flutter: ^4.1.0
   uuid: ^4.0.0
   iconly: ^1.0.1
-
+  http: ^1.2.0 # ✅ تم إضافة هذه المكتبة للاتصال بتيليجرام
 
 
 

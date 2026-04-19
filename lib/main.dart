@@ -10,6 +10,10 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'dart:math' as math;
 import 'dart:async';
 
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform;
@@ -1427,7 +1431,6 @@ class _WelcomePageState extends State<WelcomePage> {
             ),
             const SizedBox(height: 12),
 
-            // ✅ استدعاء الزر بدون وضع مؤشر التحميل قبله لحل مشكلة المتصفح
             SizedBox(
               width: double.infinity,
               height: 45,
@@ -1475,15 +1478,7 @@ class _WelcomePageState extends State<WelcomePage> {
             ),
             const SizedBox(height: 20),
 
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.visibility_outlined),
-                label: const Text('الدخول كضيف'),
-                onPressed: _isGuestLoading ? null : _showGuestLoginOptions,
-              ),
-            ),
-            const SizedBox(height: 12),
+            // ❌ تم حذف زر "الدخول كضيف" من هنا نهائياً ❌
 
             _buildNotificationButton(),
             const SizedBox(height: 12),
@@ -1510,7 +1505,6 @@ class _WelcomePageState extends State<WelcomePage> {
       ),
     );
   }
-
   Widget _buildNotificationButton() {
     switch (_notificationPermission) {
       case 'granted':
@@ -2412,5 +2406,84 @@ class _StudentRegistrationFormState extends State<StudentRegistrationForm> {
       decoration: InputDecoration(labelText: label),
       validator: (v) => (v == null || v.isEmpty) ? 'مطلوب' : null,
     );
+  }
+
+}
+// أضف هذه الاستيرادات في الأعلى
+
+
+// كلاس إدارة التخزين عبر تيليجرام
+class TelegramStorage {
+  static const String botToken = '8661424787:AAGoQP8pp4gTXxbgVVU6uRGNe_KNALCho6w';
+  static const String chatId = '-1003918816164';
+
+  static Future<String?> uploadDocument(Uint8List bytes, String fileName, String caption) async {
+    String safeName = fileName.contains('.') ? fileName : '$fileName.jpg';
+    var uri = Uri.parse('https://api.telegram.org/bot$botToken/sendDocument');
+    var request = http.MultipartRequest('POST', uri)
+      ..fields['chat_id'] = chatId
+      ..fields['caption'] = caption
+      ..files.add(http.MultipartFile.fromBytes('document', bytes, filename: safeName));
+    try {
+      var response = await request.send();
+      var responseData = await response.stream.bytesToString();
+      if (response.statusCode == 200) {
+        var json = jsonDecode(responseData);
+        return json['result']['document']['file_id'];
+      }
+    } catch (e) {
+      debugPrint("Telegram Upload Error: $e");
+    }
+    return null;
+  }
+
+  static Future<String?> getFileUrl(String fileId) async {
+    if (fileId.startsWith('http')) return fileId;
+    var uri = Uri.parse('https://api.telegram.org/bot$botToken/getFile?file_id=$fileId');
+    try {
+      var response = await http.get(uri);
+      if (response.statusCode == 200) {
+        var json = jsonDecode(response.body);
+        String filePath = json['result']['file_path'];
+        return 'https://api.telegram.org/file/bot$botToken/$filePath';
+      }
+    } catch (e) {
+      debugPrint("Telegram getFile Error: $e");
+    }
+    return null;
+  }
+}
+
+// ويدجت عرض الصور الذكي (Proxy support)
+class SmartTelegramImage extends StatefulWidget {
+  final String fileId;
+  final BoxFit fit;
+  const SmartTelegramImage({super.key, required this.fileId, this.fit = BoxFit.cover});
+
+  @override
+  State<SmartTelegramImage> createState() => _SmartTelegramImageState();
+}
+
+class _SmartTelegramImageState extends State<SmartTelegramImage> {
+  String? _url;
+  @override
+  void initState() {
+    super.initState();
+    _loadUrl();
+  }
+
+  Future<void> _loadUrl() async {
+    String? url = await TelegramStorage.getFileUrl(widget.fileId);
+    if (mounted && url != null) {
+      setState(() {
+        _url = kIsWeb ? 'https://api.codetabs.com/v1/proxy/?quest=${Uri.encodeComponent(url)}' : url;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_url == null) return const Center(child: CircularProgressIndicator());
+    return Image.network(_url!, fit: widget.fit, errorBuilder: (c, e, s) => const Icon(Icons.broken_image));
   }
 }

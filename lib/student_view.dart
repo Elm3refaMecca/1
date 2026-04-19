@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
-
+import 'package:http/http.dart' as http;
 import 'package:almarefamecca/student_results_view.dart';
 import 'package:almarefamecca/secondary_pages.dart';
 
@@ -26,6 +26,8 @@ import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:card_swiper/card_swiper.dart';
+
+import 'main.dart';
 
 enum StudentView { dashboard, results, noble, teacherComplaints }
 
@@ -788,7 +790,7 @@ class _StudentViewPageState extends State<StudentViewPage>
           if (_studentDocId != null) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => StudentPortfolioPage(studentId: _studentDocId!)),
+              MaterialPageRoute(builder: (_) => StudentPortfolioPage(studentId: _studentDocId!, studentData: {},)),
             );
           }
         },
@@ -2727,7 +2729,7 @@ class SchoolBooksPage extends StatelessWidget {
 class StudentPortfolioPage extends StatefulWidget {
   final String studentId;
 
-  const StudentPortfolioPage({super.key, required this.studentId});
+  const StudentPortfolioPage({super.key, required this.studentId, required Map studentData});
 
   @override
   State<StudentPortfolioPage> createState() => _StudentPortfolioPageState();
@@ -2742,50 +2744,57 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 70,
-        maxWidth: 1024,
       );
 
       if (pickedFile == null) return;
 
-      final String? caption = await _showCaptionDialog();
+      final int fileSize = await pickedFile.length();
+      // ✅ الحد الأقصى 40 ميجا
+      if (fileSize > 40 * 1024 * 1024) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('حجم الملف كبير جداً (أكثر من 40 ميجا)'), backgroundColor: Colors.red)
+        );
+        return;
+      }
 
+      final String? caption = await _showCaptionDialog();
       if (caption == null) return;
 
       setState(() => _isUploading = true);
 
-      final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-      final String fileName = '${widget.studentId}_$timestamp.jpg';
-      final Reference ref = FirebaseStorage.instance
-          .ref()
-          .child('student_portfolio')
-          .child(widget.studentId)
-          .child(fileName);
-
       Uint8List fileBytes = await pickedFile.readAsBytes();
-      await ref.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
+      final String fileName = '${widget.studentId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final String tgCaption = '📸 ملف إنجاز جديد (ألبوم الصور)\n👤 معرف الطالب: ${widget.studentId}\n📝 الوصف: $caption';
 
-      final String downloadUrl = await ref.getDownloadURL();
+      // ✅ 1. الرفع لتيليجرام وجلب الـ ID
+      String? fileId = await TelegramStorage.uploadDocument(fileBytes, fileName, tgCaption);
 
-      await FirebaseFirestore.instance
-          .collection('students')
-          .doc(widget.studentId)
-          .collection('portfolio')
-          .add({
-        'imageUrl': downloadUrl,
-        'caption': caption,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      if (fileId != null) {
+        // ✅ 2. الحفظ في فايرستور
+        await FirebaseFirestore.instance
+            .collection('students')
+            .doc(widget.studentId)
+            .collection('portfolio')
+            .add({
+          'imageUrl': fileId, // يتم حفظ الايدي هنا
+          'caption': caption,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تمت إضافة الصورة إلى ملف إنجازك بنجاح ✅'), backgroundColor: Colors.green),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تمت إضافة الصورة إلى ملف إنجازك بنجاح ✅'), backgroundColor: Colors.green),
+          );
+        }
+      } else {
+        throw Exception("فشل الاتصال بسيرفرات تيليجرام");
       }
     } catch (e) {
       debugPrint("Error uploading portfolio image: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('فشل رفع الصورة، حاول مرة أخرى.'), backgroundColor: Colors.red),
+          SnackBar(content: Text('فشل رفع الصورة: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -2805,7 +2814,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("اكتب تعليقاً بسيطاً تحت صورتك (مثلاً: شهادة تفوق في الرياضيات)"),
+              const Text("اكتب تعليقاً بسيطاً تحت صورتك (مثلاً: شهادة تفوق)"),
               const SizedBox(height: 12),
               TextField(
                 controller: captionController,
@@ -2833,7 +2842,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     );
   }
 
-  Future<void> _deleteImage(String docId, String imageUrl) async {
+  Future<void> _deleteImage(String docId) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -2849,16 +2858,13 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     if (confirm != true) return;
 
     try {
+      // ✅ حذف السجل من قاعدة البيانات فقط
       await FirebaseFirestore.instance
           .collection('students')
           .doc(widget.studentId)
           .collection('portfolio')
           .doc(docId)
           .delete();
-
-      try {
-        await FirebaseStorage.instance.refFromURL(imageUrl).delete();
-      } catch (_) {}
 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم الحذف بنجاح")));
     } catch (e) {
@@ -2915,10 +2921,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                   children: [
                     Icon(Icons.photo_library_outlined, size: 80, color: Colors.grey.shade300),
                     const SizedBox(height: 16),
-                    Text(
-                      'ألبوم صورك فارغ حالياً',
-                      style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-                    ),
+                    Text('ألبوم صورك فارغ حالياً', style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
                     if (isMe)
                       const Padding(
                         padding: EdgeInsets.only(top: 8.0),
@@ -2942,7 +2945,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                 itemBuilder: (context, index) {
                   final doc = snapshot.data!.docs[index];
                   final data = doc.data() as Map<String, dynamic>;
-                  final String imageUrl = data['imageUrl'] ?? '';
+                  final String fileId = data['imageUrl'] ?? '';
                   final String caption = data['caption'] ?? '';
 
                   return AnimationConfiguration.staggeredGrid(
@@ -2952,10 +2955,10 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                     child: ScaleAnimation(
                       child: FadeInAnimation(
                         child: GestureDetector(
-                          onTap: () => _showFullImage(context, imageUrl, caption),
-                          onLongPress: isMe ? () => _deleteImage(doc.id, imageUrl) : null,
+                          onTap: () => _showFullImage(context, fileId, caption),
+                          onLongPress: isMe ? () => _deleteImage(doc.id) : null,
                           child: Hero(
-                            tag: imageUrl,
+                            tag: fileId,
                             child: Card(
                               elevation: 4,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -2965,17 +2968,8 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   Expanded(
-                                    child: Image.network(
-                                      imageUrl,
-                                      fit: BoxFit.cover,
-                                      loadingBuilder: (context, child, loadingProgress) {
-                                        if (loadingProgress == null) return child;
-                                        return Container(
-                                          color: Colors.grey.shade100,
-                                          child: const Center(child: Icon(Icons.image, color: Colors.grey)),
-                                        );
-                                      },
-                                    ),
+                                    // ✅ استخدام أداة تيليجرام الذكية لعرض الصورة
+                                    child: SmartTelegramImage(fileId: fileId, fit: BoxFit.cover),
                                   ),
                                   if (caption.isNotEmpty)
                                     Container(
@@ -3010,7 +3004,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     );
   }
 
-  void _showFullImage(BuildContext context, String imageUrl, String caption) {
+  void _showFullImage(BuildContext context, String fileId, String caption) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => Scaffold(
@@ -3032,8 +3026,9 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                   minScale: 0.5,
                   maxScale: 4.0,
                   child: Hero(
-                    tag: imageUrl,
-                    child: Image.network(imageUrl),
+                    tag: fileId,
+                    // ✅ استخدام أداة تيليجرام الذكية للتكبير
+                    child: SmartTelegramImage(fileId: fileId, fit: BoxFit.contain),
                   ),
                 ),
               ),
@@ -3051,11 +3046,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                     child: Text(
                       caption,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -3066,7 +3057,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     );
   }
 }
-
 // -----------------------------------------------------------------------------
 // النظام الجديد: الشهادات والتقدير (الاعتماد الرسمي بعد الإغلاق) بصفحتين
 // -----------------------------------------------------------------------------

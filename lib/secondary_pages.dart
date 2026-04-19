@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-
+import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:excel/excel.dart' hide Border;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,7 +14,9 @@ import 'package:intl/intl.dart' as intl;
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_html/html.dart' as html;
-import 'package:flutter_svg/flutter_svg.dart'; // ✅ تم إضافة مكتبة عرض الـ SVG
+import 'package:flutter_svg/flutter_svg.dart';
+
+import 'main.dart'; // ✅ تم إضافة مكتبة عرض الـ SVG
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -2828,19 +2830,13 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     if (image == null) return;
 
     final int fileSize = await image.length();
-    if (fileSize > 2 * 1024 * 1024) {
+    // ✅ الحد الأقصى 40 ميجا
+    if (fileSize > 40 * 1024 * 1024) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: const [
-              Icon(Icons.error_outline, color: Colors.white),
-              SizedBox(width: 10),
-              Expanded(child: Text('عفواً، حجم الصورة أكبر من 2 ميجا. يرجى اختيار صورة أصغر.')),
-            ],
-          ),
+        const SnackBar(
+          content: Text('عفواً، حجم الصورة أكبر من 40 ميجا.'),
           backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
@@ -2848,29 +2844,32 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
 
     setState(() => _isUploading = true);
     try {
-      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_$categoryId.jpg';
-      final Reference storageRef = FirebaseStorage.instance
-          .ref()
-          .child('student_portfolios')
-          .child(_studentId)
-          .child(fileName);
-
       final Uint8List fileBytes = await image.readAsBytes();
-      await storageRef.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
-      final String downloadUrl = await storageRef.getDownloadURL();
+      final String fileName = '${DateTime.now().millisecondsSinceEpoch}_$categoryId.jpg';
 
-      await FirebaseFirestore.instance.collection('portfolio_items').add({
-        'studentId': _studentId,
-        'category': categoryId,
-        'imageUrl': downloadUrl,
-        'timestamp': FieldValue.serverTimestamp(),
-        'fileName': fileName,
-      });
+      String categoryName = _categories.firstWhere((cat) => cat['id'] == categoryId, orElse: () => {'label': categoryId})['label'];
+      final String caption = '📁 ملف إنجاز جديد\n👤 معرف الطالب: $_studentId\n📂 القسم: $categoryName';
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تمت إضافة الصورة لملف الإنجاز بنجاح ✅'), backgroundColor: Colors.green),
-      );
+      // ✅ 1. الرفع لتيليجرام فقط وجلب المعرف المميز (file_id)
+      String? fileId = await TelegramStorage.uploadDocument(fileBytes, fileName, caption);
+
+      if (fileId != null) {
+        // ✅ 2. حفظ الـ fileId في قاعدة بيانات فايرستور
+        await FirebaseFirestore.instance.collection('portfolio_items').add({
+          'studentId': _studentId,
+          'category': categoryId,
+          'imageUrl': fileId,
+          'timestamp': FieldValue.serverTimestamp(),
+          'fileName': fileName,
+        });
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت إضافة الصورة بنجاح عبر تيليجرام ✅'), backgroundColor: Colors.green),
+        );
+      } else {
+        throw Exception("فشل رفع الملف إلى تيليجرام");
+      }
 
     } catch (e) {
       if (!mounted) return;
@@ -2882,7 +2881,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     }
   }
 
-  Future<void> _deleteItem(String docId, String fileName) async {
+  Future<void> _deleteItem(String docId) async {
     final bool confirm = await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -2902,13 +2901,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     if (!confirm) return;
 
     try {
-      await FirebaseStorage.instance
-          .ref()
-          .child('student_portfolios')
-          .child(_studentId)
-          .child(fileName)
-          .delete();
-
+      // ✅ حذف السجل من قاعدة البيانات فقط (الملف يبقى في تيليجرام كأرشيف)
       await FirebaseFirestore.instance.collection('portfolio_items').doc(docId).delete();
 
       if (!mounted) return;
@@ -2956,7 +2949,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
                   children: [
                     CircularProgressIndicator(color: Colors.white),
                     SizedBox(height: 20),
-                    Text("جاري رفع الصورة...", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text("جاري رفع الصورة لتيليجرام...", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -2991,15 +2984,9 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
               children: [
                 Icon(Icons.folder_open, size: 80, color: Colors.grey.shade300),
                 const SizedBox(height: 10),
-                Text(
-                  "لا توجد صور في هذا القسم",
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
-                ),
+                Text("لا توجد صور في هذا القسم", style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
                 const SizedBox(height: 5),
-                const Text(
-                  "اضغط على زر الإضافة بالأسفل لتوثيق إنجازاتك",
-                  style: TextStyle(color: Colors.grey, fontSize: 12),
-                ),
+                const Text("اضغط على زر الإضافة بالأسفل لتوثيق إنجازاتك", style: TextStyle(color: Colors.grey, fontSize: 12)),
               ],
             ),
           );
@@ -3034,25 +3021,8 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
                         padding: const EdgeInsets.all(6.0),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            data['imageUrl'],
-                            fit: BoxFit.cover,
-                            loadingBuilder: (ctx, child, progress) {
-                              if (progress == null) return child;
-                              return Center(
-                                  child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          value: progress.expectedTotalBytes != null
-                                              ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
-                                              : null
-                                      )
-                                  )
-                              );
-                            },
-                          ),
+                          // ✅ استخدام أداة تيليجرام الذكية لعرض الصورة
+                          child: SmartTelegramImage(fileId: data['imageUrl'], fit: BoxFit.cover),
                         ),
                       ),
                     ),
@@ -3073,7 +3043,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
                             ),
                           ),
                           InkWell(
-                            onTap: () => _deleteItem(doc.id, data['fileName']),
+                            onTap: () => _deleteItem(doc.id),
                             child: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                           )
                         ],
@@ -3089,7 +3059,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     );
   }
 
-  void _showFullImage(String url) {
+  void _showFullImage(String fileId) {
     showDialog(
       context: context,
       builder: (_) => Dialog(
@@ -3099,7 +3069,8 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.network(url, fit: BoxFit.contain),
+              // ✅ استخدام أداة تيليجرام الذكية للتكبير
+              child: SmartTelegramImage(fileId: fileId, fit: BoxFit.contain),
             ),
             IconButton(
               onPressed: () => Navigator.pop(context),
@@ -3114,7 +3085,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     );
   }
 }
-
 class TeacherPortfolioPage extends StatefulWidget {
   final bool isAdmin;
 
