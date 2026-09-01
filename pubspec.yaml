@@ -47,7 +47,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
   firebase_core: ^4.1.0
   firebase_storage: ^13.0.1
   cloud_firestore: ^6.0.1
@@ -55,10 +55,10 @@ dev_dependencies:
   google_sign_in: ^7.2.0
   material: ^1.0.0+2
   image_picker: ^1.2.0
-  file_picker: ^10.3.3
+  file_picker: ^11.0.2
   url_launcher: ^6.3.2
   intl: ^0.20.2
-  flutter_localization: ^0.3.3
+  flutter_localization: ^0.4.0
   hijri: ^3.0.0
   percent_indicator: ^4.2.5
   badges: ^3.1.2
@@ -67,7 +67,7 @@ dev_dependencies:
   excel: ^4.0.2
   open_filex: ^4.4.0
   path_provider: ^2.1.3
-  fl_chart: ^0.63.0
+  fl_chart: ^1.2.0
   printing: ^5.11.1
   pdf: ^3.10.8
   screenshot: ^3.0.0
@@ -77,15 +77,15 @@ dev_dependencies:
   flutter_staggered_animations: ^1.1.1
   firebase_messaging: ^16.0.3
   shimmer: ^3.0.0
-  syncfusion_flutter_charts: ^31.2.3
+  syncfusion_flutter_charts: ^33.2.5
   confetti: ^0.8.0
   flutter_animate: ^4.5.2
-  syncfusion_flutter_gauges: ^31.2.3
+  syncfusion_flutter_gauges: ^33.2.5
   iconsax: ^0.0.8
   cloud_functions: ^6.0.3
   card_swiper: ^3.0.1
   coverflow: ^2.0.3
-  image_cropper: ^11.0.0
+  image_cropper: ^12.2.1
   lottie: ^3.1.0  # أو أحدث إصدار
   mobile_scanner: ^7.1.3
   qr_flutter: ^4.1.0
@@ -159,8 +159,23 @@ flutter:
     - assets/sh1.svg
     - assets/g1.svg
     - assets/sh2.svg
-
-
+    - assets/v2.jpg
+    - assets/3v.jpg
+    - assets/v1.jpg
+    - assets/4v.jpg
+    - assets/5v.jpg
+    - assets/as1.svg
+    - assets/PP1.jpg
+    - assets/PP2.jpg
+    - assets/PP3.jpg
+    - assets/PP4.jpg
+    - assets/PP5.jpg
+    - assets/PP6.jpg
+    - assets/PP7.jpg
+    - assets/PP8.jpg
+    - assets/PP9.jpg
+    - assets/PP10.jpg
+    - assets/PP11.jpg
 
 
   fonts:

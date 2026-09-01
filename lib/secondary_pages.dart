@@ -414,7 +414,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildSubjectsSection() {
     List<String> subjects = [];
-    for (int i = 1; i <= 14; i++) {
+    for (int i = 1; i <= 22; i++) {
       if (_userData?['profession$i'] != null && (_userData!['profession$i'] as String).isNotEmpty) {
         subjects.add(_userData!['profession$i']);
       }
@@ -1543,8 +1543,7 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
 }
 
 extension on Sheet {
-  void setColAutoFit(int columnIndex) {
-  }
+  void setColAutoFit(int columnIndex) {}
 }
 
 class TeacherProfileViewPage extends StatelessWidget {
@@ -1834,7 +1833,6 @@ class _TestTile extends StatefulWidget {
 class __TestTileState extends State<_TestTile> {
   bool? _isLocked;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  StreamSubscription<DocumentSnapshot>? _lockStatusSubscription;
 
   @override
   void initState() {
@@ -1844,24 +1842,23 @@ class __TestTileState extends State<_TestTile> {
 
   @override
   void dispose() {
-    _lockStatusSubscription?.cancel();
     super.dispose();
   }
 
   void _listenToLockStatus() {
-    _lockStatusSubscription = _firestore
+    _firestore
         .collection('test_status')
         .doc(widget.test.testFieldKey)
-        .snapshots()
-        .listen((doc) {
+        .get()
+        .then((doc) {
       if (mounted) {
         setState(() {
           _isLocked = doc.exists ? (doc.data()?['isLocked'] ?? false) : false;
         });
       }
-    }, onError: (error) {
+    }).catchError((error) {
       if (mounted) {
-        debugPrint("Error listening to lock status for ${widget.test.testFieldKey}: $error");
+        debugPrint("Error fetching lock status for ${widget.test.testFieldKey}: $error");
         setState(() {
           _isLocked = true;
         });

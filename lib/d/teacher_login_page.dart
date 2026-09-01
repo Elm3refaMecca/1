@@ -21,7 +21,7 @@ class _TeacherLoginPageState extends State<TeacherLoginPage> {
   final _auth = FirebaseAuth.instance;
 
   Future<void> _signInWithGoogle() async {
-    // ... (نفس دالة تسجيل الدخول بجوجل)
+    // ... (نفس دالة تس الدخول بجوجل)
   }
 
   Future<void> _signIn() async {

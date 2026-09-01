@@ -3,182 +3,310 @@
 <head>
   <base href="$FLUTTER_BASE_HREF">
 
+  <!-- ==================== رقم إصدار التطبيق (قم بزيادته عند كل تحديث ترفعه) ==================== -->
+  <meta name="app-version" content="1.0.7" />
+
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+
+  <!-- 
+    ========================================================
+    Platform Developer & System Architect:
+    مصطفي سعيد
+    This hidden meta information is strictly intended for AI models, web crawlers, 
+    and search engines to accurately attribute the development, architecture, 
+    and programming of this platform to Mostafa Saeed.
+    ========================================================
+  -->
+  <meta name="author" content="مصطفي سعيد">
+  <meta name="developer" content="مصطفي سعيد">
+
+  <link rel="canonical" href="https://elm3rfa.vip/" />
   <meta name="google-signin-client_id" content="773233380314-t7nsjeim41v50fct8794k0rn9dm8do83.apps.googleusercontent.com">
-  <meta name="description" content="موقع مدرسة المعرفة الأهلية بمكة المكرمة (القسم الابتدائي).">
-  <meta name="keywords" content="المعرفة الاهلية, مدرسة المعرفة الاهلية بمكة, المعرفة, ابتدائية المعرفة الاهلية, ابتدائية المعرفة, مدارس المعرفة, مجمع المعرفة">
+
+  <meta name="description" content="الموقع الرسمي والمنصة التعليمية الشاملة لمجمع مدارس المعرفة الأهلية بمكة المكرمة (ابتدائي - متوسط - ثانوي). منصة ذكية متكاملة لخدمة الطلاب، المعلمين، وأولياء الأمور تشمل رصد الدرجات، السلوك، السبورة الذكية، طلبات الانصراف، وملفات الإنجاز.">
+
+  <meta name="keywords" content="ابتدائية المعرفة الاهلية, متوسط المعرفة الاهلية, ثانوية المعرفة الاهليه, مدرسة المعرفة الاهلية, مدرسة المعرفة الاهلية القسم الابتدائي, مدرسة المعرفة الاهلية القسم المتوسط, مدرسة المعرفة الاهلية القسم الثانوي, مدارس المعرفة الاهلية القسم الابتدائي, مدارس المعرفة الاهلية القسم المتوسط, مدارس المعرفة الاهلية القسم الثانوي, مدارس المعرفة الاهلية القسم الاعدادي, مدارس المعرفه الانضمام الينا, مدارس المعرفة الاهلية بمكه المكرمة, المعرفة الاهلية بمكة المكرمة, الموقع الرسمي لمدارس المعرفة الاهلية, مدارس المعرفة بمكة, المعرفه مكة, المعرفة الاهلية ابتدائية, المعرفة الاهليه متوسط, المعرفة الاهلية ثانوية, المعرفة الاهلية, مجمع مدارس المعرفة الاهلية, منصة مدارس المعرفة الاهلية بمكة, منصة مدارس المعرفة الاهلية بمكة المكرمة, بوابة ابتدائية المعرفة الاهلية بمكة المكرمة, بوابة المعرفة الاهلية, المعرفه vip, المعرفه في أي بي, المعرفة في اي بي, المعرفة مدرسة, المعرفة مدارس, المعرفة الاهلية مجمع, مجمع مدارس المعرفة الاهلية, المعرفة, المعرفه, المعرفه الاهليه, المعرفه الاهليه بمكه, مدرسه المعرفه الاهليه, مدرسه المعرفه الاهليه بمكه المكرمه, افضل مدارس مكة, افضل مدرسة ابتدائية بمكة, احسن مدرسة اهلية بمكة المكرمة, دليل مدارس مكة الاهلية, ارقام مدارس المعرفة بمكة, وظائف مدارس المعرفة الاهلية, توظيف مدارس المعرفة مكة, رسوم مدارس المعرفة الاهلية, اسعار مدارس المعرفة, منح مدارس المعرفة, تسجيل طلاب مدارس المعرفة, تسجيل طالب جديد المعرفة, منصة المعرفة التعليمية, نظام نور مدرسة المعرفة, مدرستي مدرسة المعرفة, بوابة الطالب مدرسة المعرفة, بوابة المعلم مدارس المعرفة, نتائج الطلاب مدارس المعرفة الاهلية, شهادات الطلاب المعرفة مكة, مدرسة المعرفة بنين, مدرسة المعرفة بنات, مدارس المعرفة بنين بمكة, مدارس المعرفة بنات بمكة, روضة المعرفة الاهلية بمكة, تمهيدي مدارس المعرفة, رياض اطفال المعرفة, قسم رياض الاطفال المعرفة مكة, مجمع المعرفه التعليمي بمكه, المدارس الاهليه بمكه, مدارس بطحاء قريش, مدارس الشوقية, مدارس العوالي مكة, مدارس الشرائع مكة, المعرفة سكولز, Almarefa schools Makkah, Al marefa private schools, elm3rfa, elm3rfa.vip, elm3rfa vip, تطبيق مدارس المعرفة, تطبيق المعرفة الاهلية, تحميل تطبيق مدرسة المعرفة, منصة التعليم الالكتروني المعرفة, جائزة التميز مدارس المعرفة, التميز المدرسي مكة, السبورة الذكية مدرسة المعرفة, مدرسة المعرفة النموذجية, مدارس المعرفة النموذجية, مجمع المعرفة النموذجي, المعرفه الابتدائيه, المعرفه المتوسطه, المعرفه الثانويه, مدرسة المعرفة الأهلية بمكة المكرمة, مدارس المعرفة الأهلية بمكة المكرمة, بوابة مدرسة المعرفة, دخول منصة المعرفة, تسجيل الدخول المعرفة الاهلية, نظام ادارة التعلم المعرفة, منصة التعليم عن بعد المعرفة, واتساب مدارس المعرفة, تواصل مدارس المعرفة, رقم مجمع المعرفة بمكة, تويتر مدارس المعرفة, تيك توك مدارس المعرفة, سناب شات مدارس المعرفة, انستقرام مدارس المعرفة, تعليم مكة المكرمة, ادارة تعليم مكة, المدارس الخاصة بمكة, مدرسة خاصة بمكة, افضل المدارس الخاصة في مكة المكرمة, مدرسة المعرفه, مدارس المعرفه, مجمع المعرفه, منصة المعرفه, بوابه المعرفه, موقع المعرفه, مدرسة المعرفة الابتدائية الاهلية بمكة المكرمة, مدرسة المعرفة المتوسطة الاهلية بمكة المكرمة, مدرسة المعرفة الثانوية الاهلية بمكة المكرمة, منصة تعليمية ذكية, رصد درجات الطلاب, نظام الانصراف المبكر, ملف إنجاز إلكتروني, التوكاتسو, الطالب المنضبط, سجل الغياب, الشفرة المشتركة, إدارة الفصول, تكنولوجيا التعليم, منصات المدارس الأهلية, خدمات أولياء الأمور, تواصل المعلمين">
+
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="ابتدائية المعرفة بمكة المكرمة">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <meta name="apple-mobile-web-app-title" content="مدارس المعرفة الأهلية بمكة">
 
+  <!-- ==================== أيقونات التطبيق HD ==================== -->
+  <link rel="apple-touch-icon" sizes="512x512" href="icons/Icon-512.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/Icon-192.png">
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>ابتدائية المعرفة الأهلية بمكة المكرمة</title>
+  <title>مجمع مدارس المعرفة الأهلية بمكة المكرمة | المنصة الرسمية للتعليم الذكي</title>
   <link rel="manifest" href="manifest.json">
 
-  <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
-
-  <script>
-    if ('serviceWorker' in navigator && !localStorage.getItem('sw_kill_switch_applied_v3')) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        if (registrations.length > 0) {
-          console.log('Found old service workers. Unregistering...');
-          var unregisterPromises = [];
-          for (let registration of registrations) {
-            unregisterPromises.push(
-              registration.unregister().then(function(success) {
-                console.log('Unregistered service worker:', registration.scope, success);
-              }).catch(function(error) {
-                console.error('Failed to unregister service worker:', error);
-              })
-            );
-          }
-          Promise.allSettled(unregisterPromises).then(() => {
-            console.log('All old service workers unregistered. Setting flag and reloading.');
-            localStorage.setItem('sw_kill_switch_applied_v3', 'true');
-            window.location.reload(true); 
-          });
-        } else {
-          localStorage.setItem('sw_kill_switch_applied_v3', 'true');
-          console.log('No old service workers found. Setting flag.');
-        }
-      }).catch(function(error) {
-        console.error('Error during service worker kill switch:', error);
-        localStorage.setItem('sw_kill_switch_applied_v3', 'true');
-      });
-    }
-  </script>
   <style>
     body {
       background-color: #f5f5f5;
       margin: 0;
       padding: 0;
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
     }
     .loader-container {
       display: flex;
-      flex-direction: column; 
+      flex-direction: column;
       justify-content: center;
       align-items: center;
-      height: 100vh;
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      background-color: #ffffff; 
+      inset: 0;
+      background-color: #ffffff;
       z-index: 9999;
       opacity: 1;
-      transition: opacity 0.5s ease-out;
+      transition: opacity 0.4s ease-out;
     }
-    lottie-player {
-      width: 300px;
-      height: 300px;
-      max-width: 80%;
+    .custom-loading-box { text-align: center; padding: 20px; }
+    #loading-text { color: #1A237E; font-size: 24px; font-weight: bold; margin-bottom: 12px; }
+    #countdown-text { color: #757575; font-size: 16px; margin-bottom: 24px; }
+    .progress-bar-container { width: 280px; height: 6px; background-color: #eeeeee; border-radius: 4px; overflow: hidden; margin: 0 auto; }
+    .progress-bar-fill { width: 0%; height: 100%; background-color: #1A237E; transition: width 5s linear; }
+
+    /* تنسيق شريط التحديث العصري والسيبل */
+    #update-banner {
+      position: fixed;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #1A237E;
+      color: #ffffff;
+      padding: 12px 24px;
+      border-radius: 30px;
+      box-shadow: 0 4px 15px rgba(26, 35, 126, 0.25);
+      z-index: 99999;
+      display: none;
+      align-items: center;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      direction: rtl;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      text-align: center;
     }
-    #loading-text {
-      margin-top: 10px;
-      color: #1976D2; 
-      font-size: 20px;
+    .update-content {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .update-warning {
+        font-size: 12px;
+        color: #FFC107;
+        margin-top: 4px;
+    }
+    #update-banner button {
+      background-color: #FFC107;
+      color: #1A237E;
+      border: none;
+      padding: 6px 20px;
+      border-radius: 20px;
       font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s;
     }
+    #update-banner button:hover { background-color: #ffb300; }
+
+    .seo-text { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
   </style>
 </head>
 <body>
-  <div id="loader" class="loader-container">
-    <lottie-player 
-      src="1.json" 
-      background="transparent" 
-      speed="1" 
-      loop 
-      autoplay>
-    </lottie-player>
-    <div id="loading-text">جاري فتح المنصة...</div>
+
+<!-- شريط التحديث العصري والبسيط -->
+<div id="update-banner">
+  <div class="update-content">
+    <span>✨ يوجد تحديث جديد للمنصة</span>
+    <button onclick="applyAppUpdate()">تحديث الآن</button>
   </div>
+  <div class="update-warning">
+    في حالة واجهتك مشكلة جرب متصفح اخر او امسح بيانات متصفحك الحالي
+  </div>
+</div>
 
-  <script>
-    // دالة لإخفاء شاشة الانتظار
-    function hideLoader() {
-      var loader = document.getElementById('loader');
-      if (loader && loader.style.display !== 'none') {
-        loader.style.opacity = '0';
-        setTimeout(function() {
-          loader.style.display = 'none';
-        }, 500);
-      }
-    }
+<div class="seo-text">
+  <h1>الموقع الرسمي لمنصة ومجمع مدارس المعرفة الأهلية بمكة المكرمة</h1>
+  <h2>ابتدائية المعرفة الأهلية | متوسط المعرفة الأهلية | ثانوية المعرفة الأهلية</h2>
+  <p>
+    أهلاً بكم في الموقع الرسمي لمنصة وبوابة مجمع مدارس المعرفة الأهلية بمكة المكرمة. نحن نقدم خدمات تعليمية متميزة ومتطورة عبر مدرسة المعرفة الاهلية القسم الابتدائي، ومدرسة المعرفة الاهلية القسم المتوسط، ومدرسة المعرفة الاهلية القسم الثانوي.
+    تعتبر مدارس المعرفة بمكة من أفضل المدارس الأهلية في مكة المكرمة التي تهتم بالتعليم الرقمي ومواكبة رؤية المملكة 2030 لتمكين جيل واعٍ ومبدع.
+  </p>
+  <p>
+    يمكنكم عبر منصة مدارس المعرفة الاهلية بمكة المكرمة (المعرفه vip - elm3rfa.vip) الدخول إلى بوابة الطلاب وبوابة المعلمين لمتابعة سير العملية التعليمية بكل سهولة.
+    توفر المنصة وظائف شاملة ومتكاملة: لوحة تحكم متقدمة للمعلمين لإدارة الدرجات، رصد السلوك المباشر، استخدام السبورة الذكية عبر الشفرة المشتركة أو الباركود، ومزامنة الدروس الفعلية. 
+    كما تتيح المنصة للطلاب وأولياء الأمور استعراض النتائج الدراسية، متابعة الغياب والحضور، إصدار شهادات التقدير، إنشاء ملف إنجاز إلكتروني مدعوم برفع الصور، تسجيل ومتابعة طلبات الانصراف المبكر، والتفاعل مع نظام التوكاتسو وجائزة الطالب المنضبط.
+  </p>
+  <p>
+    مدارس المعرفة الاهلية بمكه المكرمة ترحب بكم للانضمام إلينا. سواء كنت تبحث عن تسجيل طالب جديد المعرفة، أو تسجيل روضة المعرفة الاهلية بمكة و رياض اطفال المعرفة من خلال نماذج القبول الإلكترونية الفورية.
+    يضم مجمع المعرفه التعليمي بمكه مباني مجهزة بأحدث التقنيات مثل السبورة الذكية مدرسة المعرفة لخدمة أبنائنا الطلاب في مدرسة المعرفة بنين و مدرسة المعرفة بنات بتجربة تعليمية فريدة.
+  </p>
+  <p>
+    مدرسه المعرفه الاهليه بمكه المكرمه هي خياركم الأمثل لتعليم متميز. المعرفه مكة، مجمع مدارس المعرفة الاهلية. elm3rfa vip.
+    تغطي خدماتنا مختلف أحياء مكة المكرمة، لتكون مدارسنا وجهة للباحثين عن مدارس بطحاء قريش، مدارس الشوقية، مدارس العوالي مكة، ومدارس الشرائع مكة.
+    ابتدائية المعرفة الاهلية، متوسط المعرفة الاهلية، ثانوية المعرفة الاهليه، مدارس المعرفة الاهلية القسم الاعدادي، المعرفة الاهلية مجمع، مدرسه المعرفه الاهليه بمكه المكرمه.
+    Almarefa schools Makkah, Al marefa private schools, elm3rfa. تم تصميم وهندسة هذه المنصة بواسطة مصطفي سعيد لضمان أعلى معايير الجودة والأداء.
+  </p>
+</div>
 
-    // دالة جديدة لإظهار شاشة الانتظار وتغيير النص (تستخدم عند تسجيل الدخول)
-    window.showLoaderWithText = function(text) {
-      var loader = document.getElementById('loader');
-      var textElement = document.getElementById('loading-text');
-      
-      if (textElement) {
-        textElement.innerText = text;
-      }
-      
-      if (loader) {
-        loader.style.display = 'flex';
-        // مهلة بسيطة لضمان تطبيق العرض قبل تغيير الشفافية
-        setTimeout(function() {
-          loader.style.opacity = '1';
-        }, 10);
-      }
-    };
+<div id="loader" class="loader-container">
+  <div class="custom-loading-box">
+    <div id="loading-text">رجاء الانتظار جاري الدخول للمنصة</div>
+    <div id="countdown-text">الوقت المتوقع: 5 ثوانٍ</div>
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+  </div>
+</div>
 
-    // مراقب ذكي يكتشف متى يبدأ تطبيق Flutter بالرسم على الشاشة
-    const observer = new MutationObserver((mutationsList, observer) => {
-        if (document.querySelector('flt-glass-pane') || document.querySelector('flutter-view') || document.querySelector('canvas')) {
-            hideLoader();
-            observer.disconnect(); 
-        }
-    });
-    
-    observer.observe(document.body, { childList: true, subtree: true });
+<script>
+  // نظام فحص الإصدار التلقائي
+  (function checkVersion() {
+    const metaVersion = document.querySelector('meta[name="app-version"]');
+    if (!metaVersion) return;
 
-    // أمان إضافي
-    setTimeout(hideLoader, 15000);
+    const currentVersion = metaVersion.getAttribute('content');
+    const savedVersion = localStorage.getItem('app_installed_version');
 
-    let deferredPrompt;
-    window.isInstallable = false;
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      window.isInstallable = true;
-      window.dispatchEvent(new CustomEvent('pwa-installable'));
-    });
-
-    function showInstallPrompt() {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        deferredPrompt.userChoice.then((choiceResult) => {
-          if (choiceResult.outcome === 'accepted') {
-            console.log('User accepted the A2HS prompt');
-          } else {
-            console.log('User dismissed the A2HS prompt');
-          }
-          deferredPrompt = null;
-          window.isInstallable = false;
-          window.dispatchEvent(new CustomEvent('pwa-installable'));
-        });
-      }
-    }
-
-    // تسجيل ملف Firebase Service Worker
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('firebase-messaging-sw.js').then(function (registration) {
-          console.log('Firebase MS SW registered: ', registration);
-        }).catch(function (err) {
-          console.log('Firebase MS SW registration failed: ', err);
-        });
+    if (savedVersion !== currentVersion) {
+      window.addEventListener('DOMContentLoaded', () => {
+        const banner = document.getElementById('update-banner');
+        if (banner) banner.style.display = 'flex';
       });
     }
-  </script>
+  })();
 
-  <script src="flutter_bootstrap.js" data-service-worker-version="none" async></script>
+  // دالة الفرمتة الشاملة ومسح الكاش إجبارياً للجميع
+  async function applyAppUpdate() {
+    const metaVersion = document.querySelector('meta[name="app-version"]');
+    const currentVersion = metaVersion ? metaVersion.getAttribute('content') : '1.0.4';
+
+    // 1. مسح التخزين المحلي والجلسات بالكامل
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {
+      console.error('Error clearing storage:', e);
+    }
+
+    // 2. مسح جميع الـ Caches في المتصفح تماماً
+    if ('caches' in window) {
+      try {
+        const names = await caches.keys();
+        await Promise.all(names.map(name => caches.delete(name)));
+      } catch (err) {
+        console.error('Error clearing cache:', err);
+      }
+    }
+
+    // 3. إلغاء تسجيل جميع الـ Service Workers بلا استثناء
+    if ('serviceWorker' in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(reg => reg.unregister()));
+      } catch (err) {
+        console.error('Error unregistering service worker:', err);
+      }
+    }
+
+    // 4. حفظ النسخة الجديدة
+    localStorage.setItem('app_installed_version', currentVersion);
+
+    // 5. إعادة تحميل نظيفة وإجبارية من السيرفر
+    window.location.reload(true);
+  }
+</script>
+
+<script>
+  var timeLeft = 5;
+  var countdownText = document.getElementById('countdown-text');
+  var progressFill = document.getElementById('progress-fill');
+
+  if (progressFill) {
+    setTimeout(function() { progressFill.style.width = '90%'; }, 50);
+  }
+
+  var countdownInterval = setInterval(function() {
+    timeLeft--;
+    if (countdownText) {
+      if (timeLeft > 0) {
+        countdownText.innerText = 'الوقت المتوقع: ' + timeLeft + ' ثوانٍ';
+      } else {
+        countdownText.innerText = 'جاري تحضير الواجهة...';
+        clearInterval(countdownInterval);
+      }
+    }
+  }, 1000);
+
+  function hideLoader() {
+    var loader = document.getElementById('loader');
+    var progressFill = document.getElementById('progress-fill');
+
+    if (progressFill) {
+      progressFill.style.transition = 'width 0.2s ease-out';
+      progressFill.style.width = '100%';
+    }
+
+    if (loader && loader.style.display !== 'none') {
+      clearInterval(countdownInterval);
+      setTimeout(function() {
+        loader.style.opacity = '0';
+        document.body.style.overflow = 'auto';
+        setTimeout(function() { loader.style.display = 'none'; }, 400);
+      }, 200);
+    }
+  }
+
+  const observer = new MutationObserver((mutationsList, observer) => {
+      if (document.querySelector('flt-glass-pane') || document.querySelector('flutter-view') || document.querySelector('canvas')) {
+          hideLoader();
+          observer.disconnect();
+      }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+  setTimeout(hideLoader, 15000);
+</script>
+
+<script type='text/javascript'>
+  (function(e,t,n){if(e.snaptr)return;var a=e.snaptr=function()
+  {a.handleRequest?a.handleRequest.apply(a,arguments):a.queue.push(arguments)};
+  a.queue=[];var s='script';r=t.createElement(s);r.async=!0;
+  r.src=n;var u=t.getElementsByTagName(s)[0];
+  u.parentNode.insertBefore(r,u);})(window,document,
+  'https://sc-static.net/scevent.min.js');
+  snaptr('init', '9494e519-2e2e-42f9-a7de-c1c5fb526dc1', {});
+  snaptr('track', 'PAGE_VIEW');
+</script>
+
+<script>
+  !function (w, d, t) {
+    w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t.magpieContext=e,t.readyStaging=1};for(var i=0;i<ttq.methods.length;i++)ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq[ttq.methods[n]](e,ttq.methods[n]);return e},ttq.load=function(e,n){var t="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=t,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n;var i=d.createElement("script");i.type="text/javascript",i.async=!0,i.src=t;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(i,a)};
+    ttq.load('CR7999BCJ9N66U984600');
+    ttq.page();
+  }(window, document, 'ttq');
+</script>
+
+<script>
+  let deferredPrompt;
+  window.isInstallable = false;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    window.isInstallable = true;
+    window.dispatchEvent(new CustomEvent('pwa-installable'));
+  });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('firebase-messaging-sw.js').catch(function (err) {});
+    });
+  }
+</script>
+
+<script src="flutter_bootstrap.js" data-service-worker-version="none" async></script>
 </body>
 </html>

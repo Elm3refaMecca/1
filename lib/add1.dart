@@ -1,17 +1,10 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:excel/excel.dart' hide Border;
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart' as intl;
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:universal_html/html.dart' as html;
 
 class GradeEntrySelectionPage extends StatefulWidget {
   final bool isBehaviorMode;
@@ -44,13 +37,13 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     'الصف الأول الثانوي', 'الصف الثاني الثانوي', 'الصف الثالث الثانوي'
   ];
 
-  // ✅ التعديل الرئيسي: توافق أسماء الفصول
   List<String> _allClasses = [
     'الفصل 1', 'الفصل 2', 'الفصل 3', 'الفصل 4', 'الفصل 5', 'الفصل 6',
     'الفصل 7', 'الفصل 8', 'الفصل 9', 'الفصل 10', 'أ', 'ب', 'ج', 'د', 'هـ', 'و'
   ];
   List<String> _allSubjects = [
-    'رياضيات', 'لغتي', 'علوم', 'انجليزي', 'إسلاميات', 'اجتماعيات', 'فنية', 'بدنية', 'رقمية', 'حياتية', 'تفكير', 'نشاط'
+    'رياضيات', 'لغتي', 'علوم', 'انجليزي', 'إسلاميات', 'اجتماعيات', 'فنية', 'بدنية', 'رقمية', 'حياتية', 'تفكير', 'نشاط',
+    'روبوت', 'قيم وسلوك', 'أخرى'
   ];
 
   final Map<String, String> _subjectToProfessionKeyMap = {
@@ -59,7 +52,8 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
     'اجتماعيات': 'profession7', 'فنية': 'profession8', 'حياتية': 'profession9',
     'بدنية': 'profession10', 'رقمية': 'profession11', 'تفكير': 'profession12',
     'قرآن': 'profession14', 'تجويد': 'profession15', 'توحيد': 'profession16',
-    'فقه': 'profession17', 'حديث': 'profession18', 'تفسير': 'profession19', 'أخرى': 'profession20',
+    'فقه': 'profession17', 'حديث': 'profession18', 'تفسير': 'profession19',
+    'أخرى': 'profession20', 'روبوت': 'profession21', 'قيم وسلوك': 'profession22',
   };
 
   @override
@@ -80,7 +74,6 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
       if (appDataDoc.exists && appDataDoc.data() != null) {
         final data = appDataDoc.data()!;
         if (data.containsKey('classes') && (data['classes'] as List).isNotEmpty) {
-          // ضمان تنسيق "الفصل X"
           _allClasses = (data['classes'] as List).map((e) {
             String c = e.toString().trim();
             return int.tryParse(c) != null ? 'الفصل $c' : c;
@@ -109,7 +102,16 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
 
       setState(() => _isLoading = false);
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('حدث خطأ أثناء جلب البيانات: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 
@@ -165,7 +167,6 @@ class _GradeEntrySelectionPageState extends State<GradeEntrySelectionPage> {
                 for (final pair in pairs) {
                   final parts = pair.split('=');
                   if (parts.length == 2) {
-                    // ✅ معالجة الحماية لاسم الفصل لتطابق قاعدة بياناتك
                     String className = parts[0].trim();
                     if (int.tryParse(className) != null) className = 'الفصل $className';
 
@@ -702,7 +703,6 @@ class _TestTile extends StatefulWidget {
 class __TestTileState extends State<_TestTile> {
   bool? _isLocked;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  StreamSubscription<DocumentSnapshot>? _lockStatusSubscription;
 
   @override
   void initState() {
@@ -712,22 +712,21 @@ class __TestTileState extends State<_TestTile> {
 
   @override
   void dispose() {
-    _lockStatusSubscription?.cancel();
     super.dispose();
   }
 
   void _listenToLockStatus() {
-    _lockStatusSubscription = _firestore
+    _firestore
         .collection('test_status')
         .doc(widget.test.testFieldKey)
-        .snapshots()
-        .listen((doc) {
+        .get()
+        .then((doc) {
       if (mounted) {
         setState(() {
           _isLocked = doc.exists ? (doc.data()?['isLocked'] ?? false) : false;
         });
       }
-    }, onError: (error) {
+    }).catchError((error) {
       if (mounted) {
         setState(() {
           _isLocked = true;
@@ -1253,7 +1252,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(type == 'like' ? 'تم إرسال التميز وإشعار الطالب' : 'تم إرسال الشكوى وإشعار الطالب'),
+          content: Text(type == 'like' ? 'تم إرسال التميز وتصنيفه في أوسمة الطالب' : 'تم إرسال الشكوى وإشعار الطالب'),
           backgroundColor: isLike ? Colors.green : Colors.redAccent,
         ));
       }
@@ -1266,7 +1265,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       }
     }
   }
-
   Future<void> _handleBulkAction(bool isLike) async {
     if (_students.isEmpty) return;
 
@@ -1435,141 +1433,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  bool _areAllGradesEntered() {
-    if (_students.isEmpty) return false;
-    for (final student in _students) {
-      if (_grades[student.id] == null) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  Future<void> _exportToExcel() async {
-    if (!_areAllGradesEntered()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('يجب رصد جميع درجات الطلاب أولاً لتتمكن من تحميل الملف.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    final excel = Excel.createExcel();
-    final Sheet sheetObject = excel['Sheet1'];
-    sheetObject.isRTL = true;
-    final List<String> headers = ['اسم الطالب', 'الدرجة', 'النسبة المئوية', 'التقييم'];
-    sheetObject.appendRow(headers.map((header) => TextCellValue(header)).toList());
-
-    for (var i = 0; i < headers.length; i++) {
-      var cell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0));
-      cell.cellStyle = CellStyle(
-        bold: true,
-        backgroundColorHex: ExcelColor.blue,
-        fontColorHex: ExcelColor.white,
-        horizontalAlign: HorizontalAlign.Center,
-        verticalAlign: VerticalAlign.Center,
-      );
-    }
-
-    final bool isNafes = widget.testFieldKey.contains('profession13') || widget.testFieldKey.contains('nafes');
-    final double maxGrade = isNafes ? 10.0 : 20.0;
-
-    String getEvaluation(num grade) {
-      double percentage = (grade / maxGrade) * 100;
-      if (percentage >= 90) return "ممتاز";
-      if (percentage >= 80) return "جيد جدا";
-      if (percentage >= 70) return "جيد";
-      if (percentage >= 50) return "مقبول";
-      return "يحتاج لمتابعة";
-    }
-
-    List<DocumentSnapshot> sortedStudents = List.from(_students);
-    sortedStudents.sort((a, b) {
-      final aData = a.data() as Map<String, dynamic>? ?? {};
-      final bData = b.data() as Map<String, dynamic>? ?? {};
-      final String aName = aData['name'] ?? '';
-      final String bName = bData['name'] ?? '';
-      return aName.compareTo(bName);
-    });
-
-    for (var studentDoc in sortedStudents) {
-      final studentId = studentDoc.id;
-      final studentName = (studentDoc.data() as Map<String, dynamic>)['name'] ?? 'اسم غير معروف';
-      final grade = _grades[studentId];
-
-      if (grade != null) {
-        if (grade == -1) {
-          final List<CellValue> row = [
-            TextCellValue(studentName),
-            TextCellValue('غائب'),
-            TextCellValue('N/A'),
-            TextCellValue('N/A')
-          ];
-          sheetObject.appendRow(row);
-        } else {
-          final double percentage = (grade / maxGrade) * 100;
-          final String evaluation = getEvaluation(grade);
-          final List<CellValue> row = [
-            TextCellValue(studentName),
-            DoubleCellValue(grade.toDouble()),
-            TextCellValue('${percentage.toStringAsFixed(1)}%'),
-            TextCellValue(evaluation)
-          ];
-          sheetObject.appendRow(row);
-        }
-      }
-    }
-
-    for (var i = 0; i < headers.length; i++) { sheetObject.setColAutoFit(i); }
-
-    final String fileName = "درجات-${widget.testName}-${widget.className}.xlsx";
-    final fileBytes = excel.save();
-
-    if (fileBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('فشل إنشاء ملف Excel.'), backgroundColor: Colors.red),
-      );
-      return;
-    }
-
-    try {
-      if (kIsWeb) {
-        final blob = html.Blob([fileBytes], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        final url = html.Url.createObjectUrlFromBlob(blob);
-        html.AnchorElement(href: url)
-          ..setAttribute("download", fileName)
-          ..click();
-        html.Url.revokeObjectUrl(url);
-      } else {
-        final directory = await getApplicationDocumentsDirectory();
-        final path = '${directory.path}/$fileName';
-        final file = File(path);
-        await file.writeAsBytes(fileBytes);
-        final result = await OpenFilex.open(path);
-        if (result.type != ResultType.done) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('لم يتم العثور على تطبيق لفتح ملفات Excel. الخطأ: ${result.message}')),
-            );
-          }
-        }
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم تصدير الملف بنجاح باسم: $fileName'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ أثناء تصدير الملف: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
   Widget _buildGradeChip({
     required dynamic currentGrade,
     required VoidCallback onTap,
@@ -1690,7 +1553,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool allGradesEntered = _areAllGradesEntered();
     final bool isNafes = widget.testFieldKey.contains('profession13') || widget.testFieldKey.contains('nafes');
     final double maxGrade = isNafes ? 10.0 : 20.0;
     final double passingGrade = isNafes ? 5.0 : 10.0;
@@ -1714,15 +1576,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
               icon: const Icon(Icons.groups_3_outlined),
               tooltip: 'إجراء جماعي (لايك/ديسلايك للكل)',
               onPressed: _showBulkActionSheet,
-            ),
-          if (!widget.isBehaviorMode)
-            IconButton(
-              icon: Icon(
-                Icons.download_for_offline_outlined,
-                color: allGradesEntered ? Colors.lightBlueAccent : Colors.white38,
-              ),
-              tooltip: 'تحميل ملف الدرجات لهذا الاختبار (Excel)',
-              onPressed: allGradesEntered ? _exportToExcel : null,
             ),
         ],
       ),
@@ -1915,6 +1768,20 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
       'النطق الصحيح (Pronunciation)',
       'المشاركة والتفاعل (Participation)',
     ],
+    'روبوت': [
+      'الربط الهندسي وتركيب القطع الميكانيكية',
+      'استيعاب مبادئ البرمجة والمنطق البرمجي',
+      'حل المشكلات وتجربة النماذج',
+      'العمل ضمن الفريق الهندسي',
+      'فهم وتوظيف الحساسات والمحركات',
+    ],
+    'قيم وسلوك': [
+      'الانضباط الصفي والالتزام بالتعليمات',
+      'الاحترام والتعاون مع الزملاء والمعلمين',
+      'المحافظة على النظافة والممتلكات',
+      'الصدق والأمانة وتحمل المسؤولية',
+      'المبادرة والإيجابية والمظهر العام',
+    ],
   };
 
   List<String> get _currentCriteriaList {
@@ -1922,6 +1789,8 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
     if (widget.subjectName.contains('رياضيات')) return _subjectCriteria['رياضيات']!;
     if (widget.subjectName.contains('علوم')) return _subjectCriteria['علوم']!;
     if (widget.subjectName.contains('انجليزي') || widget.subjectName.contains('نجليزي')) return _subjectCriteria['انجليزي']!;
+    if (widget.subjectName.contains('روبوت')) return _subjectCriteria['روبوت']!;
+    if (widget.subjectName.contains('قيم') || widget.subjectName.contains('سلوك')) return _subjectCriteria['قيم وسلوك']!;
     return ['ضعف عام في الاستيعاب', 'عدم المشاركة الصفية', 'نقص في حل الواجبات', 'صعوبة في الفهم'];
   }
 
@@ -2248,10 +2117,5 @@ class _GradeEntryDialogState extends State<_GradeEntryDialog> {
       ],
       actionsAlignment: MainAxisAlignment.end,
     );
-  }
-}
-
-extension on Sheet {
-  void setColAutoFit(int columnIndex) {
   }
 }
