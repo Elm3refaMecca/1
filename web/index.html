@@ -67,65 +67,40 @@
     .progress-bar-container { width: 280px; height: 6px; background-color: #eeeeee; border-radius: 4px; overflow: hidden; margin: 0 auto; }
     .progress-bar-fill { width: 0%; height: 100%; background-color: #1A237E; transition: width 5s linear; }
 
-    /* تنسيق شريط التحديث العصري والسيبل */
+    /* تنسيق زر التحديث الجديد (صغير، أسفل اليمين) */
     #update-banner {
       position: fixed;
-      top: 15px;
-      left: 50%;
-      transform: translateX(-50%);
+      bottom: 20px;
+      right: 20px;
       background-color: #1A237E;
       color: #ffffff;
-      padding: 12px 24px;
-      border-radius: 30px;
-      box-shadow: 0 4px 15px rgba(26, 35, 126, 0.25);
+      padding: 10px 20px;
+      border-radius: 25px;
+      box-shadow: 0 4px 12px rgba(26, 35, 126, 0.4);
       z-index: 99999;
       display: none;
       align-items: center;
-      flex-direction: column;
-      gap: 12px;
+      gap: 8px;
       font-size: 14px;
-      font-weight: 500;
-      direction: rtl;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      text-align: center;
-    }
-    .update-content {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    .update-warning {
-        font-size: 12px;
-        color: #FFC107;
-        margin-top: 4px;
-    }
-    #update-banner button {
-      background-color: #FFC107;
-      color: #1A237E;
-      border: none;
-      padding: 6px 20px;
-      border-radius: 20px;
       font-weight: bold;
-      font-size: 14px;
       cursor: pointer;
-      transition: background-color 0.2s;
+      direction: rtl;
+      transition: background-color 0.2s, transform 0.2s;
     }
-    #update-banner button:hover { background-color: #ffb300; }
+    #update-banner:hover { 
+      background-color: #ffb300; 
+      color: #1A237E;
+      transform: translateY(-2px);
+    }
 
     .seo-text { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
   </style>
 </head>
 <body>
 
-<!-- شريط التحديث العصري والبسيط -->
-<div id="update-banner">
-  <div class="update-content">
-    <span>✨ يوجد تحديث جديد للمنصة</span>
-    <button onclick="applyAppUpdate()">تحديث الآن</button>
-  </div>
-  <div class="update-warning">
-    في حالة واجهتك مشكلة جرب متصفح اخر او امسح بيانات متصفحك الحالي
-  </div>
+<!-- زر التحديث الصغير أسفل اليمين -->
+<div id="update-banner" onclick="applyAppUpdate()">
+  <span>🔄</span> تحديث
 </div>
 
 <div class="seo-text">
@@ -179,20 +154,12 @@
     }
   })();
 
-  // دالة الفرمتة الشاملة ومسح الكاش إجبارياً للجميع
+  // دالة التحديث (تم إزالة مسح localStorage للحفاظ على تسجيل دخول المستخدمين)
   async function applyAppUpdate() {
     const metaVersion = document.querySelector('meta[name="app-version"]');
-    const currentVersion = metaVersion ? metaVersion.getAttribute('content') : '1.0.4';
+    const currentVersion = metaVersion ? metaVersion.getAttribute('content') : '1.0.7';
 
-    // 1. مسح التخزين المحلي والجلسات بالكامل
-    try {
-      localStorage.clear();
-      sessionStorage.clear();
-    } catch (e) {
-      console.error('Error clearing storage:', e);
-    }
-
-    // 2. مسح جميع الـ Caches في المتصفح تماماً
+    // 1. مسح جميع الـ Caches في المتصفح للحصول على الملفات الجديدة لفلاتر
     if ('caches' in window) {
       try {
         const names = await caches.keys();
@@ -202,7 +169,7 @@
       }
     }
 
-    // 3. إلغاء تسجيل جميع الـ Service Workers بلا استثناء
+    // 2. إلغاء تسجيل جميع الـ Service Workers لجلب الملفات الحديثة
     if ('serviceWorker' in navigator) {
       try {
         const registrations = await navigator.serviceWorker.getRegistrations();
@@ -212,10 +179,10 @@
       }
     }
 
-    // 4. حفظ النسخة الجديدة
+    // 3. حفظ النسخة الجديدة حتى يختفي زر التحديث
     localStorage.setItem('app_installed_version', currentVersion);
 
-    // 5. إعادة تحميل نظيفة وإجبارية من السيرفر
+    // 4. إعادة تحميل الصفحة لجلب التحديث
     window.location.reload(true);
   }
 </script>

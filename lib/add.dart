@@ -11,6 +11,7 @@ import 'main.dart'; // يحتوي على StudentPrintHelper و QRSessionTimer
 import 'package:almarefamecca/add2.dart' hide QRSessionOverlay, QRSessionTimer;
 import 'package:almarefamecca/secondary_pages.dart';
 import 'package:almarefamecca/student_view.dart';
+import 'lesson_prep_page.dart'; // ✅ استيراد صفحة تحضيري المضافة
 import 'package:badges/badges.dart' as badges;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -422,7 +423,7 @@ class _AddPageState extends State<AddPage> {
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.sync_lock),
                   label: Text(isActive ? 'تجديد الشفرة (30 دقيقة)' : 'تفعيل الشفرة الآن'),
@@ -678,7 +679,7 @@ class _AddPageState extends State<AddPage> {
       'الصف الثالث المتوسط': 'الصف الأول الثانوي',
       'الصف الأول الثانوي': 'الصف الثاني الثانوي',
       'الصف الثاني الثانوي': 'الصف الثالث الثانوي',
-      'الصف الثاني الثانوي': 'خريج',
+      'الصف الثالث الثانوي': 'خريج',
     };
 
     Map<String, String> stagePromotion = {
@@ -1565,7 +1566,76 @@ class _AddPageState extends State<AddPage> {
             mainAxisSpacing: 20,
             childAspectRatio: 0.85,
             children: [
-              // --- ميزة شفرة المعلم السحابية (جديدة) ---
+              // --- ميزة الخطة التشغيلية للمدير ---
+              if (_isAdmin)
+                _AnimatedGridButton(
+                  title: 'الخطة التشغيلية',
+                  icon: Icons.assignment_turned_in_rounded,
+                  color: const Color(0xFF1565C0),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminOperationalPlanPage()));
+                  },
+                ),
+
+              // --- ميزة تحضيري (جديدة ومربوطة مباشرة بملف lesson_prep_page.dart) ---
+              _AnimatedGridButton(
+                title: _isAdmin ? 'متابعة التحضير' : 'تحضيري',
+                icon: Icons.auto_stories_rounded,
+                color: const Color(0xFF00796B),
+                onTap: () async {
+                  if (isGuest) {
+                    _showGuestError();
+                    return;
+                  }
+                  if (_isAdmin) {
+                    // المدير ينتقل للشاشة مباشرة للاختيار من القائمة
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const LessonPrepSchedulePage(),
+                      ),
+                    );
+                    return;
+                  }
+                  try {
+                    final scheduleDoc = await FirebaseFirestore.instance
+                        .collection('teacher_schedules')
+                        .doc(_user!.uid)
+                        .get();
+
+                    if (!scheduleDoc.exists || scheduleDoc.data()?['status'] != 'approved') {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('عفواً، لا يوجد جدول حصص معتمد لك حالياً. يرجى اعتماد جدولك أولاً من قسم الخدمات والجداول.'),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+
+                    if (context.mounted) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => LessonPrepSchedulePage(
+                            teacherScheduleData: scheduleDoc.data()!,
+                          ),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('حدث خطأ أثناء جلب الجدول: $e'), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                },
+              ),
+
+              // --- ميزة شفرة المعلم السحابية ---
               _AnimatedGridButton(
                 title: 'شفرة المعلم',
                 icon: Icons.vpn_key_rounded,
@@ -3563,7 +3633,7 @@ class _AnimatedGridButtonState extends State<_AnimatedGridButton> with SingleTic
 
             return Column(
               mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.start, // ✅ التعديل الصحيح
               children: [
                 badges.Badge(
                   showBadge: (widget.badgeCount != null && widget.badgeCount! > 0) || (widget.statCount == "✓"),
