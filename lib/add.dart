@@ -2,6 +2,11 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:convert';
+// إخفاء النسخ القديمة من lesson_prep_page حتى لا يحدث تضارب
+import 'lesson_prep_page.dart' hide AdminOperationalPlanPage, TeacherProgramsPage;
+
+// استيراد النسخ الجديدة المعدلة من operational_plan_module
+import 'operational_plan_module.dart';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -12,6 +17,7 @@ import 'package:almarefamecca/add2.dart' hide QRSessionOverlay, QRSessionTimer;
 import 'package:almarefamecca/secondary_pages.dart';
 import 'package:almarefamecca/student_view.dart';
 import 'lesson_prep_page.dart'; // ✅ استيراد صفحة تحضيري المضافة
+import 'operational_plan_module.dart' hide AdminOperationalPlanPage, TeacherProgramsPage; // ✅ استيراد الخطة التشغيلية وبرامج المعلمين
 import 'package:badges/badges.dart' as badges;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1576,6 +1582,20 @@ class _AddPageState extends State<AddPage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminOperationalPlanPage()));
                   },
                 ),
+
+              // --- ميزة برامج ومبادرات المعلمين ---
+              _AnimatedGridButton(
+                title: _isAdmin ? 'برامج المعلمين' : 'برامجي ومبادراتي',
+                icon: Icons.lightbulb_outline_rounded,
+                color: const Color(0xFFF57F17),
+                onTap: () {
+                  if (isGuest) {
+                    _showGuestError();
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherProgramsPage()));
+                  }
+                },
+              ),
 
               // --- ميزة تحضيري (جديدة ومربوطة مباشرة بملف lesson_prep_page.dart) ---
               _AnimatedGridButton(

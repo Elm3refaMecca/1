@@ -106,13 +106,41 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
     return _firstWeekStart.add(Duration(days: ((weekNumber - 1) * 7) + dayOffset));
   }
 
+  Future<void> _approveInitiative(String docId, List<OperationalTeacherItem> executors, Map<String, bool> approvals) async {
+    try {
+      final docRef = FirebaseFirestore.instance.collection('school_operational_plan_1448').doc(docId);
+      final updatedApprovals = Map<String, bool>.from(approvals);
+      updatedApprovals[currentAuthUid] = true;
+
+      final updatedExecutors = executors.map((e) {
+        if (e.id == currentAuthUid) {
+          return OperationalTeacherItem(id: e.id, name: e.name, isCustom: e.isCustom, hasApproved: true);
+        }
+        return e;
+      }).toList();
+
+      await docRef.update({
+        'collaboratorApprovals': updatedApprovals,
+        'executors': updatedExecutors.map((e) => e.toMap()).toList(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت الموافقة على التعاون في المبادرة بنجاح!'), backgroundColor: Colors.green));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الموافقة: $e'), backgroundColor: Colors.red));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final DateTime today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isAdmin ? 'متابعة تحضير المعلمين' : 'تحضيري - جدول الحصص المعتمد', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(_isAdmin ? 'متابعة تحضير المعلمين' : 'تحضيري - جدول الحصص المعتمد', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
         backgroundColor: const Color(0xFF00796B),
         foregroundColor: Colors.white,
         bottom: _isAdmin && !_isLoadingTeachers
@@ -131,7 +159,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
               ),
               items: _teachersList.map((t) => DropdownMenuItem<String>(
                 value: t['id'],
-                child: Text('المعلم: ${t['name']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                child: Text('المعلم: ${t['name']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
               )).toList(),
               onChanged: (val) {
                 if (val != null) {
@@ -158,7 +186,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
               children: [
                 const Icon(Icons.date_range, color: Color(0xFF00796B)),
                 const SizedBox(width: 8),
-                const Text('اختر الأسبوع الدراسي:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const Text('اختر الأسبوع الدراسي:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<int>(
@@ -175,7 +203,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                       String dateStr = intl.DateFormat('yyyy/MM/dd').format(weekStart);
                       return DropdownMenuItem<int>(
                         value: w,
-                        child: Text('الأسبوع $w (يبدأ: $dateStr)', style: const TextStyle(fontSize: 13)),
+                        child: Text('الأسبوع $w (يبدأ: $dateStr)', style: const TextStyle(fontSize: 13, fontFamily: 'Cairo')),
                       );
                     }),
                     onChanged: (val) {
@@ -203,237 +231,324 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                           .where('weekNumber', isEqualTo: _selectedWeek)
                           .snapshots(),
                       builder: (context, visitSnapshot) {
-                        Map<String, Map<String, dynamic>> preparedLessons = {};
-                        if (prepSnapshot.hasData) {
-                          for (var doc in prepSnapshot.data!.docs) {
-                            preparedLessons[doc.id] = doc.data() as Map<String, dynamic>;
-                          }
-                        }
+                        return StreamBuilder<QuerySnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('school_operational_plan_1448')
+                                .where('executorsIds', arrayContains: _selectedTeacherId)
+                                .snapshots(),
+                            builder: (context, planSnapshot) {
 
-                        Set<String> classroomVisits = {};
-                        if (visitSnapshot.hasData) {
-                          for (var doc in visitSnapshot.data!.docs) {
-                            classroomVisits.add(doc.id);
-                          }
-                        }
+                              Map<String, Map<String, dynamic>> preparedLessons = {};
+                              if (prepSnapshot.hasData) {
+                                for (var doc in prepSnapshot.data!.docs) {
+                                  preparedLessons[doc.id] = doc.data() as Map<String, dynamic>;
+                                }
+                              }
 
-                        return ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.all(12),
-                          itemCount: _daysOrder.length,
-                          itemBuilder: (context, dIndex) {
-                            String dayName = _daysOrder[dIndex];
-                            DateTime lessonDate = _calculateLessonDate(dayName, _selectedWeek);
-                            DateTime lessonDateOnly = DateTime(lessonDate.year, lessonDate.month, lessonDate.day);
-                            String formattedDate = intl.DateFormat('yyyy/MM/dd').format(lessonDate);
-                            String dateStrForId = intl.DateFormat('yyyyMMdd').format(lessonDate);
-                            List periods = _currentSchedule[dayName] as List? ?? [];
+                              Set<String> classroomVisits = {};
+                              if (visitSnapshot.hasData) {
+                                for (var doc in visitSnapshot.data!.docs) {
+                                  classroomVisits.add(doc.id);
+                                }
+                              }
 
-                            return Container(
-                              width: 290,
-                              margin: const EdgeInsets.only(left: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.teal.shade200, width: 1.5),
-                                boxShadow: [
-                                  BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 3))
-                                ],
-                              ),
-                              child: Column(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF00796B),
-                                      borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(dayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                                          child: Text(formattedDate, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                                        ),
+                              List<OperationalPlanEntry> teacherPlans = [];
+                              if (planSnapshot.hasData) {
+                                teacherPlans = planSnapshot.data!.docs.map((doc) =>
+                                    OperationalPlanEntry.fromMap(doc.id, doc.data() as Map<String, dynamic>)
+                                ).toList();
+                              }
+
+                              return ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.all(12),
+                                itemCount: _daysOrder.length,
+                                itemBuilder: (context, dIndex) {
+                                  String dayName = _daysOrder[dIndex];
+                                  DateTime lessonDate = _calculateLessonDate(dayName, _selectedWeek);
+                                  DateTime lessonDateOnly = DateTime(lessonDate.year, lessonDate.month, lessonDate.day);
+                                  String formattedDate = intl.DateFormat('yyyy/MM/dd').format(lessonDate);
+                                  String dateStrForId = intl.DateFormat('yyyyMMdd').format(lessonDate);
+                                  List periods = _currentSchedule[dayName] as List? ?? [];
+
+                                  return Container(
+                                    width: 290,
+                                    margin: const EdgeInsets.only(left: 12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: Colors.teal.shade200, width: 1.5),
+                                      boxShadow: [
+                                        BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 3))
                                       ],
                                     ),
-                                  ),
-                                  Expanded(
-                                    child: ListView.builder(
-                                      itemCount: periods.isNotEmpty ? periods.length : 7,
-                                      itemBuilder: (context, pIndex) {
-                                        Map<String, dynamic> slot = (pIndex < periods.length)
-                                            ? Map<String, dynamic>.from(periods[pIndex] as Map? ?? {})
-                                            : {'type': 'فارغ'};
-
-                                        bool isClass = slot['type'] == 'حصة';
-                                        String subject = slot['subject'] ?? '';
-                                        String grade = slot['grade'] ?? '';
-                                        String className = slot['class'] ?? '';
-
-                                        String prepDocId = '${_selectedTeacherId}_W${_selectedWeek}_${dateStrForId}_P${pIndex + 1}';
-
-                                        bool hasVisit = classroomVisits.contains(prepDocId);
-                                        bool isPrepared = preparedLessons.containsKey(prepDocId);
-                                        bool isLatePrep = isPrepared ? (preparedLessons[prepDocId]!['isLatePrep'] ?? false) : false;
-                                        bool isPast = lessonDateOnly.isBefore(today);
-                                        bool isMoreThan3Weeks = lessonDateOnly.difference(today).inDays > 21;
-
-                                        String statusText = '';
-                                        Color statusColor = Colors.transparent;
-                                        IconData statusIcon = Icons.info;
-
-                                        if (isClass) {
-                                          if (isPrepared) {
-                                            if (isLatePrep) {
-                                              statusText = 'مُحَضَّرة (متأخر)';
-                                              statusColor = Colors.orange.shade700;
-                                              statusIcon = Icons.warning_amber_rounded;
-                                            } else {
-                                              statusText = 'مُحَضَّرة';
-                                              statusColor = Colors.green.shade700;
-                                              statusIcon = Icons.check_circle;
-                                            }
-                                          } else if (isPast) {
-                                            statusText = 'فاتت ولم تُحضر';
-                                            statusColor = Colors.red.shade700;
-                                            statusIcon = Icons.cancel;
-                                          } else {
-                                            statusText = 'بانتظار التحضير';
-                                            statusColor = Colors.grey.shade600;
-                                            statusIcon = Icons.hourglass_empty;
-                                          }
-                                        }
-
-                                        return InkWell(
-                                          onTap: isClass
-                                              ? () {
-                                            if (isMoreThan3Weeks && _selectedTeacherId == currentAuthUid) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text('تحذير: لا يمكنك التسابق في التحضير! الحد الأقصى المسموح به هو 3 أسابيع مقدماً فقط.'),
-                                                  backgroundColor: Colors.red,
-                                                ),
-                                              );
-                                              return;
-                                            }
-
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => LessonDetailPrepFormPage(
-                                                  weekNumber: _selectedWeek,
-                                                  dayName: dayName,
-                                                  lessonDate: lessonDate,
-                                                  periodIndex: pIndex + 1,
-                                                  subject: subject,
-                                                  grade: grade,
-                                                  className: className,
-                                                  stage: slot['stage'] ?? 'المرحلة الابتدائية',
-                                                  teacherId: _selectedTeacherId,
-                                                  teacherName: _selectedTeacherName,
-                                                  isViewerOnly: (_isAdmin && _selectedTeacherId != currentAuthUid),
-                                                ),
+                                    child: Column(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFF00796B),
+                                            borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(dayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
+                                                child: Text(formattedDate, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                                               ),
-                                            );
-                                          }
-                                              : null,
-                                          child: Container(
-                                            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                                            padding: const EdgeInsets.all(10),
-                                            decoration: BoxDecoration(
-                                              color: isClass ? Colors.teal.shade50.withOpacity(0.3) : Colors.grey.shade100,
-                                              borderRadius: BorderRadius.circular(10),
-                                              border: Border.all(
-                                                color: isClass ? (isPast && !isPrepared ? Colors.red.shade300 : Colors.teal.shade200) : Colors.grey.shade200,
-                                              ),
-                                            ),
-                                            child: Row(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                CircleAvatar(
-                                                  radius: 14,
-                                                  backgroundColor: isClass ? const Color(0xFF00796B) : Colors.grey.shade400,
-                                                  child: Text('${pIndex + 1}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                                                ),
-                                                const SizedBox(width: 10),
-                                                Expanded(
+                                            ],
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: ListView.builder(
+                                            itemCount: periods.isNotEmpty ? periods.length : 7,
+                                            itemBuilder: (context, pIndex) {
+                                              Map<String, dynamic> slot = (pIndex < periods.length)
+                                                  ? Map<String, dynamic>.from(periods[pIndex] as Map? ?? {})
+                                                  : {'type': 'فارغ'};
+
+                                              bool isClass = slot['type'] == 'حصة';
+                                              String subject = slot['subject'] ?? '';
+                                              String grade = slot['grade'] ?? '';
+                                              String className = slot['class'] ?? '';
+
+                                              String prepDocId = '${_selectedTeacherId}_W${_selectedWeek}_${dateStrForId}_P${pIndex + 1}';
+
+                                              bool hasVisit = classroomVisits.contains(prepDocId);
+                                              bool isPrepared = preparedLessons.containsKey(prepDocId);
+                                              bool isLatePrep = isPrepared ? (preparedLessons[prepDocId]!['isLatePrep'] ?? false) : false;
+                                              bool isPast = lessonDateOnly.isBefore(today);
+                                              bool isMoreThan3Weeks = lessonDateOnly.difference(today).inDays > 21;
+
+                                              String statusText = '';
+                                              Color statusColor = Colors.transparent;
+                                              IconData statusIcon = Icons.info;
+
+                                              if (isClass) {
+                                                if (isPrepared) {
+                                                  if (isLatePrep) {
+                                                    statusText = 'مُحَضَّرة (متأخر)';
+                                                    statusColor = Colors.orange.shade700;
+                                                    statusIcon = Icons.warning_amber_rounded;
+                                                  } else {
+                                                    statusText = 'مُحَضَّرة';
+                                                    statusColor = Colors.green.shade700;
+                                                    statusIcon = Icons.check_circle;
+                                                  }
+                                                } else if (isPast) {
+                                                  statusText = 'فاتت ولم تُحضر';
+                                                  statusColor = Colors.red.shade700;
+                                                  statusIcon = Icons.cancel;
+                                                } else {
+                                                  statusText = 'بانتظار التحضير';
+                                                  statusColor = Colors.grey.shade600;
+                                                  statusIcon = Icons.hourglass_empty;
+                                                }
+                                              }
+
+                                              List<OperationalPlanEntry> periodPlans = teacherPlans.where((plan) {
+                                                bool matchesWeek = plan.isContinuousUntilYearEnd;
+                                                if (!matchesWeek) {
+                                                  if (plan.dateSelectionMode == 'weeks') {
+                                                    int sW = plan.startWeek ?? plan.executionWeek ?? 1;
+                                                    int eW = plan.endWeek ?? sW;
+                                                    matchesWeek = _selectedWeek >= sW && _selectedWeek <= eW;
+                                                  } else {
+                                                    matchesWeek = plan.executionWeek == _selectedWeek;
+                                                  }
+                                                }
+                                                bool matchesDay = plan.executionDays.contains(dayName);
+                                                bool matchesPeriod = plan.executionPeriods.contains(pIndex + 1);
+
+                                                return matchesWeek && matchesDay && matchesPeriod;
+                                              }).toList();
+
+                                              return InkWell(
+                                                onTap: isClass
+                                                    ? () {
+                                                  if (isMoreThan3Weeks && _selectedTeacherId == currentAuthUid) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text('تحذير: لا يمكنك التسابق في التحضير! الحد الأقصى المسموح به هو 3 أسابيع مقدماً فقط.'),
+                                                        backgroundColor: Colors.red,
+                                                      ),
+                                                    );
+                                                    return;
+                                                  }
+
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (_) => LessonDetailPrepFormPage(
+                                                        weekNumber: _selectedWeek,
+                                                        dayName: dayName,
+                                                        lessonDate: lessonDate,
+                                                        periodIndex: pIndex + 1,
+                                                        subject: subject,
+                                                        grade: grade,
+                                                        className: className,
+                                                        stage: slot['stage'] ?? 'المرحلة الابتدائية',
+                                                        teacherId: _selectedTeacherId,
+                                                        teacherName: _selectedTeacherName,
+                                                        isViewerOnly: (_isAdmin && _selectedTeacherId != currentAuthUid),
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                                    : null,
+                                                child: Container(
+                                                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                                  padding: const EdgeInsets.all(10),
+                                                  decoration: BoxDecoration(
+                                                    color: isClass ? Colors.teal.shade50.withOpacity(0.3) : Colors.grey.shade100,
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    border: Border.all(
+                                                      color: isClass ? (isPast && !isPrepared ? Colors.red.shade300 : Colors.teal.shade200) : Colors.grey.shade200,
+                                                    ),
+                                                  ),
                                                   child: Column(
                                                     crossAxisAlignment: CrossAxisAlignment.start,
                                                     children: [
-                                                      Text(
-                                                        isClass ? subject : (slot['type'] ?? 'فارغ'),
-                                                        style: TextStyle(
-                                                          fontWeight: FontWeight.bold,
-                                                          fontSize: 14,
-                                                          color: isClass ? Colors.black87 : Colors.grey,
-                                                        ),
-                                                      ),
-                                                      if (isClass) ...[
-                                                        if (grade.isNotEmpty || className.isNotEmpty)
-                                                          Text('$grade - $className', style: TextStyle(color: Colors.grey.shade700, fontSize: 11)),
-                                                        const SizedBox(height: 8),
-                                                        Wrap(
-                                                          spacing: 6,
-                                                          runSpacing: 4,
-                                                          children: [
-                                                            if (hasVisit)
-                                                              Container(
-                                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                                decoration: BoxDecoration(
-                                                                  color: Colors.yellow.shade600,
-                                                                  borderRadius: BorderRadius.circular(6),
+                                                      Row(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          CircleAvatar(
+                                                            radius: 14,
+                                                            backgroundColor: isClass ? const Color(0xFF00796B) : Colors.grey.shade400,
+                                                            child: Text('${pIndex + 1}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                                                          ),
+                                                          const SizedBox(width: 10),
+                                                          Expanded(
+                                                            child: Column(
+                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                              children: [
+                                                                Text(
+                                                                  isClass ? subject : (slot['type'] ?? 'فارغ'),
+                                                                  style: TextStyle(
+                                                                    fontWeight: FontWeight.bold,
+                                                                    fontSize: 14,
+                                                                    color: isClass ? Colors.black87 : Colors.grey,
+                                                                    fontFamily: 'Cairo',
+                                                                  ),
                                                                 ),
-                                                                child: Row(
-                                                                  mainAxisSize: MainAxisSize.min,
+                                                                if (isClass) ...[
+                                                                  if (grade.isNotEmpty || className.isNotEmpty)
+                                                                    Text('$grade - $className', style: TextStyle(color: Colors.grey.shade700, fontSize: 11, fontFamily: 'Cairo')),
+                                                                  const SizedBox(height: 8),
+                                                                  Wrap(
+                                                                    spacing: 6,
+                                                                    runSpacing: 4,
+                                                                    children: [
+                                                                      if (hasVisit)
+                                                                        Container(
+                                                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                                          decoration: BoxDecoration(
+                                                                            color: Colors.yellow.shade600,
+                                                                            borderRadius: BorderRadius.circular(6),
+                                                                          ),
+                                                                          child: const Row(
+                                                                            mainAxisSize: MainAxisSize.min,
+                                                                            children: [
+                                                                              Icon(Icons.visibility, size: 12, color: Colors.black87),
+                                                                              SizedBox(width: 4),
+                                                                              Text('زيارة صفية', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.black87, fontFamily: 'Cairo')),
+                                                                            ],
+                                                                          ),
+                                                                        ),
+                                                                      Container(
+                                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                                                        decoration: BoxDecoration(
+                                                                          color: statusColor.withOpacity(0.1),
+                                                                          border: Border.all(color: statusColor, width: 1.5),
+                                                                          borderRadius: BorderRadius.circular(6),
+                                                                        ),
+                                                                        child: Row(
+                                                                          mainAxisSize: MainAxisSize.min,
+                                                                          children: [
+                                                                            Icon(statusIcon, size: 12, color: statusColor),
+                                                                            const SizedBox(width: 4),
+                                                                            Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor, fontFamily: 'Cairo')),
+                                                                          ],
+                                                                        ),
+                                                                      ),
+                                                                    ],
+                                                                  )
+                                                                ],
+                                                              ],
+                                                            ),
+                                                          ),
+                                                          if (isClass)
+                                                            Icon(
+                                                                (_isAdmin && _selectedTeacherId != currentAuthUid) ? Icons.visibility : Icons.edit_note,
+                                                                color: const Color(0xFF00796B),
+                                                                size: 22
+                                                            ),
+                                                        ],
+                                                      ),
+
+                                                      if (periodPlans.isNotEmpty) ...[
+                                                        const SizedBox(height: 8),
+                                                        const Divider(height: 1, color: Colors.amber),
+                                                        const SizedBox(height: 8),
+                                                        ...periodPlans.map((plan) {
+                                                          bool needsMyApproval = plan.collaboratorApprovals[currentAuthUid] == false;
+                                                          return Container(
+                                                            margin: const EdgeInsets.only(bottom: 6),
+                                                            padding: const EdgeInsets.all(8),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.amber.shade50,
+                                                              borderRadius: BorderRadius.circular(8),
+                                                              border: Border.all(color: Colors.amber.shade300),
+                                                            ),
+                                                            child: Column(
+                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                              children: [
+                                                                Row(
                                                                   children: [
-                                                                    Icon(Icons.visibility, size: 12, color: Colors.black87),
+                                                                    const Icon(Icons.star, color: Colors.amber, size: 16),
                                                                     const SizedBox(width: 4),
-                                                                    const Text('زيارة صفية', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.black87)),
+                                                                    Expanded(child: Text('مبادرة: ${plan.title}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo'))),
                                                                   ],
                                                                 ),
-                                                              ),
-                                                            Container(
-                                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                                              decoration: BoxDecoration(
-                                                                color: statusColor.withOpacity(0.1),
-                                                                border: Border.all(color: statusColor, width: 1.5),
-                                                                borderRadius: BorderRadius.circular(6),
-                                                              ),
-                                                              child: Row(
-                                                                mainAxisSize: MainAxisSize.min,
-                                                                children: [
-                                                                  Icon(statusIcon, size: 12, color: statusColor),
-                                                                  const SizedBox(width: 4),
-                                                                  Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor)),
-                                                                ],
-                                                              ),
+                                                                Text('الحالة: ${plan.status}', style: const TextStyle(fontSize: 10, fontFamily: 'Cairo', color: Colors.grey)),
+                                                                if (needsMyApproval && _selectedTeacherId == currentAuthUid)
+                                                                  Padding(
+                                                                    padding: const EdgeInsets.only(top: 6),
+                                                                    child: SizedBox(
+                                                                      width: double.infinity,
+                                                                      child: ElevatedButton(
+                                                                        style: ElevatedButton.styleFrom(
+                                                                          backgroundColor: Colors.green,
+                                                                          foregroundColor: Colors.white,
+                                                                          padding: const EdgeInsets.symmetric(vertical: 4),
+                                                                          minimumSize: const Size(0, 30),
+                                                                        ),
+                                                                        onPressed: () => _approveInitiative(plan.id!, plan.executors, plan.collaboratorApprovals),
+                                                                        child: const Text('موافقة على التعاون', style: TextStyle(fontSize: 11, fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+                                                                      ),
+                                                                    ),
+                                                                  )
+                                                              ],
                                                             ),
-                                                          ],
-                                                        )
-                                                      ],
+                                                          );
+                                                        }).toList(),
+                                                      ]
                                                     ],
                                                   ),
                                                 ),
-                                                if (isClass)
-                                                  Icon(
-                                                      (_isAdmin && _selectedTeacherId != currentAuthUid) ? Icons.visibility : Icons.edit_note,
-                                                      color: const Color(0xFF00796B),
-                                                      size: 22
-                                                  ),
-                                              ],
-                                            ),
+                                              );
+                                            },
                                           ),
-                                        );
-                                      },
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
+                                  );
+                                },
+                              );
+                            }
                         );
                       }
                   );
@@ -717,7 +832,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
 
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF00796B))),
+              title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF00796B), fontFamily: 'Cairo')),
               content: SizedBox(
                 width: double.maxFinite,
                 height: 550,
@@ -776,7 +891,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text('معروض حالياً: ${filteredItems.length} من أصل ${sourceList.length} بند متخصص ومدمج.',
-                                style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontWeight: FontWeight.bold)),
+                                style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                           ),
                         ],
                       ),
@@ -790,7 +905,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                           final isSelected = targetList.contains(item);
                           return CheckboxListTile(
                             dense: true,
-                            title: Text(item, style: const TextStyle(fontSize: 13, height: 1.4)),
+                            title: Text(item, style: const TextStyle(fontSize: 13, height: 1.4, fontFamily: 'Cairo')),
                             value: isSelected,
                             activeColor: Colors.teal,
                             onChanged: widget.isViewerOnly ? null : (val) {
@@ -832,7 +947,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isViewerOnly ? 'عرض: ${widget.subject}' : 'تحضير: ${widget.subject} (${widget.grade} - ${widget.className})', style: const TextStyle(fontSize: 15)),
+        title: Text(widget.isViewerOnly ? 'عرض: ${widget.subject}' : 'تحضير: ${widget.subject} (${widget.grade} - ${widget.className})', style: const TextStyle(fontSize: 15, fontFamily: 'Cairo')),
         backgroundColor: widget.isViewerOnly ? Colors.blueGrey : const Color(0xFF00796B),
         foregroundColor: Colors.white,
       ),
@@ -851,7 +966,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                   padding: const EdgeInsets.all(12),
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(10)),
-                  child: const Text('أنت في وضع المشاهدة فقط (صلاحيات المدير)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber)),
+                  child: const Text('أنت في وضع المشاهدة فقط (صلاحيات المدير)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontFamily: 'Cairo')),
                 ),
 
               Container(
@@ -860,9 +975,9 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('الأسبوع: ${widget.weekNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    Text('اليوم: ${widget.dayName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    Text('التاريخ: $formattedDate', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF00796B))),
+                    Text('الأسبوع: ${widget.weekNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
+                    Text('اليوم: ${widget.dayName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
+                    Text('التاريخ: $formattedDate', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF00796B), fontFamily: 'Cairo')),
                   ],
                 ),
               ),
@@ -871,7 +986,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
               _buildTimeDistributionCard(),
               const SizedBox(height: 20),
 
-              const Text('عنوان الدرس *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const Text('عنوان الدرس *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Cairo')),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _lessonTitleCtrl,
@@ -973,7 +1088,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                     icon: const Icon(Icons.save_rounded),
                     label: _isSaving
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('اعتماد وحفظ التحضير سحابياً', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        : const Text('اعتماد وحفظ التحضير سحابياً', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00796B),
                       foregroundColor: Colors.white,
@@ -1007,13 +1122,13 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                   children: [
                     Icon(Icons.timer_rounded, color: Colors.pinkAccent),
                     SizedBox(width: 8),
-                    Text('توزيع وقت الحصة (45 دقيقة)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    Text('توزيع وقت الحصة (45 دقيقة)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
                   ],
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(color: isExact45 ? Colors.green : Colors.red, borderRadius: BorderRadius.circular(12)),
-                  child: Text('المجموع: $_totalAssignedTime / 45 د', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                  child: Text('المجموع: $_totalAssignedTime / 45 د', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo')),
                 ),
               ],
             ),
@@ -1032,7 +1147,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
   Widget _buildTimeSlider(String label, int currentValue, ValueChanged<int> onChanged) {
     return Row(
       children: [
-        SizedBox(width: 140, child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+        SizedBox(width: 140, child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, fontFamily: 'Cairo'))),
         Expanded(
           child: Slider(
             value: currentValue.toDouble(), min: 0, max: 45, divisions: 45,
@@ -1040,7 +1155,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
             onChanged: widget.isViewerOnly ? null : (val) => onChanged(val.round()),
           ),
         ),
-        Container(width: 40, alignment: Alignment.center, child: Text('$currentValue د', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+        Container(width: 40, alignment: Alignment.center, child: Text('$currentValue د', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo'))),
       ],
     );
   }
@@ -1061,28 +1176,28 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                   children: [
                     Icon(icon, color: color, size: 22),
                     const SizedBox(width: 8),
-                    Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color)),
+                    Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color, fontFamily: 'Cairo')),
                   ],
                 ),
                 if (!widget.isViewerOnly)
                   ElevatedButton.icon(
                     onPressed: onOpen,
                     icon: const Icon(Icons.add_circle_outline, size: 16),
-                    label: const Text('اختيار/كتابة', style: TextStyle(fontSize: 12)),
+                    label: const Text('اختيار/كتابة', style: TextStyle(fontSize: 12, fontFamily: 'Cairo')),
                     style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
                   ),
               ],
             ),
             const SizedBox(height: 8),
             if (selectedItems.isEmpty)
-              const Text('لم يتم إدراج بنود بعد.', style: TextStyle(color: Colors.grey, fontSize: 12))
+              const Text('لم يتم إدراج بنود بعد.', style: TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'Cairo'))
             else
               Wrap(
                 spacing: 6, runSpacing: 6,
                 children: selectedItems.map((item) {
                   return Chip(
                     backgroundColor: color.withOpacity(0.08),
-                    label: Text(item, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+                    label: Text(item, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     deleteIcon: widget.isViewerOnly ? null : const Icon(Icons.close, size: 14),
                     onDeleted: widget.isViewerOnly ? null : () => setState(() => selectedItems.remove(item)),
                   );
@@ -1107,7 +1222,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
               children: [
                 Icon(Icons.workspace_premium, color: Colors.indigo),
                 SizedBox(width: 8),
-                Text('مهارات تخصصية دقيقة للمادة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.indigo)),
+                Text('مهارات تخصصية دقيقة للمادة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.indigo, fontFamily: 'Cairo')),
               ],
             ),
             if (!widget.isViewerOnly) ...[
@@ -1140,7 +1255,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                 children: _specializedSkills.map((s) {
                   return Chip(
                     backgroundColor: Colors.indigo.shade50,
-                    label: Text(s, style: const TextStyle(fontSize: 12, color: Colors.indigo, fontWeight: FontWeight.bold)),
+                    label: Text(s, style: const TextStyle(fontSize: 12, color: Colors.indigo, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     deleteIcon: widget.isViewerOnly ? null : const Icon(Icons.close, size: 14),
                     onDeleted: widget.isViewerOnly ? null : () => setState(() => _specializedSkills.remove(s)),
                   );
@@ -1168,7 +1283,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                   children: [
                     Icon(Icons.link_rounded, color: Colors.blue),
                     SizedBox(width: 8),
-                    Text('المصادر الرقمية (10 روابط)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue)),
+                    Text('المصادر الرقمية (10 روابط)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue, fontFamily: 'Cairo')),
                   ],
                 ),
                 if (!widget.isViewerOnly && _digitalLinkControllers.length < 10)
@@ -1216,7 +1331,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
               children: [
                 Icon(Icons.assignment_turned_in, color: Colors.deepOrange),
                 SizedBox(width: 8),
-                Text('التقويم والتغذية الراجعة (الواجبات)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.deepOrange)),
+                Text('التقويم والتغذية الراجعة (الواجبات)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.deepOrange, fontFamily: 'Cairo')),
               ],
             ),
             const SizedBox(height: 12),
@@ -1231,428 +1346,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
             TextField(controller: _hwTextCtrl, readOnly: widget.isViewerOnly, maxLines: 3, decoration: const InputDecoration(labelText: 'تفاصيل الواجب', hintText: 'اكتب نص الواجب والتعليمات...', border: OutlineInputBorder())),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ===========================================================================
-// 3. شاشة الخطة التشغيلية والإجرائية للمدير (مستقلة ومطابقة لوزارة التعليم)
-// ===========================================================================
-class AdminOperationalPlanPage extends StatefulWidget {
-  const AdminOperationalPlanPage({super.key});
-
-  @override
-  State<AdminOperationalPlanPage> createState() => _AdminOperationalPlanPageState();
-}
-
-class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
-  int _selectedWeek = 1;
-
-  final Map<int, String> _hijriDatesMap = {
-    1: '17 - 21 / 3 / 1448 هـ',
-    2: '24 - 28 / 3 / 1448 هـ',
-    3: '2 - 6 / 4 / 1448 هـ',
-    4: '9 - 11 / 4 / 1448 هـ',
-    5: '16 - 20 / 4 / 1448 هـ',
-    6: '23 - 27 / 4 / 1448 هـ',
-    7: '30 / 4 - 4 / 5 / 1448 هـ',
-    8: '7 - 11 / 5 / 1448 هـ',
-    9: '14 - 18 / 5 / 1448 هـ',
-    10: '21 - 25 / 5 / 1448 هـ',
-    11: '28 / 5 - 2 / 6 / 1448 هـ',
-    12: '5 - 9 / 6 / 1448 هـ',
-    13: '19 - 23 / 6 / 1448 هـ',
-    14: '26 / 6 - 1 / 7 / 1448 هـ',
-    15: '4 - 8 / 7 / 1448 هـ',
-    16: '11 - 15 / 7 / 1448 هـ',
-    17: '18 - 22 / 7 / 1448 هـ',
-    18: '25 - 29 / 7 / 1448 هـ',
-  };
-
-  void _openAddOrEditItemDialog({DocumentSnapshot? doc}) {
-    final Map<String, dynamic> data = doc != null ? (doc.data() as Map<String, dynamic>) : {};
-
-    String selectedCategory = data['category'] ?? 'مبادرة';
-    final titleCtrl = TextEditingController(text: data['title'] ?? '');
-    final executorCtrl = TextEditingController(text: data['executor'] ?? '');
-    final supervisorCtrl = TextEditingController(text: data['supervisor'] ?? 'لجنة متابعة تنفيذ برامج الخطة');
-    String executionStatus = data['status'] ?? 'تحت الإجراء';
-    final notesCtrl = TextEditingController(text: data['notes'] ?? '');
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDlgState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Row(
-                children: [
-                  const Icon(Icons.edit_calendar, color: Color(0xFF1565C0)),
-                  const SizedBox(width: 8),
-                  Text(doc == null ? 'إضافة بند تشغيلي للأسبوع $_selectedWeek' : 'تعديل بند تشغيلي', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: selectedCategory,
-                      decoration: const InputDecoration(labelText: 'نوع البند *', border: OutlineInputBorder()),
-                      items: ['فعالية', 'مبادرة', 'قيمة', 'إجراء مدرسي يومي'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                      onChanged: (val) {
-                        if (val != null) setDlgState(() => selectedCategory = val);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: titleCtrl,
-                      decoration: const InputDecoration(labelText: 'مسمى البرنامج / المبادرة / الإجراء *', border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: executorCtrl,
-                      decoration: const InputDecoration(labelText: 'المنفذ * (مثال: يحيى حكومي، معلمو البدنية)', border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: supervisorCtrl,
-                      decoration: const InputDecoration(labelText: 'المتابع', border: OutlineInputBorder()),
-                    ),
-                    const SizedBox(height: 24),
-                    const Align(
-                      alignment: Alignment.centerRight,
-                      child: Text('حالة التنفيذ والمتابعة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1565C0))),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        _buildStatusOption('تحت الإجراء', Icons.sync, Colors.blue, executionStatus, (v) => setDlgState(() => executionStatus = v)),
-                        _buildStatusOption('مكتمل', Icons.check_circle, Colors.green, executionStatus, (v) => setDlgState(() => executionStatus = v)),
-                        _buildStatusOption('مُرحّل', Icons.next_plan, Colors.orange, executionStatus, (v) => setDlgState(() => executionStatus = v)),
-                        _buildStatusOption('لم يُنفذ', Icons.cancel, Colors.red, executionStatus, (v) => setDlgState(() => executionStatus = v)),
-                        _buildStatusOption('مُلغى', Icons.block, Colors.blueGrey, executionStatus, (v) => setDlgState(() => executionStatus = v)),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: notesCtrl,
-                      maxLines: 2,
-                      decoration: const InputDecoration(labelText: 'الملاحظات والتوصيات', border: OutlineInputBorder()),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
-                if (doc != null)
-                  TextButton(
-                    onPressed: () async {
-                      await doc.reference.delete();
-                      if (context.mounted) Navigator.pop(ctx);
-                    },
-                    child: const Text('حذف', style: TextStyle(color: Colors.red)),
-                  ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white),
-                  onPressed: () async {
-                    if (titleCtrl.text.trim().isEmpty || executorCtrl.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء كتابة اسم البرنامج والمنفذ')));
-                      return;
-                    }
-
-                    final dataToSave = {
-                      'weekNumber': _selectedWeek,
-                      'category': selectedCategory,
-                      'title': titleCtrl.text.trim(),
-                      'executor': executorCtrl.text.trim(),
-                      'supervisor': supervisorCtrl.text.trim(),
-                      'status': executionStatus,
-                      'notes': notesCtrl.text.trim(),
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    };
-
-                    if (doc == null) {
-                      await FirebaseFirestore.instance.collection('school_operational_plan_1448').add(dataToSave);
-                    } else {
-                      await doc.reference.update(dataToSave);
-                    }
-
-                    if (context.mounted) Navigator.pop(ctx);
-                  },
-                  child: const Text('حفظ واعتـماد'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildStatusOption(String title, IconData icon, Color color, String currentStatus, Function(String) onSelect) {
-    bool isSelected = currentStatus == title;
-    return InkWell(
-      onTap: () => onSelect(title),
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? color : color.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: isSelected ? color : color.withOpacity(0.3), width: 1.5),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: isSelected ? Colors.white : color),
-            const SizedBox(width: 6),
-            Text(title, style: TextStyle(color: isSelected ? Colors.white : color, fontWeight: FontWeight.bold, fontSize: 12)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showOfficialConditionsDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.verified, color: Color(0xFF1565C0)),
-            SizedBox(width: 8),
-            Text('شروط التنفيذ والمتابعة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('حالات المتابعة الإدارية:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
-              const Divider(),
-              _buildConditionTile('1. تحت الإجراء:', 'البرنامج قيد التنفيذ حالياً، أو يأخذ مدى زمنياً ممتداً ولم ينتهِ بعد.', Colors.blue),
-              _buildConditionTile('2. مكتمل:', 'تم إنجاز البرنامج أو المبادرة وتحقيق الأهداف التربوية بنجاح.', Colors.green),
-              _buildConditionTile('3. مُرحّل:', 'تم تأجيل البرنامج لأسبوع آخر لظروف طارئة أو تعارض في الجدولة.', Colors.orange),
-              _buildConditionTile('4. لم يُنفذ:', 'انقضى الوقت ولم يتم التنفيذ لعدم توفر متطلبات، ويستوجب ذكر السبب.', Colors.red),
-              _buildConditionTile('5. مُلغى:', 'أُلغي البرنامج بقرار من الإدارة لانتفاء الحاجة.', Colors.blueGrey),
-            ],
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white),
-            child: const Text('فهمت'),
-          )
-        ],
-      ),
-    );
-  }
-
-  Widget _buildConditionTile(String title, String desc, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(width: 12, height: 12, margin: const EdgeInsets.only(top: 4), decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: const TextStyle(fontSize: 13, color: Colors.black87, fontFamily: 'Cairo'),
-                children: [
-                  TextSpan(text: '$title ', style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-                  TextSpan(text: desc),
-                ],
-              ),
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    String hijriDate = _hijriDatesMap[_selectedWeek] ?? '';
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('الخطة التشغيلية لمدير المدرسة 1448هـ', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF1565C0),
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.rule_folder),
-            tooltip: 'شروط وضوابط التنفيذ',
-            onPressed: _showOfficialConditionsDialog,
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF1565C0),
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('إضافة بند للخطة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        onPressed: () => _openAddOrEditItemDialog(),
-      ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              border: Border(bottom: BorderSide(color: Colors.blue.shade200)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.date_range, color: Color(0xFF1565C0)),
-                const SizedBox(width: 8),
-                const Text('الأسبوع:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    value: _selectedWeek,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    items: List.generate(18, (index) {
-                      int w = index + 1;
-                      return DropdownMenuItem<int>(
-                        value: w,
-                        child: Text('الأسبوع $w (${_hijriDatesMap[w] ?? ""})', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                      );
-                    }),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedWeek = val);
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('school_operational_plan_1448')
-                  .where('weekNumber', isEqualTo: _selectedWeek)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.post_add, size: 70, color: Colors.grey.shade400),
-                        const SizedBox(height: 12),
-                        Text('لم يتم تسجيل أي برامج للأسبوع $_selectedWeek حتى الآن', style: TextStyle(color: Colors.grey.shade700, fontSize: 15, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        ElevatedButton.icon(
-                          onPressed: () => _openAddOrEditItemDialog(),
-                          icon: const Icon(Icons.add),
-                          label: const Text('إضافة أول بند تشغيلي الآن'),
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white),
-                        )
-                      ],
-                    ),
-                  );
-                }
-
-                final docs = snapshot.data!.docs;
-
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: const Color(0xFF1565C0), borderRadius: BorderRadius.circular(12)),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('توزيع البرامج والمبادرات - الأسبوع $_selectedWeek', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                            Text(hijriDate, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          headingRowColor: WidgetStateProperty.all(Colors.blue.shade100),
-                          border: TableBorder.all(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(8)),
-                          columns: const [
-                            DataColumn(label: Text('النوع', style: TextStyle(fontWeight: FontWeight.bold))),
-                            DataColumn(label: Text('البرنامج / المبادرة', style: TextStyle(fontWeight: FontWeight.bold))),
-                            DataColumn(label: Text('المنفذ', style: TextStyle(fontWeight: FontWeight.bold))),
-                            DataColumn(label: Text('المتابع', style: TextStyle(fontWeight: FontWeight.bold))),
-                            DataColumn(label: Text('الحالة', style: TextStyle(fontWeight: FontWeight.bold))),
-                            DataColumn(label: Text('ملاحظات', style: TextStyle(fontWeight: FontWeight.bold))),
-                            DataColumn(label: Text('إجراء', style: TextStyle(fontWeight: FontWeight.bold))),
-                          ],
-                          rows: docs.map((doc) {
-                            final data = doc.data() as Map<String, dynamic>;
-                            final String status = data['status'] ?? 'لم ينفذ';
-
-                            Color badgeColor = Colors.grey;
-                            if (status == 'مكتمل' || status == 'نُفذ') badgeColor = Colors.green;
-                            if (status == 'لم يُنفذ' || status == 'لم ينفذ') badgeColor = Colors.red;
-                            if (status == 'مُرحّل' || status == 'رُحّل') badgeColor = Colors.orange;
-                            if (status == 'مُلغى' || status == 'ألغي') badgeColor = Colors.blueGrey;
-                            if (status == 'تحت الإجراء') badgeColor = Colors.blue;
-
-                            return DataRow(
-                              cells: [
-                                DataCell(Text(data['category'] ?? '-')),
-                                DataCell(Text(data['title'] ?? '-', style: const TextStyle(fontWeight: FontWeight.bold))),
-                                DataCell(Text(data['executor'] ?? '-')),
-                                DataCell(Text(data['supervisor'] ?? '-')),
-                                DataCell(
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(color: badgeColor, borderRadius: BorderRadius.circular(8)),
-                                    child: Text(status, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
-                                  ),
-                                ),
-                                DataCell(Text(data['notes']?.isNotEmpty == true ? data['notes'] : '-')),
-                                DataCell(
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, color: Color(0xFF1565C0), size: 18),
-                                    onPressed: () => _openAddOrEditItemDialog(doc: doc),
-                                  ),
-                                ),
-                              ],
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                      const SizedBox(height: 70),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }

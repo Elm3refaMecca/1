@@ -1,4 +1,189 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+
+// ===========================================================================
+// نماذج البيانات المحدثة للخطة التشغيلية ونظام الـ 52 أسبوعاً وتدوين الزيارات
+// ===========================================================================
+
+class OperationalTeacherItem {
+  final String id;
+  final String name;
+  final bool isCustom;
+  final bool hasApproved; // المتغير الجديد
+
+  OperationalTeacherItem({
+    required this.id,
+    required this.name,
+    this.isCustom = false,
+    this.hasApproved = true, // إعطاء قيمة افتراضية
+  });
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'isCustom': isCustom,
+    'hasApproved': hasApproved,
+  };
+
+  factory OperationalTeacherItem.fromMap(Map<String, dynamic> map) => OperationalTeacherItem(
+    id: map['id'] ?? '',
+    name: map['name'] ?? '',
+    isCustom: map['isCustom'] ?? false,
+    hasApproved: map['hasApproved'] ?? true, // <-- إضافة هذا السطر لحل المشكلة
+  );
+}
+
+class OperationalPlanEntry {
+  final String? id;
+  final String title;
+  final String category;
+  final bool isCustomProgram;
+  final String stage;
+  final List<String> targetGrades;
+  final DateTime startDate;
+  final DateTime endDate;
+  final bool isContinuousUntilYearEnd;
+  final int? startWeek;
+  final int? endWeek;
+  final int? executionWeek;
+  final String? executionDay;
+  final List<String> executionDays;
+  final List<int> executionPeriods;
+  final List<String> executorsIds;
+  final Map<String, bool> collaboratorApprovals;
+  final String dateSelectionMode; // 'weeks' أو 'days'
+  final List<OperationalTeacherItem> executors;
+  final List<OperationalTeacherItem> followUpCommittee;
+  final String status;
+  final String notes;
+  final bool isCustomNotes;
+  final bool isTeacherInitiated;
+  final String? teacherId;
+  final String? teacherName;
+  final bool isApprovedByAdmin;
+  final DateTime? adminFollowUpDate;
+  final List<Map<String, dynamic>> visitsLog; // سجل الزيارات وإثبات المتابعة
+
+  OperationalPlanEntry({
+    this.id,
+    required this.title,
+    required this.category,
+    this.isCustomProgram = false,
+    required this.stage,
+    required this.targetGrades,
+    required this.startDate,
+    required this.endDate,
+    this.isContinuousUntilYearEnd = false,
+    this.startWeek,
+    this.endWeek,
+    this.executionWeek,
+    this.executionDay,
+    this.executionDays = const [],
+    this.executionPeriods = const [],
+    this.executorsIds = const [],
+    this.collaboratorApprovals = const {},
+    this.dateSelectionMode = 'weeks',
+    required this.executors,
+    required this.followUpCommittee,
+    this.status = 'تحت الإجراء',
+    this.notes = '',
+    this.isCustomNotes = false,
+    this.isTeacherInitiated = false,
+    this.teacherId,
+    this.teacherName,
+    this.isApprovedByAdmin = true,
+    this.adminFollowUpDate,
+    this.visitsLog = const [],
+  });
+
+  Map<String, dynamic> toMap() => {
+    'title': title,
+    'category': category,
+    'isCustomProgram': isCustomProgram,
+    'stage': stage,
+    'targetGrades': targetGrades,
+    'startDate': startDate.toIso8601String(),
+    'endDate': endDate.toIso8601String(),
+    'isContinuousUntilYearEnd': isContinuousUntilYearEnd,
+    'startWeek': startWeek,
+    'endWeek': endWeek,
+    'executionWeek': executionWeek,
+    'executionDay': executionDay,
+    'executionDays': executionDays,
+    'executionPeriods': executionPeriods,
+    'executorsIds': executorsIds,
+    'collaboratorApprovals': collaboratorApprovals,
+    'dateSelectionMode': dateSelectionMode,
+    'executors': executors.map((e) => e.toMap()).toList(),
+    'followUpCommittee': followUpCommittee.map((e) => e.toMap()).toList(),
+    'status': status,
+    'notes': notes,
+    'isCustomNotes': isCustomNotes,
+    'isTeacherInitiated': isTeacherInitiated,
+    'teacherId': teacherId,
+    'teacherName': teacherName,
+    'isApprovedByAdmin': isApprovedByAdmin,
+    'adminFollowUpDate': adminFollowUpDate?.toIso8601String(),
+    'visitsLog': visitsLog,
+  };
+
+  factory OperationalPlanEntry.fromMap(String docId, Map<String, dynamic> map) {
+    return OperationalPlanEntry(
+      id: docId,
+      title: map['title'] ?? '',
+      category: map['category'] ?? 'مبادرة',
+      isCustomProgram: map['isCustomProgram'] ?? false,
+      stage: map['stage'] ?? 'المرحلة الابتدائية',
+      targetGrades: List<String>.from(map['targetGrades'] ?? []),
+      startDate: map['startDate'] != null ? DateTime.parse(map['startDate']) : DateTime.now(),
+      endDate: map['endDate'] != null ? DateTime.parse(map['endDate']) : DateTime.now(),
+      isContinuousUntilYearEnd: map['isContinuousUntilYearEnd'] ?? false,
+      startWeek: map['startWeek'] ?? map['executionWeek'],
+      endWeek: map['endWeek'] ?? map['startWeek'] ?? map['executionWeek'],
+      executionWeek: map['executionWeek'] ?? map['startWeek'],
+      executionDay: map['executionDay'],
+      executionDays: List<String>.from(map['executionDays'] ?? (map['executionDay'] != null ? [map['executionDay']] : [])),
+      executionPeriods: List<int>.from(map['executionPeriods'] ?? []),
+      executorsIds: List<String>.from(map['executorsIds'] ?? []),
+      collaboratorApprovals: Map<String, bool>.from(map['collaboratorApprovals'] ?? {}),
+      dateSelectionMode: map['dateSelectionMode'] ?? 'weeks',
+      executors: (map['executors'] as List? ?? [])
+          .map((e) => OperationalTeacherItem.fromMap(Map<String, dynamic>.from(e)))
+          .toList(),
+      followUpCommittee: (map['followUpCommittee'] as List? ?? [])
+          .map((e) => OperationalTeacherItem.fromMap(Map<String, dynamic>.from(e)))
+          .toList(),
+      status: map['status'] ?? 'تحت الإجراء',
+      notes: map['notes'] ?? '',
+      isCustomNotes: map['isCustomNotes'] ?? false,
+      isTeacherInitiated: map['isTeacherInitiated'] ?? false,
+      teacherId: map['teacherId'],
+      teacherName: map['teacherName'],
+      isApprovedByAdmin: map['isApprovedByAdmin'] ?? true,
+      adminFollowUpDate: map['adminFollowUpDate'] != null ? DateTime.tryParse(map['adminFollowUpDate']) : null,
+      visitsLog: List<Map<String, dynamic>>.from(map['visitsLog'] ?? []),
+    );
+  }
+}
+
+class PlanStaticData {
+  static const List<String> categories = ['فعالية', 'مبادرة', 'مبادرة معلّم', 'قيمة', 'إجراء مدرسي يومي'];
+  static const List<String> daysOfWeek = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+  static const List<int> periodsOfDay = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  static const List<String> programsBank = [
+    'تعزيز الانضباط المدرسي', 'القراءة التفاعلية السريعة', 'مهارات الفهم القرائي المتقدم',
+    'فارس جدول الضرب الذهني', 'المخترع الصغير ومهارات STEAM', 'الروبوت والذكاء الاصطناعي في التعليم',
+    'الحساب الذهني وتطبيقات الفيدا', 'تطوير الخط العربي وفنون الإملاء', 'القيم النبوية والمواطنة الصالحة',
+    'المواطنة الرقمية والأمن السيبراني', 'السلامة المدرسية والإخلاء الذاتي', 'مبادرة الصحة المدرسية والبيئة',
+  ];
+  static const List<String> notesBank = [
+    'تم استيفاء الشواهد والملفات التوثيقية بنجاح.',
+    'يوصى بتكثيف الحصص الإثرائية المساندة.',
+    'التأكيد على المتابعة الدورية عبر استمارة الأداء.',
+    'حفظ التقرير الختامي في ملف الخطة التشغيلية المعتمد.',
+  ];
+}
 
 class LessonPrepData {
   static const List<String> allSubjectKeys = [
@@ -7,40 +192,75 @@ class LessonPrepData {
     'روبوت', 'قيم وسلوك', 'خطة تشغيلية', 'أخرى'
   ];
 
-  // شروط التنفيذ والمتابعة (خاصة بالخطة التشغيلية للمدير)
   static const List<String> adminConditions = [
-    'تحت الإجراء والمتابعة',
-    'مكتمل ونُفذ بالكامل',
-    'مكتمل جزئياً',
-    'رُحل لأسباب فنية/زمنية',
-    'لم يُنفذ ويحتاج مراجعة',
-    'مُلغى بقرار إداري',
+    'تحت الإجراء',
+    'مكتمل',
+    'مُرحّل',
+    'لم يُنفذ',
+    'مُلغى',
   ];
 
-  // ===========================================================================
-  // 1. نواتج التعلم المستهدفة والفعاليات الإدارية
-  // ===========================================================================
+  static const List<String> standardNotesBank = [
+    'تم استيفاء الشواهد والملفات التوثيقية بنجاح.',
+    'يوصى بتكثيف الحصص الإثرائية المساندة.',
+    'التأكيد على المتابعة الدورية عبر استمارة الأداء.',
+    'إشراك أولياء الأمور في التقييم الختامي للمبادرة.',
+    'عرض مخرجات البرنامج في الإذاعة المدرسية والمعرض المصاحب.',
+    'حفظ التقرير الختامي في ملف الخطة التشغيلية المعتمد.',
+    'تأجيل بعض الفعاليات الميدانية نظراً للظروف الجوية.',
+    'التنسيق مع منسق النشاط الطلابي لتوثيق الساعات التطوعية.',
+    'حاجة المنفذين لدعم لوجستي إضافي من الإدارة المدرسية.',
+    'تحقيق الأهداف بنسبة تفوق 95% ومستوى رضا عالٍ من المستهدفين.'
+  ];
+
+  static List<String> get thousandProgramsBank {
+    if (_cached1000Programs != null) return _cached1000Programs!;
+
+    final List<String> baseTopics = [
+      'تعزيز الانضباط المدرسي', 'القراءة التفاعلية السريعة', 'مهارات الفهم القرائي المتقدم',
+      'فارس جدول الضرب الذهني', 'المخترع الصغير ومهارات STEAM', 'الروبوت والذكاء الاصطناعي في التعليم',
+      'الحساب الذهني وتطبيقات الفيدا', 'تطوير الخط العربي وفنون الإملاء', 'القيم النبوية والمواطنة الصالحة',
+      'المواطنة الرقمية والأمن السيبراني', 'السلامة المدرسية والإخلاء الذاتي', 'مبادرة الصحة المدرسية والبيئة',
+      'اللياقة البدنية والصحة المدرسية', 'البيئة المدرسية الخضراء والاستدامة', 'تطبيقات العلوم الحياتية والمخبرية',
+      'English Conversation Club', 'محاكاة رحلات الفضاء والمستقبل', 'الفنون التشكيلية والتراث السعودي',
+      'إدارة الوقت والأولويات للطلاب', 'المناظرات الفكرية والحوار الهادف', 'المستثمر المالي الصغير',
+      'الريادة المجتمعية والتطوع المدرسي', 'المعلم الصغير والأقران المساعدون', 'إثراء الموهوبين والفائقين',
+      'رعاية بطيئي التعلم وتعزيز الدافعية', 'أولمبياد المعرفة والرياضيات', 'مبادرة مسرحة المناهج والدراما'
+    ];
+
+    final List<String> modifiers = [
+      'المكثف', 'النموذجي', 'التفاعلي', 'الشامل', 'السنوي', 'المتقدم', 'الرائد', 'التقني',
+      'الميداني', 'الإبداعي', 'التطبيقي', 'المستمر', 'النوعي', 'التحفيزي', 'المرحلي'
+    ];
+
+    final List<String> targets = [
+      'للصفوف الأولية', 'للصفوف العليا', 'للمرحلة المتوسطة', 'للمرحلة الثانوية',
+      'للطلاب الفائقين', 'لتعزيز مهارات نافس', 'لتطوير نواتج التعلم', 'للبيئة المدرسية'
+    ];
+
+    List<String> list = [];
+    for (var topic in baseTopics) {
+      for (var mod in modifiers) {
+        for (var tgt in targets) {
+          list.add('$topic $mod $tgt');
+          if (list.length >= 1000) break;
+        }
+        if (list.length >= 1000) break;
+      }
+      if (list.length >= 1000) break;
+    }
+
+    _cached1000Programs = list.toSet().toList();
+    return _cached1000Programs!;
+  }
+  static List<String>? _cached1000Programs;
+
   static const Map<String, List<String>> learningOutcomesMap = {
     'خطة تشغيلية': [
-      'تكريم المتفوقين',
-      'تعزيز السلوك الإيجابي',
-      'المجلس الطلابي',
-      'رعاية الضعاف دراسيًا',
-      'متابعة المشكلات الأكثر شيوعًا',
-      'اليوم الوطني السعودي',
-      'رعاية متكرري الغياب والتأخر',
-      'الاستخدام الآمن للأنترنت والألعاب الإلكترونية',
-      'توثيق العلاقة بين الأسرة والمدرسة',
-      'تصاميم تراثية معاصرة',
-      'تنمية الدافعية',
-      'الإرشاد وقت الأزمات',
-      'تعزيز المهارات النفسية للطلبة',
-      'الوقاية النفسية الأولية',
-      'رعاية ودعم الحالات الخاصة',
-      'تعزيز المهارات النفسية والاجتماعية',
-      'تكريم المتميزين سلوكيًا',
-      'التهيئة الإرشادية للاختبارات النهائية',
-      'اختبارات نهاية الفصل الدراسي الأول',
+      'تكريم المتفوقين', 'تعزيز السلوك الإيجابي', 'المجلس الطلابي', 'رعاية الضعاف دراسيًا',
+      'متابعة المشكلات الأكثر شيوعًا', 'اليوم الوطني السعودي', 'رعاية متكرري الغياب والتأخر',
+      'الاستخدام الآمن للأنترنت والألعاب الإلكترونية', 'توثيق العلاقة بين الأسرة والمدرسة',
+      'تصاميم تراثية معاصرة', 'تنمية الدافعية', 'الإرشاد وقت الأزمات',
     ],
     'عام': [
       'أن يحدد الطالب الفكرة الرئيسة والأفكار الفرعية للنص بدقة وموضوعية.',
@@ -205,23 +425,10 @@ class LessonPrepData {
     ]
   };
 
-  // ===========================================================================
-  // 2. استراتيجيات التدريس والمبادرات التشغيلية
-  // ===========================================================================
   static const Map<String, List<String>> strategiesMap = {
     'خطة تشغيلية': [
       'استقبال الطلاب', 'التهيئة الإرشادية', 'اختبار تشخيصي', 'التهيئة والاستعداد',
       'جسر الكلمات', 'لغتي حياتي', 'اللياقة البدنية', 'الكراسة المساندة في الخط والإملاء',
-      'القراءة السريعة', 'اختبار قصير', 'عالم وإنجاز', 'أثر', 'Language for Life',
-      'الدوري المدرسي', 'رياضيات الفيدا', 'من أخلاق النبوة', 'إملائي سر تفوقي',
-      'التصميم الهندسي', 'مسرحة المناهج', 'السباح الصغير', 'ملتقى المعرفة', 'جيل قارئ مبدع',
-      'كأس أبطال نافس (الرياضيات)', 'بيبراس والمعرفة', 'خطة الإخلاء', 'تحدي المبتكرين الصغار',
-      'Let\'s Learn Phonics', 'اجتماع أولياء الأمور', 'الكشاف الصغير', 'العلوم والصحة',
-      'مسابقات وألعاب حركية', 'المهارات المتقدمة في ميكروسوفت أوفيس', 'تطوعنا',
-      'المعلم الصغير', 'المستثمر الذكي', 'Learning English Using AI', 'الأمن والسلامة المدرسية',
-      'البرمجة باستخدام سكراتش', 'صيانة أجهزة الحاسب الآلي', 'شراكة مجتمعية',
-      'الأمن السيبراني', 'الإسعافات الأولية', 'فارس جدول الضرب', 'English Conversation',
-      'العلوم بين القرآن والسنة',
     ],
     'عام': [
       'استراتيجية فكر - زاوج - شارك لتنشيط الحوار (Think-Pair-Share).',
@@ -326,9 +533,6 @@ class LessonPrepData {
     ],
   };
 
-  // ===========================================================================
-  // 3. أنشطة رعاية الموهوبين والفائقين
-  // ===========================================================================
   static const Map<String, List<String>> giftedActivitiesMap = {
     'خطة تشغيلية': [
       'إشراك الموهوبين في لجان المجلس الطلابي القيادية.',
@@ -422,9 +626,6 @@ class LessonPrepData {
     ],
   };
 
-  // ===========================================================================
-  // 5. تطبيقات عملية مرتبطة بالحياة (Practical Life Applications)
-  // ===========================================================================
   static const Map<String, List<String>> practicalApplicationsMap = {
     'خطة تشغيلية': [
       'تفعيل الشراكة المجتمعية مع مؤسسات الحي الصحي والأمني.',
@@ -591,9 +792,6 @@ class LessonPrepData {
     ],
   };
 
-  // ===========================================================================
-  // 6. القيم والهوية الوطنية (Values & Identity)
-  // ===========================================================================
   static const Map<String, List<String>> valuesAndIdentityMap = {
     'خطة تشغيلية': [
       'الانضباط', 'الانضباط الإيجابي', 'التسامح', 'التسامح الإيجابي',
@@ -668,9 +866,6 @@ class LessonPrepData {
     ],
   };
 
-  // ===========================================================================
-  // 7. بيانات الخطة التشغيلية 1448هـ المخصصة للمدير (من واقع ملف الوورد)
-  // ===========================================================================
   static const Map<String, dynamic> operationalPlanData = {
     'conditions': [
       'تحت الإجراء',
