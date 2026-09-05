@@ -9,13 +9,13 @@ class OperationalTeacherItem {
   final String id;
   final String name;
   final bool isCustom;
-  final bool hasApproved; // المتغير الجديد
+  final bool hasApproved;
 
   OperationalTeacherItem({
     required this.id,
     required this.name,
     this.isCustom = false,
-    this.hasApproved = true, // إعطاء قيمة افتراضية
+    this.hasApproved = true,
   });
 
   Map<String, dynamic> toMap() => {
@@ -29,7 +29,7 @@ class OperationalTeacherItem {
     id: map['id'] ?? '',
     name: map['name'] ?? '',
     isCustom: map['isCustom'] ?? false,
-    hasApproved: map['hasApproved'] ?? true, // <-- إضافة هذا السطر لحل المشكلة
+    hasApproved: map['hasApproved'] ?? true,
   );
 }
 
@@ -51,7 +51,7 @@ class OperationalPlanEntry {
   final List<int> executionPeriods;
   final List<String> executorsIds;
   final Map<String, bool> collaboratorApprovals;
-  final String dateSelectionMode; // 'weeks' أو 'days'
+  final String dateSelectionMode;
   final List<OperationalTeacherItem> executors;
   final List<OperationalTeacherItem> followUpCommittee;
   final String status;
@@ -62,7 +62,7 @@ class OperationalPlanEntry {
   final String? teacherName;
   final bool isApprovedByAdmin;
   final DateTime? adminFollowUpDate;
-  final List<Map<String, dynamic>> visitsLog; // سجل الزيارات وإثبات المتابعة
+  final List<Map<String, dynamic>> visitsLog;
 
   OperationalPlanEntry({
     this.id,
@@ -167,7 +167,7 @@ class OperationalPlanEntry {
 }
 
 class PlanStaticData {
-  static const List<String> categories = ['فعالية', 'مبادرة', 'مبادرة معلّم', 'قيمة', 'إجراء مدرسي يومي'];
+  static const List<String> categories = ['فعالية', 'مبادرة', 'قيمة', 'إجراء مدرسي يومي'];
   static const List<String> daysOfWeek = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
   static const List<int> periodsOfDay = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -175,7 +175,7 @@ class PlanStaticData {
     'تعزيز الانضباط المدرسي', 'القراءة التفاعلية السريعة', 'مهارات الفهم القرائي المتقدم',
     'فارس جدول الضرب الذهني', 'المخترع الصغير ومهارات STEAM', 'الروبوت والذكاء الاصطناعي في التعليم',
     'الحساب الذهني وتطبيقات الفيدا', 'تطوير الخط العربي وفنون الإملاء', 'القيم النبوية والمواطنة الصالحة',
-    'المواطنة الرقمية والأمن السيبراني', 'السلامة المدرسية والإخلاء الذاتي', 'مبادرة الصحة المدرسية والبيئة',
+    'المواطنة الرقمية والأمن السيبراني', 'السلامة المدرسية والإخلاء الذاتي', 'م مبادرة الصحة المدرسية والبيئة',
   ];
   static const List<String> notesBank = [
     'تم استيفاء الشواهد والملفات التوثيقية بنجاح.',
@@ -582,7 +582,7 @@ class LessonPrepData {
     ],
     'اجتماعيات': [
       'إعداد بحث تاريخي مصور عن شخصية وطنية بارزة أو مَعلم أثري وتقديمه للإذاعة المدرسية.',
-      'الربط بين الدرس ومستهدفات الرؤية 2030 وتقديم مقترحات سياحية لمدينة سعودية.',
+      'الربط بين الدرس ومستهدفات الرؤية 2030 وتقديم مقترحات السياحية لمدينة سعودية.',
       'رسم وتصميم خريطة جغرافية ثلاثية الأبعاد باستخدام التضاريس والصلصال لتوضيح المرتفعات.',
     ],
     'رقمية': [

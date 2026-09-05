@@ -113,13 +113,13 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
     final DateTime today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF4F7FA), // خلفية هادئة جداً
       appBar: AppBar(
         title: Text(
           _isAdmin ? 'متابعة خطط وتحضير المعلمين' : 'تحضير الدروس والجدول المدرسي',
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, fontFamily: 'Cairo'),
         ),
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: const Color(0xFF2C3E50), // أزرق رمادي مريح
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: _isAdmin && !_isLoadingTeachers
@@ -127,7 +127,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
           preferredSize: const Size.fromHeight(60),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: const Color(0xFF0F172A),
+            color: const Color(0xFF1A252F),
             child: DropdownButtonFormField<String>(
               value: _selectedTeacherId.isNotEmpty ? _selectedTeacherId : null,
               decoration: InputDecoration(
@@ -138,7 +138,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
               ),
               items: _teachersList.map((t) => DropdownMenuItem<String>(
                 value: t['id'],
-                child: Text('المعلم: ${t['name']}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, fontFamily: 'Cairo')),
+                child: Text('المعلم: ${t['name']}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, fontFamily: 'Cairo', color: Color(0xFF2C3E50))),
               )).toList(),
               onChanged: (val) {
                 if (val != null) {
@@ -168,7 +168,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
               children: [
                 const Icon(Icons.calendar_today_outlined, size: 18, color: Color(0xFF475569)),
                 const SizedBox(width: 10),
-                const Text('الأسبوع الدراسي:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF334155), fontFamily: 'Cairo')),
+                const Text('الأسبوع الدراسي:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF2C3E50), fontFamily: 'Cairo')),
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<int>(
@@ -185,7 +185,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                       String dateStr = intl.DateFormat('yyyy/MM/dd').format(weekStart);
                       return DropdownMenuItem<int>(
                         value: w,
-                        child: Text('الأسبوع $w (يبدأ: $dateStr)', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo', color: Color(0xFF1E293B))),
+                        child: Text('الأسبوع $w (يبدأ: $dateStr)', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo', color: Color(0xFF2C3E50))),
                       );
                     }),
                     onChanged: (val) {
@@ -232,13 +232,6 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                 }
                               }
 
-                              List<OperationalPlanEntry> teacherPlans = [];
-                              if (planSnapshot.hasData) {
-                                teacherPlans = planSnapshot.data!.docs.map((doc) =>
-                                    OperationalPlanEntry.fromMap(doc.id, doc.data() as Map<String, dynamic>)
-                                ).toList();
-                              }
-
                               return ListView.builder(
                                 scrollDirection: Axis.horizontal,
                                 padding: const EdgeInsets.all(12),
@@ -259,7 +252,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(color: const Color(0xFFE2E8F0)),
                                       boxShadow: [
-                                        BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))
+                                        BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 3))
                                       ],
                                     ),
                                     child: Column(
@@ -267,14 +260,14 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                         Container(
                                           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
                                           decoration: const BoxDecoration(
-                                            color: Color(0xFF334155),
+                                            color: Color(0xFF2C3E50),
                                             borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
                                           ),
                                           child: Row(
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
                                               Text(dayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
-                                              Text(formattedDate, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontFamily: 'Cairo')),
+                                              Text(formattedDate, style: const TextStyle(color: Color(0xFFBDC3C7), fontSize: 11, fontFamily: 'Cairo')),
                                             ],
                                           ),
                                         ),
@@ -311,13 +304,13 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                                     badgeText = const Color(0xFF92400E);
                                                   } else {
                                                     statusText = 'مُحضر';
-                                                    badgeBg = const Color(0xFFDCFCE7);
-                                                    badgeText = const Color(0xFF166534);
+                                                    badgeBg = const Color(0xFFE8F5E9);
+                                                    badgeText = const Color(0xFF2E7D32);
                                                   }
                                                 } else if (isPast) {
                                                   statusText = 'غير محضر';
-                                                  badgeBg = const Color(0xFFFEE2E2);
-                                                  badgeText = const Color(0xFF991B1B);
+                                                  badgeBg = const Color(0xFFFFEBEE);
+                                                  badgeText = const Color(0xFFC62828);
                                                 } else {
                                                   statusText = 'بانتظار التحضير';
                                                   badgeBg = const Color(0xFFF1F5F9);
@@ -365,7 +358,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                                         height: 24,
                                                         alignment: Alignment.center,
                                                         decoration: BoxDecoration(
-                                                          color: isClass ? const Color(0xFF0F766E) : const Color(0xFFCBD5E1),
+                                                          color: isClass ? const Color(0xFF2C3E50) : const Color(0xFFCBD5E1),
                                                           borderRadius: BorderRadius.circular(6),
                                                         ),
                                                         child: Text('${pIndex + 1}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
@@ -380,7 +373,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                                               style: TextStyle(
                                                                 fontWeight: FontWeight.w600,
                                                                 fontSize: 13,
-                                                                color: isClass ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                                                                color: isClass ? const Color(0xFF2C3E50) : const Color(0xFF94A3B8),
                                                                 fontFamily: 'Cairo',
                                                               ),
                                                             ),
@@ -395,10 +388,10 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                                                     Container(
                                                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                                       decoration: BoxDecoration(
-                                                                        color: const Color(0xFFFEF08A),
+                                                                        color: const Color(0xFFFFF9C4),
                                                                         borderRadius: BorderRadius.circular(4),
                                                                       ),
-                                                                      child: const Text('زيارة صفية', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF854D0E), fontFamily: 'Cairo')),
+                                                                      child: const Text('زيارة صفية', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFFF57F17), fontFamily: 'Cairo')),
                                                                     ),
                                                                   Container(
                                                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -522,7 +515,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
   final _formKey = GlobalKey<FormState>();
   final ScrollController _scrollController = ScrollController();
 
-  // مفاتيح تركيز الحقول الإجبارية للانتقال التلقائي
   final GlobalKey _titleKey = GlobalKey();
   final GlobalKey _introKey = GlobalKey();
   final GlobalKey _timeKey = GlobalKey();
@@ -535,7 +527,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
   bool _isLoading = true;
   bool _isSaving = false;
 
-  // خيار اعتماد التحضير للأسبوع كاملاً
   bool _applyToEntireWeek = false;
 
   final List<String> _daysOrder = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
@@ -555,7 +546,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
   final TextEditingController _hwTitleCtrl = TextEditingController();
   final TextEditingController _hwTextCtrl = TextEditingController();
 
-  // فترات الـ 45 دقيقة
   int _timeWarmupAndOutcomes = 5;
   int _timeExplanationAndTech = 20;
   int _timeActivitiesAndGifted = 10;
@@ -916,7 +906,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
     };
   }
 
-  // انتقال وتمرير فوري للعنصر الإجباري الناقص
   void _scrollToMissingField(GlobalKey key, [FocusNode? focusNode]) {
     if (key.currentContext != null) {
       Scrollable.ensureVisible(
@@ -930,7 +919,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
     }
   }
 
-  // ✅ الفحص الدقيق والتحقق من البنود الإجبارية مع نقل المعلم فوراً إليها
   bool _validateRequiredFields() {
     if (_lessonTitleCtrl.text.trim().isEmpty) {
       _scrollToMissingField(_titleKey, _titleFocusNode);
@@ -1097,13 +1085,11 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      // 1. حفظ الحصة الحالية دون التأثير على الحصص المحفوظة سابقاً
       await FirebaseFirestore.instance
           .collection('lesson_preparations')
           .doc(_prepDocId)
           .set(prepData, SetOptions(merge: true));
 
-      // 2. إذا تم تفعيل "اعتمد الدرس للاسبوع كاملا"، تطبيق التحضير على باقي حصص وفصول المعلم لنفس المادة في نفس الأسبوع
       if (_applyToEntireWeek) {
         await _applyPrepToEntireWeek(prepData);
       }
@@ -1156,7 +1142,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
             String dateStrForId = intl.DateFormat('yyyyMMdd').format(targetDate);
             String docId = '${widget.teacherId}_W${widget.weekNumber}_${dateStrForId}_P${pIdx + 1}';
 
-            // تخطي الحصة الحالية لأنها حُفظت بالفعل
             if (docId == _prepDocId) continue;
 
             final cloned = Map<String, dynamic>.from(basePrepData);
@@ -1212,7 +1197,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                         hintText: 'بحث في البنك المقترح...',
                         isDense: true,
                         filled: true,
-                        fillColor: const Color(0xFFF8FAFC),
+                        fillColor: const Color(0xFFF4F7FA),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
                       ),
                       onChanged: (val) {
@@ -1269,7 +1254,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
 
                           return CheckboxListTile(
                             dense: true,
-                            title: Text(itemText, style: const TextStyle(fontSize: 12, height: 1.4, fontFamily: 'Cairo', color: Color(0xFF1E293B))),
+                            title: Text(itemText, style: const TextStyle(fontSize: 12, height: 1.4, fontFamily: 'Cairo', color: Color(0xFF2C3E50))),
                             value: isSelected,
                             activeColor: const Color(0xFF0F766E),
                             onChanged: widget.isViewerOnly ? null : (val) {
@@ -1339,7 +1324,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: const Color(0xFFF4F7FA),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -1353,7 +1338,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                 children: [
                   Icon(icon, color: const Color(0xFF475569), size: 18),
                   const SizedBox(width: 8),
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF2C3E50), fontFamily: 'Cairo')),
                   const SizedBox(width: 6),
                   _buildRequirementBadge(isRequired),
                 ],
@@ -1395,7 +1380,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(item.text, style: const TextStyle(fontSize: 12, color: Color(0xFF334155), fontFamily: 'Cairo')),
+                      child: Text(item.text, style: const TextStyle(fontSize: 12, color: Color(0xFF2C3E50), fontFamily: 'Cairo')),
                     ),
                     const SizedBox(width: 6),
                     DropdownButton<int>(
@@ -1439,7 +1424,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: const Color(0xFFF4F7FA),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
@@ -1453,7 +1438,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                 children: [
                   const Icon(Icons.link, size: 16, color: Color(0xFF64748B)),
                   const SizedBox(width: 6),
-                  const Text('المصادر الرقمية والروابط', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF334155), fontFamily: 'Cairo')),
+                  const Text('المصادر الرقمية والروابط', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF2C3E50), fontFamily: 'Cairo')),
                   const SizedBox(width: 6),
                   _buildRequirementBadge(false),
                 ],
@@ -1554,9 +1539,12 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))
+          ]
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1564,7 +1552,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: const BoxDecoration(
-              color: Color(0xFFF8FAFC),
+              color: Color(0xFFF4F7FA),
               borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
               border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
             ),
@@ -1574,7 +1562,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(phaseTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                      Text(phaseTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2C3E50), fontFamily: 'Cairo')),
                       Text('الوقت المعتمد: $startTimeStr إلى $endTimeStr', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontFamily: 'Cairo')),
                     ],
                   ),
@@ -1596,7 +1584,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: const Color(0xFFCBD5E1)),
                   ),
-                  child: Text('$timeValue د', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                  child: Text('$timeValue د', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11, color: Color(0xFF2C3E50), fontFamily: 'Cairo')),
                 )
               ],
             ),
@@ -1622,13 +1610,13 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
     final accurateTimings = _calculateAccurateDomainTimings();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF4F7FA),
       appBar: AppBar(
         title: Text(
           widget.isViewerOnly ? 'عرض التحضير' : 'تحضير درس: ${widget.subject} (${widget.grade} - ${widget.className})',
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
         ),
-        backgroundColor: const Color(0xFF1E293B),
+        backgroundColor: const Color(0xFF2C3E50),
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -1642,24 +1630,25 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // بطاقة التحكم والاعتماد العلوية
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))
+                    ]
                 ),
                 child: Column(
                   children: [
-                    // خانة الاختيار: اعتماد الدرس للأسبوع كاملاً
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       value: _applyToEntireWeek,
                       activeColor: const Color(0xFF0F766E),
                       title: const Text(
                         'اعتماد هذا الدرس للأسبوع كاملاً لجميع الفصول والحصص',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo'),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2C3E50), fontFamily: 'Cairo'),
                       ),
                       subtitle: const Text(
                         'عند تفعيله، يتم تطبيق التحضير على كافة فصول المادة لهذا الأسبوع مع إمكانية التعديل على أي حصة لاحقاً دون التأثير على الحصص الأخرى.',
@@ -1678,13 +1667,13 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                           key: _timeKey,
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: isExact45 ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                            color: isExact45 ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
                             isExact45 ? 'زمن الحصة: 45 دقيقة تماماً' : 'المجموع: $_totalAssignedTime / 45 د (يجب ضبطه)',
                             style: TextStyle(
-                              color: isExact45 ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                              color: isExact45 ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
                               fontWeight: FontWeight.bold,
                               fontSize: 11,
                               fontFamily: 'Cairo',
@@ -1699,7 +1688,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
 
               const SizedBox(height: 16),
 
-              // المرحلة 1: التهيئة ونواتج التعلم
               _buildPhaseCard(
                 phaseTitle: accurateTimings['warmup']!['title'],
                 timeValue: _timeWarmupAndOutcomes,
@@ -1716,44 +1704,85 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                       children: [
                         Row(
                           children: [
-                            const Text('عنوان الدرس', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                            const Text('عنوان الدرس', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF2C3E50), fontFamily: 'Cairo')),
                             const SizedBox(width: 6),
                             _buildRequirementBadge(true),
                           ],
                         ),
                         const SizedBox(height: 6),
-                        TextFormField(
-                          controller: _lessonTitleCtrl,
-                          focusNode: _titleFocusNode,
-                          readOnly: widget.isViewerOnly,
-                          decoration: InputDecoration(
-                            hintText: 'اكتب عنوان الدرس...',
-                            isDense: true,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        LayoutBuilder(
+                          builder: (context, constraints) => Autocomplete<String>(
+                            optionsBuilder: (TextEditingValue textEditingValue) {
+                              if (textEditingValue.text.isEmpty) {
+                                return _mySavedTitles;
+                              }
+                              return _mySavedTitles.where((String option) {
+                                return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                              });
+                            },
+                            onSelected: (String selection) {
+                              _lessonTitleCtrl.text = selection;
+                              _fetchAndApplyPrepByTitle(selection);
+                            },
+                            fieldViewBuilder: (BuildContext context, TextEditingController textEditingController, FocusNode focusNode, VoidCallback onFieldSubmitted) {
+                              if (_lessonTitleCtrl.text.isNotEmpty && textEditingController.text.isEmpty) {
+                                textEditingController.text = _lessonTitleCtrl.text;
+                              }
+                              textEditingController.addListener(() {
+                                _lessonTitleCtrl.text = textEditingController.text;
+                              });
+
+                              return TextFormField(
+                                controller: textEditingController,
+                                focusNode: focusNode,
+                                readOnly: widget.isViewerOnly,
+                                decoration: InputDecoration(
+                                  hintText: 'اكتب عنوان الدرس هنا، أو اختر من القائمة المنسدلة...',
+                                  isDense: true,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  suffixIcon: const Icon(Icons.arrow_drop_down, color: Color(0xFF64748B)),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                ),
+                                onFieldSubmitted: (String value) {
+                                  onFieldSubmitted();
+                                  if (value.trim().isNotEmpty) _fetchAndApplyPrepByTitle(value.trim());
+                                },
+                              );
+                            },
+                            optionsViewBuilder: (BuildContext context, AutocompleteOnSelected<String> onSelected, Iterable<String> options) {
+                              return Align(
+                                alignment: Alignment.topLeft,
+                                child: Material(
+                                  elevation: 4.0,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  child: Container(
+                                    width: constraints.maxWidth,
+                                    constraints: const BoxConstraints(maxHeight: 200),
+                                    child: ListView.builder(
+                                      padding: EdgeInsets.zero,
+                                      itemCount: options.length,
+                                      shrinkWrap: true,
+                                      itemBuilder: (BuildContext context, int index) {
+                                        final String option = options.elementAt(index);
+                                        return InkWell(
+                                          onTap: () => onSelected(option),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(12.0),
+                                            child: Text(option, style: const TextStyle(fontFamily: 'Cairo', fontSize: 13, color: Color(0xFF2C3E50))),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                          onFieldSubmitted: (v) {
-                            if (v.trim().isNotEmpty) _fetchAndApplyPrepByTitle(v.trim());
-                          },
                         ),
                       ],
                     ),
                   ),
-
-                  if (_mySavedTitles.isNotEmpty && !widget.isViewerOnly) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: _mySavedTitles.map((t) => ActionChip(
-                        label: Text(t, style: const TextStyle(fontSize: 11, fontFamily: 'Cairo')),
-                        backgroundColor: const Color(0xFFF1F5F9),
-                        onPressed: () {
-                          setState(() => _lessonTitleCtrl.text = t);
-                          _fetchAndApplyPrepByTitle(t);
-                        },
-                      )).toList(),
-                    ),
-                  ],
 
                   const SizedBox(height: 14),
 
@@ -1764,7 +1793,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                       children: [
                         Row(
                           children: [
-                            const Text('السؤال التمهيدي للدرس', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                            const Text('السؤال التمهيدي للدرس', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF2C3E50), fontFamily: 'Cairo')),
                             const SizedBox(width: 6),
                             _buildRequirementBadge(true),
                           ],
@@ -1778,6 +1807,8 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                           decoration: InputDecoration(
                             hintText: 'اكتب السؤال التمهيدي أو الموقف التعليمي للتهيئة...',
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            filled: true,
+                            fillColor: Colors.white,
                           ),
                         ),
                       ],
@@ -1799,7 +1830,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                 ],
               ),
 
-              // المرحلة 2: الشرح والعرض والاستراتيجيات
               _buildPhaseCard(
                 phaseTitle: accurateTimings['explanation']!['title'],
                 timeValue: _timeExplanationAndTech,
@@ -1842,7 +1872,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                 ],
               ),
 
-              // المرحلة 3: الأنشطة ورعاية الموهوبين
               _buildPhaseCard(
                 phaseTitle: accurateTimings['activities']!['title'],
                 timeValue: _timeActivitiesAndGifted,
@@ -1865,7 +1894,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                 ],
               ),
 
-              // المرحلة 4: التطبيقات الحياتية والربط بالقيم
               _buildPhaseCard(
                 phaseTitle: accurateTimings['practical']!['title'],
                 timeValue: _timePracticalAndValues,
@@ -1898,7 +1926,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                 ],
               ),
 
-              // المرحلة 5: التقويم والواجبات
               _buildPhaseCard(
                 phaseTitle: accurateTimings['evaluation']!['title'],
                 timeValue: _timeEvaluationAndFeedback,
@@ -1915,7 +1942,7 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                       children: [
                         Row(
                           children: [
-                            const Text('التقويم والواجبات', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                            const Text('التقويم والواجبات', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF2C3E50), fontFamily: 'Cairo')),
                             const SizedBox(width: 6),
                             _buildRequirementBadge(true),
                           ],
@@ -1932,6 +1959,8 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                                   labelText: 'الصفحة (اختياري)',
                                   isDense: true,
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  filled: true,
+                                  fillColor: Colors.white,
                                 ),
                               ),
                             ),
@@ -1946,6 +1975,8 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                                   labelText: 'عنوان الواجب أو السؤال التقويمي *',
                                   isDense: true,
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  filled: true,
+                                  fillColor: Colors.white,
                                 ),
                               ),
                             ),
@@ -1959,6 +1990,8 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                           decoration: InputDecoration(
                             labelText: 'التعليمات والتغذية الراجعة',
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            filled: true,
+                            fillColor: Colors.white,
                           ),
                         ),
                       ],
@@ -1969,7 +2002,6 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
 
               const SizedBox(height: 12),
 
-              // زر الاعتماد والحفظ المريح
               if (!widget.isViewerOnly)
                 SizedBox(
                   width: double.infinity,

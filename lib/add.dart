@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'lesson_prep_page.dart' hide AdminOperationalPlanPage, TeacherProgramsPage;
 
 // استيراد النسخ الجديدة المعدلة من operational_plan_module
-import 'operational_plan_module.dart';
+import 'operational_plan_module.dart' hide TeacherProgramsPage;
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -16,8 +16,6 @@ import 'main.dart'; // يحتوي على StudentPrintHelper و QRSessionTimer
 import 'package:almarefamecca/add2.dart' hide QRSessionOverlay;
 import 'package:almarefamecca/secondary_pages.dart';
 import 'package:almarefamecca/student_view.dart';
-import 'lesson_prep_page.dart'; // ✅ استيراد صفحة تحضيري المضافة
-import 'operational_plan_module.dart' hide AdminOperationalPlanPage, TeacherProgramsPage; // ✅ استيراد الخطة التشغيلية وبرامج المعلمين
 import 'package:badges/badges.dart' as badges;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -1590,20 +1588,6 @@ class _AddPageState extends State<AddPage> {
                   },
                 ),
 
-              // --- ميزة برامج ومبادرات المعلمين ---
-              _AnimatedGridButton(
-                title: _isAdmin ? 'برامج المعلمين' : 'برامجي ومبادراتي',
-                icon: Icons.lightbulb_outline_rounded,
-                color: const Color(0xFFF57F17),
-                onTap: () {
-                  if (isGuest) {
-                    _showGuestError();
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherProgramsPage()));
-                  }
-                },
-              ),
-
               // --- ميزة تحضيري ---
               _AnimatedGridButton(
                 title: _isAdmin ? 'متابعة التحضير' : 'تحضيري',
@@ -1686,20 +1670,16 @@ class _AddPageState extends State<AddPage> {
                   );
                 },
               ),
-              _AnimatedGridButton(
-                title: 'البروشورات والأقسام',
-                icon: Icons.view_carousel_rounded,
-                color: Colors.cyan.shade700,
-                onTap: () {
-                  if (_isAdmin) {
+              // --- البروشورات والأقسام تظهر فقط للأدمن ---
+              if (_isAdmin)
+                _AnimatedGridButton(
+                  title: 'البروشورات والأقسام',
+                  icon: Icons.view_carousel_rounded,
+                  color: Colors.cyan.shade700,
+                  onTap: () {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminBrochuresManagementPage()));
-                  } else {
-                    _verifyAdminPin(context, () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminBrochuresManagementPage()));
-                    });
-                  }
-                },
-              ),
+                  },
+                ),
               _AnimatedGridButton(
                 title: 'رصد الدرجات',
                 icon: Icons.edit_document,
@@ -1734,7 +1714,7 @@ class _AddPageState extends State<AddPage> {
               ],
               _AnimatedGridButton(
                 title: 'الطالب المنضبط',
-                icon: Icons.star_rounded,
+                icon: Icons.flag_circle_rounded,
                 color: const Color(0xFFFF9100),
                 onTap: () {
                   if (isGuest) {
@@ -3699,7 +3679,7 @@ class _AnimatedGridButtonState extends State<_AnimatedGridButton> with SingleTic
 
             return Column(
               mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.start, // ✅ التعديل الصحيح
+              mainAxisAlignment: MainAxisAlignment.start,
               children: [
                 badges.Badge(
                   showBadge: (widget.badgeCount != null && widget.badgeCount! > 0) || (widget.statCount == "✓"),
