@@ -1941,9 +1941,9 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
     } catch (_) {}
   }
 
-  // ✅ دالة الفلترة الذكية للمعامل حسب نوع المادة المسندة للحصة
+  // ✅ دالة الفلترة الذكية للمعامل حسب نوع المادة المسندة للحصة (معدلة لمنع المعامل للمواد الأخرى)
   List<String> _getFilteredLabsForSubject(String? subject) {
-    if (subject == null || subject.isEmpty) return _activeLabsList;
+    if (subject == null || subject.isEmpty) return [];
 
     List<String> keywords = [];
     if (subject.contains('انجليزي') || subject.contains('English')) {
@@ -1958,13 +1958,13 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
       keywords = ['روبوت', 'STEM', 'ستيم'];
     }
 
-    if (keywords.isEmpty) return _activeLabsList;
+    if (keywords.isEmpty) return []; // <-- المواد العادية كالرياضيات والعربي لن يكون لها معمل
 
     final filtered = _activeLabsList.where((lab) {
       return keywords.any((k) => lab.toLowerCase().contains(k.toLowerCase()));
     }).toList();
 
-    return filtered.isNotEmpty ? filtered : _activeLabsList;
+    return filtered;
   }
 
   Future<void> _loadOtherSchedules() async {
@@ -2372,61 +2372,67 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
                       slot['subject'] = selectedA['subject'];
 
                       final labsForThis = _getFilteredLabsForSubject(slot['subject']);
-                      if (_labSubjects[slot['subject']] == true) {
-                        slot['isLab'] = true;
-                        if (labsForThis.isNotEmpty && (slot['labName'] == null || !labsForThis.contains(slot['labName']))) {
-                          slot['labName'] = labsForThis.first;
-                        }
+                      if (labsForThis.isEmpty) {
+                        slot['isLab'] = false;
+                        slot.remove('labName');
                       } else {
-                        if (slot['labName'] != null && !labsForThis.contains(slot['labName'])) {
-                          slot['labName'] = labsForThis.isNotEmpty ? labsForThis.first : null;
+                        if (_labSubjects[slot['subject']] == true) {
+                          slot['isLab'] = true;
+                          if (slot['labName'] == null || !labsForThis.contains(slot['labName'])) {
+                            slot['labName'] = labsForThis.first;
+                          }
+                        } else {
+                          if (slot['labName'] != null && !labsForThis.contains(slot['labName'])) {
+                            slot['labName'] = labsForThis.first;
+                          }
                         }
                       }
                     }
                   });
                 },
               ),
-              Row(
-                children: [
-                  Expanded(
-                    child: CheckboxListTile(
-                      title: Text(
-                        'معمل (${slot['subject'] ?? "الحصة"})',
-                        style: const TextStyle(fontSize: 12, fontFamily: 'Cairo', fontWeight: FontWeight.bold),
-                      ),
-                      value: slot['isLab'] ?? false,
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (val) {
-                        setState(() {
-                          slot['isLab'] = val;
-                          if (val == true) {
-                            if (slot['subject'] != null) {
-                              _labSubjects[slot['subject']] = true;
-                            }
-                            final validLabs = _getFilteredLabsForSubject(slot['subject']);
-                            if (validLabs.isNotEmpty && (slot['labName'] == null || !validLabs.contains(slot['labName']))) {
-                              slot['labName'] = validLabs.first;
-                            }
-                          } else {
-                            slot.remove('labName');
-                          }
-                        });
-                      },
-                    ),
-                  ),
-                  if (slot['isLab'] == true)
+              if (availableSubjectLabs.isNotEmpty) // 👈 إخفاء خيار المعمل إن لم يتوفر لهذه المادة
+                Row(
+                  children: [
                     Expanded(
-                      child: DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8), labelText: 'المعمل المتاح للمادة'),
-                        value: (availableSubjectLabs.contains(slot['labName'])) ? slot['labName'] : (availableSubjectLabs.isNotEmpty ? availableSubjectLabs.first : null),
-                        items: availableSubjectLabs.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 11, fontFamily: 'Cairo')))).toList(),
-                        onChanged: (val) => setState(() => slot['labName'] = val),
+                      child: CheckboxListTile(
+                        title: Text(
+                          'معمل (${slot['subject'] ?? "الحصة"})',
+                          style: const TextStyle(fontSize: 12, fontFamily: 'Cairo', fontWeight: FontWeight.bold),
+                        ),
+                        value: slot['isLab'] ?? false,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (val) {
+                          setState(() {
+                            slot['isLab'] = val;
+                            if (val == true) {
+                              if (slot['subject'] != null) {
+                                _labSubjects[slot['subject']] = true;
+                              }
+                              final validLabs = _getFilteredLabsForSubject(slot['subject']);
+                              if (validLabs.isNotEmpty && (slot['labName'] == null || !validLabs.contains(slot['labName']))) {
+                                slot['labName'] = validLabs.first;
+                              }
+                            } else {
+                              slot.remove('labName');
+                            }
+                          });
+                        },
                       ),
                     ),
-                ],
-              )
+                    if (slot['isLab'] == true)
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8), labelText: 'المعمل المتاح للمادة'),
+                          value: (availableSubjectLabs.contains(slot['labName'])) ? slot['labName'] : (availableSubjectLabs.isNotEmpty ? availableSubjectLabs.first : null),
+                          items: availableSubjectLabs.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 11, fontFamily: 'Cairo')))).toList(),
+                          onChanged: (val) => setState(() => slot['labName'] = val),
+                        ),
+                      ),
+                  ],
+                )
             ],
             if (slot['type'] == 'إشراف دور') ...[
               const SizedBox(height: 8),
@@ -2468,7 +2474,6 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
     );
   }
 }
-
 class AdminScheduleApprovalsPage extends StatelessWidget {
   const AdminScheduleApprovalsPage({super.key});
 

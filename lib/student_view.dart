@@ -347,6 +347,94 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
+  void _navigateToAttendancePage() {
+    if (_studentDocId == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StudentAttendanceGridPage(
+          studentId: _studentDocId!,
+          studentData: _studentData ?? {},
+          subjects: subjects,
+          subjectColors: _subjectColors,
+          allTestsMap: _allTestsMap,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadProfileImage() async {
+    if (_studentDocId == null) return;
+    try {
+      final picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 800,
+      );
+
+      if (pickedFile == null) return;
+
+      final Uint8List fileBytes = await pickedFile.readAsBytes();
+
+      if (fileBytes.length > 3 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('عفواً، حجم الصورة كبير. الحد الأقصى المسموح هو 3 ميجا.', style: TextStyle(fontFamily: 'Cairo')),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('جاري رفع وتحديث صورتك الشخصية...', style: TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: Colors.blue,
+          ),
+        );
+      }
+
+      final String fileName = 'profile_${_studentDocId}.jpg';
+      final ref = FirebaseStorage.instance.ref().child('students_photos').child(fileName);
+
+      await ref.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
+      String url = await ref.getDownloadURL();
+
+      final String separator = url.contains('?') ? '&' : '?';
+      final String uniqueUrl = '$url${separator}v=${DateTime.now().millisecondsSinceEpoch}';
+
+      await FirebaseFirestore.instance.collection('students').doc(_studentDocId).set(
+        {'photo': uniqueUrl},
+        SetOptions(merge: true),
+      );
+
+      if (mounted) {
+        setState(() {
+          if (_studentData != null) _studentData!['photo'] = uniqueUrl;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تحديث صورتك الشخصية بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('فشل رفع الصورة: $e', style: const TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _promptForParentPassword() async {
     if (_studentDocId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -714,10 +802,26 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     final List<_DashboardButtonData> buttonDataList = [
       _DashboardButtonData(
+        title: 'أضف صورتك',
+        icon: Icons.add_a_photo_rounded,
+        color: const Color(0xFFD84315),
+        onTap: _pickAndUploadProfileImage,
+        isFeatured: true,
+        isWorking: true,
+      ),
+      _DashboardButtonData(
         title: 'انصراف $shortName',
         icon: Icons.directions_run_rounded,
         color: const Color(0xFF00ACC1),
         onTap: _navigateToDismissalPage,
+        isFeatured: true,
+        isWorking: true,
+      ),
+      _DashboardButtonData(
+        title: 'سجل الحضور والدروس الفائتة',
+        icon: Icons.co_present_rounded,
+        color: const Color(0xFF0D47A1),
+        onTap: _navigateToAttendancePage,
         isFeatured: true,
         isWorking: true,
       ),
@@ -798,7 +902,7 @@ class _StudentViewPageState extends State<StudentViewPage>
           if (_studentDocId != null) {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => StudentPortfolioPage(studentId: _studentDocId!, studentData: {},)),
+              MaterialPageRoute(builder: (_) => StudentPortfolioPage(studentId: _studentDocId!, studentData: const {})),
             );
           }
         },
@@ -1095,7 +1199,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                   border: Border.all(color: Colors.white, width: 1),
                 ),
                 child: const Text(
-                  "سريع",
+                  "مهم",
                   style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ).animate(onPlay: (controller) => controller.repeat(reverse: true))
@@ -1271,9 +1375,9 @@ class _StudentViewPageState extends State<StudentViewPage>
                 fontWeight: FontWeight.bold,
               ),
             ),
-            badgeStyle: badges.BadgeStyle(
+            badgeStyle: const badges.BadgeStyle(
               badgeColor: Colors.redAccent,
-              padding: const EdgeInsets.all(6),
+              padding: EdgeInsets.all(6),
               elevation: 4,
             ),
             position: badges.BadgePosition.topEnd(top: -5, end: -5),
@@ -1309,7 +1413,7 @@ class _StudentViewPageState extends State<StudentViewPage>
             showBadge: count > 0,
             badgeContent: Text('$count',
                 style: const TextStyle(color: Colors.white, fontSize: 10)),
-            badgeStyle: badges.BadgeStyle(badgeColor: Colors.red),
+            badgeStyle: const badges.BadgeStyle(badgeColor: Colors.red),
             position: badges.BadgePosition.topEnd(top: 4, end: 4),
             child: IconButton(
               icon: const Icon(Icons.notifications, color: Colors.white),
@@ -1504,6 +1608,552 @@ class _StudentViewPageState extends State<StudentViewPage>
   }
 }
 
+// ===========================================================================
+// وحدة سجل الحضور والدروس الفائتة الأكاديمي المربوطة بالسبورة الذكية والتحضير
+// ===========================================================================
+
+class StudentAttendanceGridPage extends StatelessWidget {
+  final String studentId;
+  final Map<String, dynamic> studentData;
+  final List<Subject> subjects;
+  final Map<String, Color> subjectColors;
+  final Map<String, TestInfo> allTestsMap;
+
+  const StudentAttendanceGridPage({
+    super.key,
+    required this.studentId,
+    required this.studentData,
+    required this.subjects,
+    required this.subjectColors,
+    required this.allTestsMap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F7FA),
+      appBar: AppBar(
+        title: const Text('سجل الحضور والدروس الفائتة', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 17)),
+        backgroundColor: const Color(0xFF1A237E),
+        foregroundColor: Colors.white,
+        centerTitle: true,
+        elevation: 0,
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('classroom_attendance_records')
+            .where('studentId', isEqualTo: studentId)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFF1A237E)));
+          }
+
+          final List<DocumentSnapshot> records = snapshot.hasData ? snapshot.data!.docs : [];
+
+          final Map<String, List<Map<String, dynamic>>> recordsBySubject = {};
+          for (var doc in records) {
+            final data = doc.data() as Map<String, dynamic>;
+            final String subj = data['subject'] ?? 'عام';
+            recordsBySubject.putIfAbsent(subj, () => []).add(data);
+          }
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildAttendanceHeader(studentData['name'] ?? 'الطالب'),
+                const SizedBox(height: 20),
+                const Text(
+                  'المواد المسجلة ومؤشرات الالتزام:',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
+                ),
+                const SizedBox(height: 12),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: subjects.length,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 200,
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    childAspectRatio: 0.95,
+                  ),
+                  itemBuilder: (context, index) {
+                    final subj = subjects[index];
+                    final subjRecords = recordsBySubject[subj.name] ?? [];
+                    final color = subjectColors[subj.name] ?? const Color(0xFF1A237E);
+
+                    int totalSessions = subjRecords.length;
+                    int attendedSessions = subjRecords.where((r) => r['status'] == 'present' || r['status'] == 'حاضر').length;
+                    int absentSessions = subjRecords.where((r) => r['status'] == 'absent' || r['status'] == 'غائب').length;
+                    int lateSessions = subjRecords.where((r) => r['status'] == 'late' || r['status'] == 'متأخر').length;
+
+                    double percent = totalSessions > 0 ? (attendedSessions / totalSessions) * 100 : 100.0;
+
+                    Color badgeColor = Colors.green;
+                    String badgeText = "ملتزم مميز";
+                    if (percent < 75) {
+                      badgeColor = Colors.red;
+                      badgeText = "خطر الغياب";
+                    } else if (percent < 90) {
+                      badgeColor = Colors.orange;
+                      badgeText = "تنبيه غياب";
+                    }
+
+                    return InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SubjectAttendanceDetailsPage(
+                              studentId: studentId,
+                              studentData: studentData,
+                              subjectName: subj.name,
+                              subjectColor: color,
+                              attendanceRecords: subjRecords,
+                              allTestsMap: allTestsMap,
+                            ),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey.shade200),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3)),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: color.withOpacity(0.1),
+                              radius: 24,
+                              child: Icon(subj.icon, color: color, size: 24),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              subj.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo', color: Color(0xFF1A237E)),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            LinearPercentIndicator(
+                              lineHeight: 6.0,
+                              percent: (percent / 100).clamp(0.0, 1.0),
+                              progressColor: badgeColor,
+                              backgroundColor: Colors.grey.shade200,
+                              barRadius: const Radius.circular(3),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('${percent.toStringAsFixed(0)}%', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: badgeColor, fontFamily: 'Cairo')),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: badgeColor.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
+                                  child: Text(badgeText, style: TextStyle(color: badgeColor, fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                                )
+                              ],
+                            ),
+                            if (absentSessions > 0 || lateSessions > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4.0),
+                                child: Text('غياب: $absentSessions | تأخر: $lateSessions', style: const TextStyle(fontSize: 9.5, color: Colors.grey, fontFamily: 'Cairo')),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildAttendanceHeader(String name) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1A237E), Color(0xFF283593)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFF1A237E).withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.co_present_rounded, color: Color(0xFFC5A059), size: 40),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('المتابعة الأكاديمية للحضور والغياب', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Cairo')),
+                const SizedBox(height: 4),
+                Text('يتم رصد الحصص والدروس آلياً من السبورة الذكية داخل الفصول لتمكين ولي الأمر من متابعة الفاقد التعليمي بدقة.', style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 11, height: 1.4, fontFamily: 'Cairo')),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SubjectAttendanceDetailsPage extends StatelessWidget {
+  final String studentId;
+  final Map<String, dynamic> studentData;
+  final String subjectName;
+  final Color subjectColor;
+  final List<Map<String, dynamic>> attendanceRecords;
+  final Map<String, TestInfo> allTestsMap;
+
+  const SubjectAttendanceDetailsPage({
+    super.key,
+    required this.studentId,
+    required this.studentData,
+    required this.subjectName,
+    required this.subjectColor,
+    required this.attendanceRecords,
+    required this.allTestsMap,
+  });
+
+  Map<String, dynamic> _analyzeCorrelationWithGrades(List<Map<String, dynamic>> missedLessons) {
+    List<String> lowScoreTests = [];
+    List<String> weaknessesFound = [];
+
+    studentData.forEach((key, val) {
+      if (val is num && allTestsMap.containsKey(key)) {
+        final info = allTestsMap[key]!;
+        if (info.subject == subjectName) {
+          double maxG = (key.contains('profession13') || key.contains('nafes')) ? 10.0 : 20.0;
+          if (val < (maxG * 0.6)) {
+            lowScoreTests.add(info.name);
+          }
+        }
+      }
+      if (key.startsWith('eval_')) {
+        final evalVal = studentData[key];
+        if (evalVal is Map && evalVal['selected_points'] is List) {
+          final testKey = key.replaceFirst('eval_', '');
+          if (allTestsMap.containsKey(testKey) && allTestsMap[testKey]!.subject == subjectName) {
+            for (var p in evalVal['selected_points']) {
+              weaknessesFound.add(p.toString());
+            }
+          }
+        }
+      }
+    });
+
+    bool hasCorrelation = (missedLessons.isNotEmpty) && (lowScoreTests.isNotEmpty || weaknessesFound.isNotEmpty);
+
+    return {
+      'hasCorrelation': hasCorrelation,
+      'lowScoreTests': lowScoreTests.toSet().toList(),
+      'weaknessesFound': weaknessesFound.toSet().toList(),
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final missedSessions = attendanceRecords.where((r) {
+      final status = (r['status'] ?? '').toString().toLowerCase();
+      return status == 'absent' || status == 'غائب' ||
+          status == 'late' || status == 'متأخر' ||
+          status == 'early_dismissal' || status == 'انصراف مبكر';
+    }).toList();
+
+    missedSessions.sort((a, b) {
+      final dateA = a['date'] ?? '';
+      final dateB = b['date'] ?? '';
+      return dateB.compareTo(dateA);
+    });
+
+    final correlation = _analyzeCorrelationWithGrades(missedSessions);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        title: Text('سجل غياب وحصص: $subjectName', style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 16)),
+        backgroundColor: const Color(0xFF1A237E),
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (correlation['hasCorrelation'] == true) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFDBA74)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFEA580C), size: 28),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'تنبيه تحليلي لولي الأمر:',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF9A3412), fontSize: 13, fontFamily: 'Cairo'),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '⚠️ يرتبط تراجع مستوى الطالب في تقييم (${(correlation['lowScoreTests'] as List).join('، ')}) ونقاط القصور المحددة (${(correlation['weaknessesFound'] as List).take(2).join('، ')}) بتكرار غيابه/تأخره عن الحصص والشروحات الصفية. نوصي بالاطلاع على الدروس والروابط المرفقة أدناه لتعويض الفاقد التعليمي.',
+                            style: const TextStyle(fontSize: 11.5, color: Color(0xFF7C2D12), height: 1.5, fontFamily: 'Cairo'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            if (missedSessions.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(32),
+                alignment: Alignment.center,
+                child: Column(
+                  children: [
+                    const Icon(Icons.verified_user_rounded, color: Colors.green, size: 70),
+                    const SizedBox(height: 12),
+                    const Text('ما شاء الله! لا يوجد أي غياب أو تأخر مسجل في هذه المادة.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                    const SizedBox(height: 4),
+                    Text('حضور الطالب منتظم ومكتمل 100%', style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontFamily: 'Cairo')),
+                  ],
+                ),
+              )
+            else ...[
+              Text(
+                'قائمة الحصص الفائتة وتفاصيل ما تم شرحه (${missedSessions.length}):',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
+              ),
+              const SizedBox(height: 10),
+              ...missedSessions.map((record) => _MissedLessonCard(
+                studentData: studentData,
+                record: record,
+                subjectName: subjectName,
+              )),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MissedLessonCard extends StatelessWidget {
+  final Map<String, dynamic> studentData;
+  final Map<String, dynamic> record;
+  final String subjectName;
+
+  const _MissedLessonCard({
+    required this.studentData,
+    required this.record,
+    required this.subjectName,
+  });
+
+  Future<void> _launchURL(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      debugPrint("Could not launch $url");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String dateStr = record['date'] ?? '';
+    final String dayName = record['dayName'] ?? 'اليوم';
+    final int periodIndex = record['periodIndex'] is int ? record['periodIndex'] : int.tryParse(record['periodIndex']?.toString() ?? '1') ?? 1;
+    final String status = record['status'] ?? 'absent';
+    final int weekNumber = record['weekNumber'] is int ? record['weekNumber'] : int.tryParse(record['weekNumber']?.toString() ?? '1') ?? 1;
+
+    String statusTitle = "غياب كامل";
+    Color statusColor = Colors.red;
+    if (status == 'late' || status == 'متأخر') {
+      statusTitle = "تأخر عن الحصة";
+      statusColor = Colors.orange;
+    } else if (status == 'early_dismissal' || status == 'انصراف مبكر') {
+      statusTitle = "انصراف مبكر";
+      statusColor = Colors.amber.shade800;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.08),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              border: Border(bottom: BorderSide(color: statusColor.withOpacity(0.2))),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(status == 'late' ? Icons.alarm_on : Icons.event_busy, color: statusColor, size: 18),
+                    const SizedBox(width: 8),
+                    Text('$statusTitle - الحصة $periodIndex', style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 13, fontFamily: 'Cairo')),
+                  ],
+                ),
+                Text('$dayName | $dateStr', style: const TextStyle(fontSize: 11, color: Colors.blueGrey, fontFamily: 'Cairo')),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: FutureBuilder<QuerySnapshot>(
+              future: FirebaseFirestore.instance
+                  .collection('lesson_preparations')
+                  .where('weekNumber', isEqualTo: weekNumber)
+                  .where('dayName', isEqualTo: dayName)
+                  .where('periodIndex', isEqualTo: periodIndex)
+                  .where('subject', isEqualTo: subjectName)
+                  .limit(1)
+                  .get(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                  );
+                }
+
+                Map<String, dynamic>? prepData;
+                if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+                  prepData = snapshot.data!.docs.first.data() as Map<String, dynamic>?;
+                }
+
+                if (prepData == null) {
+                  return const Text(
+                    'لم يتم إدراج بيانات تحضير محددة لهذه الحصة من المعلم عبر المنصة حتى الآن.',
+                    style: TextStyle(color: Colors.grey, fontSize: 11, fontFamily: 'Cairo'),
+                  );
+                }
+
+                final String lessonTitle = prepData['lessonTitle'] ?? 'بدون عنوان';
+                final String teacherName = prepData['teacherName'] ?? 'معلم المادة';
+                final List outcomes = prepData['outcomes'] as List? ?? [];
+                final Map homework = prepData['homework'] as Map? ?? {};
+                final Map domainLinks = prepData['domainLinks'] as Map? ?? {};
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.menu_book_rounded, color: Color(0xFF1A237E), size: 16),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'الدرس المشروح: $lessonTitle',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text('المعلم: أ. $teacherName', style: const TextStyle(color: Colors.blueGrey, fontSize: 11, fontFamily: 'Cairo')),
+                    const Divider(height: 14),
+
+                    if (outcomes.isNotEmpty) ...[
+                      const Text('🎯 نواتج التعلم المستهدفة في الحصة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, fontFamily: 'Cairo')),
+                      const SizedBox(height: 4),
+                      ...outcomes.take(2).map((item) {
+                        String txt = item is Map ? (item['text'] ?? '') : item.toString();
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 2.0, right: 6),
+                          child: Text('• $txt', style: const TextStyle(fontSize: 11, color: Colors.black87, fontFamily: 'Cairo')),
+                        );
+                      }),
+                      const SizedBox(height: 6),
+                    ],
+
+                    if (homework['title'] != null && homework['title'].toString().isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.assignment_outlined, size: 16, color: Color(0xFF1A237E)),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'الواجب/المهمة المطلوبة: ${homework['title']} ${homework['page'] != null && homework['page'] != '' ? "(ص ${homework['page']})" : ""}',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+
+                    if (domainLinks.isNotEmpty) ...[
+                      Wrap(
+                        spacing: 8,
+                        children: domainLinks.values.expand((element) => element as List).map<Widget>((linkItem) {
+                          if (linkItem is Map && linkItem['url'] != null && linkItem['url'].toString().isNotEmpty) {
+                            return ActionChip(
+                              avatar: const Icon(Icons.link, size: 14, color: Color(0xFF0F766E)),
+                              label: Text(linkItem['title'] ?? 'مصدر رقمي للشرح', style: const TextStyle(fontSize: 10.5, fontFamily: 'Cairo')),
+                              backgroundColor: const Color(0xFFF0FDFA),
+                              onPressed: () => _launchURL(linkItem['url']),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        }).toList(),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DislikeCard extends StatefulWidget {
   final DocumentSnapshot reportDoc;
   final String studentName;
@@ -1515,16 +2165,6 @@ class _DislikeCard extends StatefulWidget {
 }
 
 class _DislikeCardState extends State<_DislikeCard> {
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   void _showReplySheet(BuildContext context) {
     final _formKey = GlobalKey<FormState>();
     final _replyController = TextEditingController();
@@ -1570,7 +2210,7 @@ class _DislikeCardState extends State<_DislikeCard> {
 
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
+                    const SnackBar(
                       content: Text('حدث خطأ أثناء إرسال الرد.'),
                       backgroundColor: Colors.red,
                     ),
@@ -2368,6 +3008,9 @@ class SchoolBooksPage extends StatelessWidget {
   }
 }
 
+// ===========================================================================
+// صفحة ملف إنجاز الطالب (معتمدة بالكامل على Firebase Storage و Firestore)
+// ===========================================================================
 class StudentPortfolioPage extends StatefulWidget {
   final String studentId;
   final Map<String, dynamic> studentData;
@@ -2386,16 +3029,16 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 70,
+        imageQuality: 75,
       );
 
       if (pickedFile == null) return;
 
       final int fileSize = await pickedFile.length();
-      if (fileSize > 40 * 1024 * 1024) {
+      if (fileSize > 25 * 1024 * 1024) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('حجم الملف كبير جداً (أكثر من 40 ميجا)'), backgroundColor: Colors.red)
+            const SnackBar(content: Text('حجم الملف كبير جداً (أكثر من 25 ميجا)', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red)
         );
         return;
       }
@@ -2407,33 +3050,38 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
 
       Uint8List fileBytes = await pickedFile.readAsBytes();
       final String fileName = '${widget.studentId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final String tgCaption = '📸 ملف إنجاز جديد (ألبوم الصور)\n👤 معرف الطالب: ${widget.studentId}\n📝 الوصف: $caption';
 
-      String? fileId = await TelegramStorage.uploadDocument(fileBytes, fileName, tgCaption);
+      // 1. رفع الصورة مباشرة إلى Firebase Cloud Storage
+      final Reference storageRef = FirebaseStorage.instance
+          .ref()
+          .child('student_portfolios')
+          .child(widget.studentId)
+          .child(fileName);
 
-      if (fileId != null) {
-        await FirebaseFirestore.instance
-            .collection('students')
-            .doc(widget.studentId)
-            .collection('portfolio')
-            .add({
-          'imageUrl': fileId,
-          'caption': caption,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+      await storageRef.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
+      final String downloadUrl = await storageRef.getDownloadURL();
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تمت إضافة الصورة إلى ملف إنجازك بنجاح ✅'), backgroundColor: Colors.green),
-          );
-        }
-      } else {
-        throw Exception("فشل الاتصال");
+      // 2. حفظ رابط التحميل واسم الملف والوصف في Firestore
+      await FirebaseFirestore.instance
+          .collection('students')
+          .doc(widget.studentId)
+          .collection('portfolio')
+          .add({
+        'imageUrl': downloadUrl,
+        'fileName': fileName,
+        'caption': caption,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت إضافة الصورة إلى ملف إنجازك بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل رفع الصورة: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('فشل رفع الصورة: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -2449,17 +3097,17 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
       builder: (context) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text("وصف الصورة", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+          title: const Text("وصف الصورة", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("اكتب تعليقاً بسيطاً تحت صورتك"),
+              const Text("اكتب تعليقاً بسيطاً يوضح هذا الإنجاز", style: TextStyle(fontFamily: 'Cairo')),
               const SizedBox(height: 12),
               TextField(
                 controller: captionController,
-                maxLength: 50,
+                maxLength: 60,
                 decoration: const InputDecoration(
-                  hintText: "أدخل النص هنا...",
+                  hintText: "أدخل الوصف هنا...",
                   border: OutlineInputBorder(),
                   focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF1A237E))),
                 ),
@@ -2469,12 +3117,12 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, null),
-              child: const Text("إلغاء", style: TextStyle(color: Colors.red)),
+              child: const Text("إلغاء", style: TextStyle(color: Colors.red, fontFamily: 'Cairo')),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, captionController.text.trim()),
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A237E), foregroundColor: Colors.white),
-              child: const Text("نشر"),
+              child: const Text("نشر وحفظ", style: TextStyle(fontFamily: 'Cairo')),
             ),
           ],
         );
@@ -2482,15 +3130,15 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     );
   }
 
-  Future<void> _deleteImage(String docId) async {
+  Future<void> _deleteImage(String docId, String? fileName) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("حذف الصورة", style: TextStyle(color: Color(0xFF1A237E))),
-        content: const Text("هل أنت متأكد من حذف هذه الصورة من ملف إنجازك؟"),
+        title: const Text("حذف الصورة", style: TextStyle(color: Color(0xFF1A237E), fontFamily: 'Cairo')),
+        content: const Text("هل أنت متأكد من حذف هذه الصورة من ملف إنجازك نهائياً؟", style: TextStyle(fontFamily: 'Cairo')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("تراجع")),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("حذف", style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("تراجع", style: TextStyle(fontFamily: 'Cairo'))),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("حذف", style: TextStyle(color: Colors.red, fontFamily: 'Cairo'))),
         ],
       ),
     );
@@ -2498,6 +3146,19 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     if (confirm != true) return;
 
     try {
+      // 1. حذف الملف الفعلي من Firebase Storage إن وُجد اسمه
+      if (fileName != null && fileName.isNotEmpty) {
+        try {
+          await FirebaseStorage.instance
+              .ref()
+              .child('student_portfolios')
+              .child(widget.studentId)
+              .child(fileName)
+              .delete();
+        } catch (_) {}
+      }
+
+      // 2. حذف السجل من Firestore
       await FirebaseFirestore.instance
           .collection('students')
           .doc(widget.studentId)
@@ -2505,9 +3166,13 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
           .doc(docId)
           .delete();
 
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم الحذف بنجاح")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم الحذف بنجاح", style: TextStyle(fontFamily: 'Cairo'))));
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("حدث خطأ أثناء الحذف")));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("حدث خطأ أثناء الحذف", style: TextStyle(fontFamily: 'Cairo'))));
+      }
     }
   }
 
@@ -2517,7 +3182,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ملف إنجازي (ألبوم الصور)', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('ملف إنجازي (ألبوم الصور)', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
         centerTitle: true,
         backgroundColor: const Color(0xFF1A237E),
         foregroundColor: Colors.white,
@@ -2528,9 +3193,9 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
         onPressed: _isUploading ? null : _pickAndUploadImage,
         backgroundColor: const Color(0xFFC5A059),
         icon: _isUploading
-            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white))
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
             : const Icon(Icons.add_a_photo, color: Color(0xFF1A237E)),
-        label: Text(_isUploading ? 'جاري الرفع...' : 'إضافة صورة', style: const TextStyle(color: Color(0xFF1A237E), fontWeight: FontWeight.bold)),
+        label: Text(_isUploading ? 'جاري الرفع...' : 'إضافة صورة', style: const TextStyle(color: Color(0xFF1A237E), fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
       )
           : null,
       body: Container(
@@ -2550,7 +3215,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator(color: Color(0xFF1A237E)));
             }
 
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -2560,11 +3225,11 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                   children: [
                     Icon(Icons.photo_library_outlined, size: 80, color: Colors.grey.shade300),
                     const SizedBox(height: 16),
-                    Text('ألبوم صورك فارغ حالياً', style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
+                    Text('ألبوم صورك فارغ حالياً', style: TextStyle(fontSize: 18, color: Colors.grey.shade600, fontFamily: 'Cairo')),
                     if (isMe)
                       const Padding(
                         padding: EdgeInsets.only(top: 8.0),
-                        child: Text("اضغط على زر الإضافة لرفع شهاداتك وصورك", style: TextStyle(color: Colors.grey)),
+                        child: Text("اضغط على زر الإضافة لرفع شهاداتك وإنجازاتك", style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')),
                       ),
                   ],
                 ),
@@ -2584,7 +3249,8 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                 itemBuilder: (context, index) {
                   final doc = snapshot.data!.docs[index];
                   final data = doc.data() as Map<String, dynamic>;
-                  final String fileId = data['imageUrl'] ?? '';
+                  final String imageUrl = data['imageUrl'] ?? '';
+                  final String? fileName = data['fileName'];
                   final String caption = data['caption'] ?? '';
 
                   return AnimationConfiguration.staggeredGrid(
@@ -2594,10 +3260,10 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                     child: ScaleAnimation(
                       child: FadeInAnimation(
                         child: GestureDetector(
-                          onTap: () => _showFullImage(context, fileId, caption),
-                          onLongPress: isMe ? () => _deleteImage(doc.id) : null,
+                          onTap: () => _showFullImage(context, imageUrl, caption),
+                          onLongPress: isMe ? () => _deleteImage(doc.id, fileName) : null,
                           child: Hero(
-                            tag: fileId,
+                            tag: imageUrl,
                             child: Card(
                               elevation: 4,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -2607,7 +3273,15 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
                                   Expanded(
-                                    child: SmartTelegramImage(fileId: fileId, fit: BoxFit.cover),
+                                    child: Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder: (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                                      },
+                                      errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                                    ),
                                   ),
                                   if (caption.isNotEmpty)
                                     Container(
@@ -2622,6 +3296,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
                                           color: Color(0xFF1A237E),
+                                          fontFamily: 'Cairo',
                                         ),
                                       ),
                                     ),
@@ -2642,7 +3317,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     );
   }
 
-  void _showFullImage(BuildContext context, String fileId, String caption) {
+  void _showFullImage(BuildContext context, String imageUrl, String caption) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => Scaffold(
@@ -2664,8 +3339,12 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                   minScale: 0.5,
                   maxScale: 4.0,
                   child: Hero(
-                    tag: fileId,
-                    child: SmartTelegramImage(fileId: fileId, fit: BoxFit.contain),
+                    tag: imageUrl,
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (c, e, s) => const Icon(Icons.broken_image, color: Colors.white, size: 60),
+                    ),
                   ),
                 ),
               ),
@@ -2683,7 +3362,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
                     child: Text(
                       caption,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                     ),
                   ),
                 ),
@@ -2908,15 +3587,14 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
             term1Locked = data?['term1_locked'] ?? false;
             term2Locked = data?['term2_locked'] ?? false;
           }
-          int initialIndex = 0;
 
           return DefaultTabController(
             key: const ValueKey('cert_tabs_force_first'),
             length: 3,
-            initialIndex: initialIndex,
+            initialIndex: 0,
             child: Scaffold(
               appBar: AppBar(
-                title: const Text('الشهادات والتقدير', style: TextStyle(fontWeight: FontWeight.bold)),
+                title: const Text('الشهادات والتقدير', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                 centerTitle: true,
                 backgroundColor: const Color(0xFF1A237E),
                 foregroundColor: Colors.white,
@@ -2924,8 +3602,8 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
                 bottom: const TabBar(
                   indicatorColor: Color(0xFFC5A059),
                   indicatorWeight: 4,
-                  labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
+                  labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo'),
+                  unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal, fontSize: 14, fontFamily: 'Cairo'),
                   labelColor: Colors.white,
                   unselectedLabelColor: Colors.white70,
                   tabs: [
@@ -2964,7 +3642,7 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
             const SizedBox(height: 16),
             const Text(
               'لا يوجد أرشيف شهادات لسنوات سابقة.',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E)),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
             ),
           ],
         ),
@@ -2991,7 +3669,7 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
                   value: year,
                   child: Text(
                     'نتائج العام الدراسي: $year',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E)),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
                   ),
                 );
               }).toList(),
@@ -3010,7 +3688,7 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
               if (_selectedArchiveYear != null) ...[
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text("الترم الأول", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+                  child: Text("الترم الأول", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
                 ),
                 _buildArchiveTermView(1, _archivesData[_selectedArchiveYear!]!),
                 const Padding(
@@ -3019,7 +3697,7 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text("الترم الثاني", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+                  child: Text("الترم الثاني", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
                 ),
                 _buildArchiveTermView(2, _archivesData[_selectedArchiveYear!]!),
               ]
@@ -3044,7 +3722,7 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
               child: Center(
                 child: Text(
                     "لا توجد شهادة محفوظة للترم ${term == 1 ? 'الأول' : 'الثاني'} في هذا العام.",
-                    style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)
+                    style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontFamily: 'Cairo')
                 ),
               ),
             );
@@ -3125,16 +3803,16 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
                   ]
               ),
               const SizedBox(height: 20),
-              const Text("تسر إدارة المدرسة أن تمنح هذا التقدير للطالب:", textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.bold)),
+              const Text("تسر إدارة المدرسة أن تمنح هذا التقدير للطالب:", textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               const SizedBox(height: 16),
-              Text(studentName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1A237E))),
+              Text(studentName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
               const SizedBox(height: 12),
-              Text("للعام الدراسي ${isArchive ? archiveYear : '1445 / 1446 هـ'}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54)),
+              Text("للعام الدراسي ${isArchive ? archiveYear : '1445 / 1446 هـ'}", style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black54, fontFamily: 'Cairo')),
               const SizedBox(height: 16),
               Text(
                   "لتفوقه واجتهاده الملحوظ خلال $termName (التقييم التراكمي)، وحصوله على نسبة ${percent.toStringAsFixed(1)}%$rankText\nمتمنين له دوام التوفيق والنجاح.",
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, color: Colors.black87, height: 1.6, fontWeight: FontWeight.bold)
+                  style: const TextStyle(fontSize: 12, color: Colors.black87, height: 1.6, fontWeight: FontWeight.bold, fontFamily: 'Cairo')
               ),
               const SizedBox(height: 15),
               Row(
@@ -3144,7 +3822,7 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
                   const SizedBox(width: 8),
                   Text(
                     'وقد حصل الطالب علي نقاط $studentLikes من أصل $maxLikes',
-                    style: const TextStyle(fontSize: 14, color: Color(0xFFD4AF37), fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 14, color: Color(0xFFD4AF37), fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                   ),
                 ],
               ),
@@ -3154,9 +3832,9 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
                   children: [
                     Column(
                         children: [
-                          const Text('مدير المدرسة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF1A237E))),
+                          const Text('مدير المدرسة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
                           const SizedBox(height: 25),
-                          const Text('أ. عبدالله عائش المطرفي', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87)),
+                          const Text('أ. عبدالله عائش المطرفي', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black87, fontFamily: 'Cairo')),
                         ]
                     )
                   ]
@@ -3175,7 +3853,7 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Image.asset('assets/m1.png', width: 40, height: 40),
-                  Text("مستوي - $termName", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+                  Text("مستوي - $termName", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
                   Image.asset('assets/2.png', width: 40, height: 40),
                 ],
               ),
@@ -3201,8 +3879,8 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
                   child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(sg['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-                        Text('${sg['percent'].toStringAsFixed(1)}%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF1A237E))),
+                        Text(sg['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, fontFamily: 'Cairo')),
+                        Text('${sg['percent'].toStringAsFixed(1)}%', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
                       ]
                   )
               )).toList()
@@ -3214,7 +3892,7 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
   Widget _buildStatBadge(String title, String value, {bool isGold = false}) {
     return Column(
       children: [
-        Text(title, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey)),
+        Text(title, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey, fontFamily: 'Cairo')),
         const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -3223,7 +3901,7 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: isGold ? const Color(0xFFC5A059) : Colors.blue.shade200),
           ),
-          child: Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: isGold ? const Color(0xFFC5A059) : const Color(0xFF1A237E))),
+          child: Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: isGold ? const Color(0xFFC5A059) : const Color(0xFF1A237E), fontFamily: 'Cairo')),
         )
       ],
     );
@@ -3241,11 +3919,11 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
               const SizedBox(height: 16),
               Text('لم يتم اعتماد نتيجة الترم ${term == 1 ? 'الأول' : 'الثاني'} بعد',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 18, fontWeight: FontWeight.bold)),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               const SizedBox(height: 8),
               Text('الرصد لا يزال مستمراً، ستصدر الشهادة فور إغلاق الترم من قبل الإدارة.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 14, fontFamily: 'Cairo')),
             ],
           ),
         ),
@@ -3277,7 +3955,7 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
                 children: [
                   Icon(Icons.warning_amber_rounded, size: 80, color: Colors.grey.shade400),
                   const SizedBox(height: 16),
-                  const Text('لا توجد درجات مرصودة لطباعة الشهادة.', style: TextStyle(color: Colors.grey, fontSize: 18)),
+                  const Text('لا توجد درجات مرصودة لطباعة الشهادة.', style: TextStyle(color: Colors.grey, fontSize: 18, fontFamily: 'Cairo')),
                 ],
               ),
             );
@@ -3386,9 +4064,9 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
             children: [
               Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10))),
               const SizedBox(height: 16),
-              Text(categoryTitle, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+              Text(categoryTitle, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color, fontFamily: 'Cairo')),
               const Divider(),
-              if (docs.isEmpty) const Padding(padding: EdgeInsets.all(20.0), child: Text("لا توجد إنجازات في هذا القسم بعد."))
+              if (docs.isEmpty) const Padding(padding: EdgeInsets.all(20.0), child: Text("لا توجد إنجازات في هذا القسم بعد.", style: TextStyle(fontFamily: 'Cairo')))
               else Expanded(
                 child: ListView.builder(
                   itemCount: docs.length,
@@ -3400,8 +4078,8 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       child: ListTile(
                         leading: Icon(Icons.star, color: color),
-                        title: Text(data['reason'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        subtitle: Text("من: أ. ${data['teacherName']} - مادة: ${data['subject']}", style: const TextStyle(fontSize: 11)),
+                        title: Text(data['reason'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                        subtitle: Text("من: أ. ${data['teacherName']} - مادة: ${data['subject']}", style: const TextStyle(fontSize: 11, fontFamily: 'Cairo')),
                       ),
                     );
                   },
@@ -3423,8 +4101,8 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
             controller: _tabController,
             indicatorColor: const Color(0xFFC5A059),
             indicatorWeight: 4,
-            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13),
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo'),
+            unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 13, fontFamily: 'Cairo'),
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
             tabs: const [
@@ -3468,8 +4146,8 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("حصاد الأسبوع للتكريم", style: TextStyle(color: Color(0xFF1A237E), fontWeight: FontWeight.bold, fontSize: 18)),
-                      Text("اضغط هنا لفرز المتميزين حسب التاريخ", style: TextStyle(color: Colors.black54, fontSize: 12, fontWeight: FontWeight.bold)),
+                      Text("حصاد الأسبوع للتكريم", style: TextStyle(color: Color(0xFF1A237E), fontWeight: FontWeight.bold, fontSize: 18, fontFamily: 'Cairo')),
+                      Text("اضغط هنا لفرز المتميزين حسب التاريخ", style: TextStyle(color: Colors.black54, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     ],
                   ),
                 ),
@@ -3481,7 +4159,7 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
 
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text("🌟 المتصدرون حسب المعيار:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+          child: Text("🌟 المتصدرون حسب المعيار:", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
         ),
         const SizedBox(height: 8),
 
@@ -3517,7 +4195,7 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
           children: [
             Icon(icon, size: 16, color: isSelected ? Colors.white : color),
             const SizedBox(width: 6),
-            Text(title, style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontSize: 12, fontWeight: FontWeight.bold)),
+            Text(title, style: TextStyle(color: isSelected ? Colors.white : Colors.black87, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
           ],
         ),
         selected: isSelected,
@@ -3543,7 +4221,7 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
             builder: (context, snapshot) {
               if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
               final students = snapshot.data!.docs;
-              if (students.isEmpty) return const Text("لا يوجد بيانات");
+              if (students.isEmpty) return const Text("لا يوجد بيانات", style: TextStyle(fontFamily: 'Cairo'));
 
               return ListView.builder(
                 shrinkWrap: true,
@@ -3563,10 +4241,10 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
                     child: ListTile(
                       leading: CircleAvatar(
                         backgroundColor: index < 3 ? const Color(0xFFC5A059) : const Color(0xFF1A237E).withOpacity(0.1),
-                        child: Text("${index + 1}", style: TextStyle(fontWeight: FontWeight.bold, color: index < 3 ? Colors.white : const Color(0xFF1A237E))),
+                        child: Text("${index + 1}", style: TextStyle(fontWeight: FontWeight.bold, color: index < 3 ? Colors.white : const Color(0xFF1A237E), fontFamily: 'Cairo')),
                       ),
-                      title: Text(name, style: TextStyle(fontWeight: isMe ? FontWeight.bold : FontWeight.normal, fontSize: 14)),
-                      trailing: Text("$likes 👍", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                      title: Text(name, style: TextStyle(fontWeight: isMe ? FontWeight.bold : FontWeight.normal, fontSize: 14, fontFamily: 'Cairo')),
+                      trailing: Text("$likes 👍", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontFamily: 'Cairo')),
                     ),
                   );
                 },
@@ -3574,7 +4252,7 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
             },
           ),
           const SizedBox(height: 24),
-          const Text("🏫 الفصول المتصدرة عامة", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+          const Text("🏫 الفصول المتصدرة عامة", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
           const SizedBox(height: 12),
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection('students').orderBy('totalLikes', descending: true).limit(100).snapshots(),
@@ -3601,9 +4279,9 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
                     margin: const EdgeInsets.only(bottom: 6),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.grey.shade200)),
                     child: ListTile(
-                      leading: Text("#${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey)),
-                      title: Text(topClasses[index].key, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      trailing: Text("${topClasses[index].value} نقطة", style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFC5A059))),
+                      leading: Text("#${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey, fontFamily: 'Cairo')),
+                      title: Text(topClasses[index].key, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                      trailing: Text("${topClasses[index].value} نقطة", style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFC5A059), fontFamily: 'Cairo')),
                     ),
                   );
                 },
@@ -3620,7 +4298,7 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
       future: FirebaseFirestore.instance.collection('behavior_reports').where('type', isEqualTo: 'like').get(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("لا توجد بيانات لهذا الفرز"));
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text("لا توجد بيانات لهذا الفرز", style: TextStyle(fontFamily: 'Cairo')));
 
         Map<String, int> studentScores = {};
         Map<String, String> studentNames = {};
@@ -3638,7 +4316,7 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
           }
         }
 
-        if (studentScores.isEmpty) return const Center(child: Text("لا يوجد تميز مسجل في هذا القسم بعد."));
+        if (studentScores.isEmpty) return const Center(child: Text("لا يوجد تميز مسجل في هذا القسم بعد.", style: TextStyle(fontFamily: 'Cairo')));
 
         final sortedStudents = studentScores.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
         final topStudents = sortedStudents.take(10).toList();
@@ -3660,10 +4338,10 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
               child: ListTile(
                 leading: CircleAvatar(
                   backgroundColor: index < 3 ? const Color(0xFFC5A059) : const Color(0xFF1A237E).withOpacity(0.1),
-                  child: Text("${index + 1}", style: TextStyle(fontWeight: FontWeight.bold, color: index < 3 ? Colors.white : const Color(0xFF1A237E))),
+                  child: Text("${index + 1}", style: TextStyle(fontWeight: FontWeight.bold, color: index < 3 ? Colors.white : const Color(0xFF1A237E), fontFamily: 'Cairo')),
                 ),
-                title: Text(name, style: TextStyle(fontWeight: isMe ? FontWeight.bold : FontWeight.normal, fontSize: 14)),
-                trailing: Text("$score ⭐", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                title: Text(name, style: TextStyle(fontWeight: isMe ? FontWeight.bold : FontWeight.normal, fontSize: 14, fontFamily: 'Cairo')),
+                trailing: Text("$score ⭐", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontFamily: 'Cairo')),
               ),
             );
           },
@@ -3695,8 +4373,8 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("مجموع أوسمتك", style: TextStyle(color: Colors.white70, fontSize: 14)),
-                    Text("$totalPoints وسام", style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+                    const Text("مجموع أوسمتك", style: TextStyle(color: Colors.white70, fontSize: 14, fontFamily: 'Cairo')),
+                    Text("$totalPoints وسام", style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                   ],
                 ),
               ],
@@ -3706,7 +4384,7 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
           const SizedBox(height: 24),
           const Align(
             alignment: Alignment.centerRight,
-            child: Text("🎯 السجل المفصل للإنجازات", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+            child: Text("🎯 السجل المفصل للإنجازات", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
           ),
           const SizedBox(height: 12),
 
@@ -3744,12 +4422,12 @@ class _NobleStudentDashboardState extends State<NobleStudentDashboard> with Sing
                         child: Icon(crit['icon'], color: count > 0 ? color : Colors.grey, size: 24),
                       ),
                       const SizedBox(height: 8),
-                      Text(crit['title'], textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                      Text(crit['title'], textAlign: TextAlign.center, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade800, fontFamily: 'Cairo')),
                       const SizedBox(height: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
                         decoration: BoxDecoration(color: count > 0 ? color : Colors.grey.shade200, borderRadius: BorderRadius.circular(10)),
-                        child: Text("$count نقطة", style: TextStyle(fontSize: 11, color: count > 0 ? Colors.white : Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                        child: Text("$count نقطة", style: TextStyle(fontSize: 11, color: count > 0 ? Colors.white : Colors.grey.shade600, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                       )
                     ],
                   ),
@@ -3890,7 +4568,7 @@ class _WeeklyHonorsPageState extends State<WeeklyHonorsPage> {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text('حصاد الأسبوع وتكريم المتميزين', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('حصاد الأسبوع وتكريم المتميزين', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
         backgroundColor: const Color(0xFF1A237E),
         foregroundColor: Colors.white,
       ),
@@ -3904,7 +4582,7 @@ class _WeeklyHonorsPageState extends State<WeeklyHonorsPage> {
             ),
             child: Column(
               children: [
-                const Text("الفترة المحددة للفرز:", style: TextStyle(color: Colors.white70)),
+                const Text("الفترة المحددة للفرز:", style: TextStyle(color: Colors.white70, fontFamily: 'Cairo')),
                 const SizedBox(height: 8),
                 InkWell(
                   onTap: () => _selectDateRange(context),
@@ -3916,7 +4594,7 @@ class _WeeklyHonorsPageState extends State<WeeklyHonorsPage> {
                       children: [
                         const Icon(Icons.date_range, color: Color(0xFFC5A059)),
                         const SizedBox(width: 12),
-                        Text(dateRangeStr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                        Text(dateRangeStr, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
                       ],
                     ),
                   ),
@@ -3929,7 +4607,7 @@ class _WeeklyHonorsPageState extends State<WeeklyHonorsPage> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Color(0xFFC5A059)))
                 : (_topStudents.isEmpty
-                ? const Center(child: Text("لا توجد إنجازات مسجلة في هذه الفترة."))
+                ? const Center(child: Text("لا توجد إنجازات مسجلة في هذه الفترة.", style: TextStyle(fontFamily: 'Cairo')))
                 : DefaultTabController(
               length: 2,
               child: Column(
@@ -3937,7 +4615,7 @@ class _WeeklyHonorsPageState extends State<WeeklyHonorsPage> {
                   const TabBar(
                     labelColor: Color(0xFF1A237E),
                     indicatorColor: Color(0xFFC5A059),
-                    labelStyle: TextStyle(fontWeight: FontWeight.bold),
+                    labelStyle: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                     tabs: [
                       Tab(text: "فرسان الأسبوع"),
                       Tab(text: "فصول الصدارة"),
@@ -3988,13 +4666,13 @@ class _WeeklyHonorsPageState extends State<WeeklyHonorsPage> {
               backgroundColor: index < 3 ? rankColor.withOpacity(0.2) : const Color(0xFF1A237E).withOpacity(0.1),
               child: Icon(rankIcon, color: index < 3 ? rankColor : const Color(0xFF1A237E), size: 28),
             ),
-            title: Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: index < 3 ? 16 : 14)),
-            subtitle: Text(classInfo, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            title: Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: index < 3 ? 16 : 14, fontFamily: 'Cairo')),
+            subtitle: Text(classInfo, style: const TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'Cairo')),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text("$score", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: index < 3 ? rankColor : Colors.grey.shade700)),
-                const Text("وسام", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                Text("$score", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: index < 3 ? rankColor : Colors.grey.shade700, fontFamily: 'Cairo')),
+                const Text("وسام", style: TextStyle(fontSize: 10, color: Colors.grey, fontFamily: 'Cairo')),
               ],
             ),
           ),
@@ -4004,7 +4682,7 @@ class _WeeklyHonorsPageState extends State<WeeklyHonorsPage> {
   }
 
   Widget _buildClassesList() {
-    if (_topClasses.isEmpty) return const Center(child: Text("لا توجد بيانات للفصول"));
+    if (_topClasses.isEmpty) return const Center(child: Text("لا توجد بيانات للفصول", style: TextStyle(fontFamily: 'Cairo')));
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _topClasses.length,
@@ -4020,11 +4698,11 @@ class _WeeklyHonorsPageState extends State<WeeklyHonorsPage> {
             leading: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: const Color(0xFF1A237E).withOpacity(0.1), shape: BoxShape.circle),
-              child: Text("#${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+              child: Text("#${index + 1}", style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
             ),
-            title: Text(className, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A237E))),
+            title: Text(className, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
             trailing: Chip(
-              label: Text("$score نقطة", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              label: Text("$score نقطة", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'Cairo')),
               backgroundColor: const Color(0xFF1A237E),
             ),
           ),
@@ -4075,7 +4753,7 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
 
   Future<void> _submitRequest() async {
     if (_reasonController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء كتابة سبب الخروج المبكر'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء كتابة سبب الخروج المبكر', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
       return;
     }
 
@@ -4093,10 +4771,10 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
       });
       if (mounted) {
         _reasonController.clear();
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال الطلب بنجاح! بانتظار الموافقة.'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال الطلب بنجاح! بانتظار الموافقة.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ.'), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حدث خطأ.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -4107,7 +4785,7 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
       final int elapsedMinutes = DateTime.now().difference(requestTime.toDate()).inMinutes;
       if (elapsedMinutes > 5) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('عذراً، انتهت مهلة الـ 5 دقائق المسموح بها لإلغاء الطلب.'), backgroundColor: Colors.red)
+            const SnackBar(content: Text('عذراً، انتهت مهلة الـ 5 دقائق المسموح بها لإلغاء الطلب.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red)
         );
         return;
       }
@@ -4116,14 +4794,14 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
     final bool confirm = await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('إلغاء الطلب', style: TextStyle(color: Color(0xFF1A237E))),
-        content: const Text('هل أنت متأكد من رغبتك في إلغاء هذا الطلب وحذفه؟'),
+        title: const Text('إلغاء الطلب', style: TextStyle(color: Color(0xFF1A237E), fontFamily: 'Cairo')),
+        content: const Text('هل أنت متأكد من رغبتك في إلغاء هذا الطلب وحذفه؟', style: TextStyle(fontFamily: 'Cairo')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('تراجع')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('تراجع', style: TextStyle(fontFamily: 'Cairo'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('نعم، الغي الطلب'),
+            child: const Text('نعم، الغي الطلب', style: TextStyle(fontFamily: 'Cairo')),
           ),
         ],
       ),
@@ -4134,10 +4812,10 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
     try {
       await FirebaseFirestore.instance.collection('dismissal_requests').doc(docId).delete();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إلغاء وحذف الطلب بنجاح'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إلغاء وحذف الطلب بنجاح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الحذف.'), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('خطأ أثناء الحذف.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
     }
   }
 
@@ -4146,7 +4824,7 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
-        title: const Text('طلب انصراف مبكر', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('طلب انصراف مبكر', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
         backgroundColor: const Color(0xFF1A237E),
         foregroundColor: Colors.white,
       ),
@@ -4168,7 +4846,7 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
                   Expanded(
                     child: Text(
                       "سلامة أبنائنا أمانة مشتركة بين الأسرة والمدرسة. نرجو التأكد من بيانات المستلم وسبب الخروج للحفاظ على سلامتهم.",
-                      style: TextStyle(color: Colors.blueGrey.shade800, fontSize: 13, fontWeight: FontWeight.w600, height: 1.4),
+                      style: TextStyle(color: Colors.blueGrey.shade800, fontSize: 13, fontWeight: FontWeight.w600, height: 1.4, fontFamily: 'Cairo'),
                     ),
                   ),
                 ],
@@ -4185,10 +4863,10 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('إنشاء طلب جديد', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+                    const Text('إنشاء طلب جديد', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
                     const Divider(),
                     const SizedBox(height: 12),
-                    const Text('من سيقوم باستلام الطالب؟', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('من سيقوم باستلام الطالب؟', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       value: _selectedPickup,
@@ -4198,11 +4876,11 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
                         filled: true,
                         fillColor: Colors.grey.shade50,
                       ),
-                      items: ['السائق', 'الأب', 'الأم', 'أقارب آخرون'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                      items: ['السائق', 'الأب', 'الأم', 'أقارب آخرون'].map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                       onChanged: (val) => setState(() => _selectedPickup = val!),
                     ),
                     const SizedBox(height: 16),
-                    const Text('سبب الخروج المبكر:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('سبب الخروج المبكر:', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     const SizedBox(height: 8),
                     TextField(
                       controller: _reasonController,
@@ -4221,7 +4899,7 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
                       height: 50,
                       child: ElevatedButton.icon(
                         icon: _isSubmitting ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.send),
-                        label: Text(_isSubmitting ? 'جاري الإرسال...' : 'إرسال الطلب للموافقة'),
+                        label: Text(_isSubmitting ? 'جاري الإرسال...' : 'إرسال الطلب للموافقة', style: const TextStyle(fontFamily: 'Cairo')),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1A237E),
                           foregroundColor: Colors.white,
@@ -4239,7 +4917,7 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
 
             const Align(
               alignment: Alignment.centerRight,
-              child: Text("📋 سجل طلبات الانصراف السابقة", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+              child: Text("📋 سجل طلبات الانصراف السابقة", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
             ),
             const SizedBox(height: 12),
             StreamBuilder<QuerySnapshot>(
@@ -4248,9 +4926,9 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
                   .where('studentId', isEqualTo: widget.studentId)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.hasError) return const Center(child: SelectableText('حدث خطأ.', style: TextStyle(color: Colors.red)));
+                if (snapshot.hasError) return const Center(child: SelectableText('حدث خطأ.', style: TextStyle(color: Colors.red, fontFamily: 'Cairo')));
                 if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('لا توجد طلبات سابقة.')));
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('لا توجد طلبات سابقة.', style: TextStyle(fontFamily: 'Cairo'))));
 
                 final docs = snapshot.data!.docs.toList();
                 docs.sort((a, b) {
@@ -4309,12 +4987,12 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
                                   children: [
                                     Icon(statusIcon, color: statusColor, size: 20),
                                     const SizedBox(width: 8),
-                                    Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 14)),
+                                    Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
                                   ],
                                 ),
                                 Row(
                                   children: [
-                                    Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                    Text(date, style: const TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'Cairo')),
                                     if (canDelete) ...[
                                       const SizedBox(width: 8),
                                       InkWell(
@@ -4327,9 +5005,9 @@ class _StudentDismissalPageState extends State<StudentDismissalPage> {
                               ],
                             ),
                             const Divider(),
-                            Text("المستلم: ${data['pickupBy']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A237E))),
+                            Text("المستلم: ${data['pickupBy']}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
                             const SizedBox(height: 4),
-                            Text("السبب: ${data['reason'] ?? 'بدون سبب'}", style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
+                            Text("السبب: ${data['reason'] ?? 'بدون سبب'}", style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontFamily: 'Cairo')),
                           ],
                         ),
                       ),
