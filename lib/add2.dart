@@ -189,7 +189,7 @@ class QRSessionTimer {
           Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('انتهت جلسة السبورة (5 دقائق). تم الخروج تلقائياً للأمان.'),
+              content: Text('انتهت جلسة السبورة (5 دقائق). تم الخروج تلقائياً للأمان.', style: TextStyle(fontFamily: 'Cairo')),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 5),
             ),
@@ -267,7 +267,7 @@ class QRSessionOverlay extends StatelessWidget {
                         children: [
                           Icon(Icons.logout_rounded, size: 14, color: Colors.red),
                           SizedBox(width: 4),
-                          Text('خروج الآن', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+                          Text('خروج الآن', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                         ],
                       ),
                     ),
@@ -284,7 +284,7 @@ class QRSessionOverlay extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// الصفحة الرئيسية (Add2Page) تحتوي الأيقونات المخصصة
+// الصفحة الرئيسية (Add2Page)
 // ---------------------------------------------------------------------------
 class Add2Page extends StatefulWidget {
   const Add2Page({super.key});
@@ -340,7 +340,7 @@ class _Add2PageState extends State<Add2Page> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('تم تسجيل الخروج تلقائياً لانتهاء جلسة الضيف (3 دقائق).'),
+          content: Text('تم تسجيل الخروج تلقائياً لانتهاء جلسة الضيف (3 دقائق).', style: TextStyle(fontFamily: 'Cairo')),
           backgroundColor: Colors.orange,
           duration: Duration(seconds: 5),
         ),
@@ -411,7 +411,7 @@ class _Add2PageState extends State<Add2Page> {
                 children: [
                   Icon(Icons.security, color: Colors.red),
                   SizedBox(width: 10),
-                  Text('تأكيد الهوية (الأدمن)'),
+                  Text('تأكيد الهوية (الأدمن)', style: TextStyle(fontFamily: 'Cairo')),
                 ],
               ),
               content: Form(
@@ -428,7 +428,7 @@ class _Add2PageState extends State<Add2Page> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
                   onPressed: checking ? null : () async {
@@ -443,15 +443,15 @@ class _Add2PageState extends State<Add2Page> {
                           onSuccess();
                         } else {
                           setDialogState(() => checking = false);
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز السري غير صحيح!'), backgroundColor: Colors.red));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز السري غير صحيح!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
                         }
                       } catch (e) {
                         setDialogState(() => checking = false);
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
                       }
                     }
                   },
-                  child: const Text('تأكيد'),
+                  child: const Text('تأكيد', style: TextStyle(fontFamily: 'Cairo')),
                 ),
               ],
             );
@@ -469,7 +469,7 @@ class _Add2PageState extends State<Add2Page> {
       ),
       builder: (context) {
         if (_user == null) {
-          return const Center(child: Text("المستخدم غير مسجل."));
+          return const Center(child: Text("المستخدم غير مسجل.", style: TextStyle(fontFamily: 'Cairo')));
         }
         return DraggableScrollableSheet(
           expand: false,
@@ -479,7 +479,7 @@ class _Add2PageState extends State<Add2Page> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text("الإشعارات", style: Theme.of(context).textTheme.headlineSmall),
+                child: Text("الإشعارات", style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontFamily: 'Cairo')),
               ),
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
@@ -497,7 +497,7 @@ class _Add2PageState extends State<Add2Page> {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.all(20.0),
-                          child: Text("لا توجد إشعارات حالياً.", style: TextStyle(fontSize: 18, color: Colors.grey)),
+                          child: Text("لا توجد إشعارات حالياً.", style: TextStyle(fontSize: 18, color: Colors.grey, fontFamily: 'Cairo')),
                         ),
                       );
                     }
@@ -521,8 +521,8 @@ class _Add2PageState extends State<Add2Page> {
 
                         return ListTile(
                           leading: const Icon(Icons.check_circle_outline_rounded, color: Colors.green),
-                          title: Text(data['message'] ?? '...'),
-                          subtitle: Text(formattedDate),
+                          title: Text(data['message'] ?? '...', style: const TextStyle(fontFamily: 'Cairo')),
+                          subtitle: Text(formattedDate, style: const TextStyle(fontFamily: 'Cairo')),
                         );
                       },
                     );
@@ -554,7 +554,7 @@ class _Add2PageState extends State<Add2Page> {
         appBar: AppBar(
           backgroundColor: Colors.lightBlue.shade400,
           elevation: 0,
-          title: const Text('لوحة التحكم (الخدمات والجداول)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          title: const Text('لوحة التحكم (الخدمات والجداول)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
           centerTitle: true,
           actions: [
             IconButton(
@@ -562,6 +562,12 @@ class _Add2PageState extends State<Add2Page> {
               onPressed: _showNotifications,
             ),
           ],
+        ),
+        bottomNavigationBar: Container(
+          height: 35,
+          color: Colors.grey.shade200,
+          alignment: Alignment.center,
+          child: const Text('مطور الموقع أ : مصطفي سعيد', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
         ),
         body: RefreshIndicator(
           onRefresh: _onRefresh,
@@ -630,7 +636,7 @@ class _Add2PageState extends State<Add2Page> {
                     ),
                     Text(
                       jobTitle,
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      style: const TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Cairo'),
                     ),
                   ],
                 ),
@@ -649,10 +655,9 @@ class _Add2PageState extends State<Add2Page> {
             mainAxisSpacing: 20,
             childAspectRatio: 0.85,
             children: [
-              // جدول الحصص
               _AnimatedGridButton(
-                title: 'جدول الحصص',
-                icon: _isScheduleApproved ? Icons.lock : Icons.calendar_month_rounded,
+                title: 'إدارة جداول الحصص',
+                icon: _isScheduleApproved ? Icons.event_available : Icons.edit_calendar_rounded,
                 color: const Color(0xFFE65100),
                 badgeCount: _isScheduleApproved ? null : 0,
                 statCount: _isScheduleApproved ? "✓" : null,
@@ -661,7 +666,6 @@ class _Add2PageState extends State<Add2Page> {
                 },
               ),
               if (_isAdmin) ...[
-                // موافقة الجداول
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('teacher_schedules')
@@ -682,7 +686,6 @@ class _Add2PageState extends State<Add2Page> {
                     );
                   },
                 ),
-                // الجداول المعتمدة
                 _AnimatedGridButton(
                   title: 'الجداول المعتمدة',
                   icon: Icons.table_chart_rounded,
@@ -691,7 +694,6 @@ class _Add2PageState extends State<Add2Page> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminApprovedSchedulesPage()));
                   },
                 ),
-                // صلاحيات وصول الفصل
                 _AnimatedGridButton(
                   title: 'صلاحيات وصول الفصل',
                   icon: Icons.admin_panel_settings_rounded,
@@ -702,7 +704,6 @@ class _Add2PageState extends State<Add2Page> {
                     });
                   },
                 ),
-                // طلبات القبول والانضمام
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('admission_requests')
@@ -903,7 +904,7 @@ class _AnimatedGridButtonState extends State<_AnimatedGridButton> with SingleTic
               children: [
                 badges.Badge(
                   showBadge: (widget.badgeCount != null && widget.badgeCount! > 0) || (widget.statCount == "✓"),
-                  badgeContent: Text(widget.statCount == "✓" ? "✓" : '${widget.badgeCount}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  badgeContent: Text(widget.statCount == "✓" ? "✓" : '${widget.badgeCount}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                   position: badges.BadgePosition.topEnd(top: 0, end: 0),
                   badgeAnimation: const badges.BadgeAnimation.scale(),
                   badgeStyle: badges.BadgeStyle(
@@ -987,7 +988,7 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا يمكن فتح واتساب، يرجى التأكد من الرقم.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا يمكن فتح واتساب، يرجى التأكد من الرقم.', style: TextStyle(fontFamily: 'Cairo'))));
       }
     }
   }
@@ -1002,12 +1003,12 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تحديث حالة الطلب وموعد الزيارة بنجاح.'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('تم تحديث حالة الطلب وموعد الزيارة بنجاح.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
@@ -1039,7 +1040,7 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('تفاصيل طلب الالتحاق', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
+                      const Text('تفاصيل طلب الالتحاق', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1565C0), fontFamily: 'Cairo')),
                       IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                     ],
                   ),
@@ -1064,7 +1065,7 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
                         Expanded(
                           child: Text(
                             'جوال ولي الأمر: 966${data['parentPhone']}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo'),
                           ),
                         ),
                         IconButton(
@@ -1077,7 +1078,7 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
                   ),
                   const SizedBox(height: 20),
 
-                  const Text('تحديد موعد الزيارة / المقابلة:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                  const Text('تحديد موعد الزيارة / المقابلة:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, fontFamily: 'Cairo')),
                   const SizedBox(height: 8),
                   TextField(
                     controller: visitTimeCtrl,
@@ -1089,7 +1090,7 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
                   ),
 
                   const SizedBox(height: 30),
-                  const Text('تحديث حالة الطلب:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('تحديث حالة الطلب:', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                   const SizedBox(height: 12),
 
                   Row(
@@ -1097,7 +1098,7 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.check),
-                          label: const Text('قبول مبدئي'),
+                          label: const Text('قبول مبدئي', style: TextStyle(fontFamily: 'Cairo')),
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
                           onPressed: () {
                             Navigator.pop(context);
@@ -1109,7 +1110,7 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
                       Expanded(
                         child: ElevatedButton.icon(
                           icon: const Icon(Icons.close),
-                          label: const Text('رفض'),
+                          label: const Text('رفض', style: TextStyle(fontFamily: 'Cairo')),
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
                           onPressed: () {
                             Navigator.pop(context);
@@ -1134,9 +1135,9 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, fontFamily: 'Cairo')),
           const SizedBox(width: 8),
-          Expanded(child: Text(value?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w600))),
+          Expanded(child: Text(value?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Cairo'))),
         ],
       ),
     );
@@ -1156,7 +1157,7 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('طلبات انضمام - المرحلة ${widget.stageFilter}'),
+        title: Text('طلبات انضمام - المرحلة ${widget.stageFilter}', style: const TextStyle(fontFamily: 'Cairo')),
         backgroundColor: const Color(0xFF1565C0),
       ),
       body: Stack(
@@ -1170,7 +1171,7 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return const Center(child: Text('لا توجد طلبات معلقة لهذه المرحلة.', style: TextStyle(fontSize: 16, color: Colors.grey)));
+                return const Center(child: Text('لا توجد طلبات معلقة لهذه المرحلة.', style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo')));
               }
 
               final docs = snapshot.data!.docs;
@@ -1185,8 +1186,8 @@ class _AdminAdmissionRequestsPageState extends State<AdminAdmissionRequestsPage>
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                     child: ListTile(
-                      title: Text(data['studentName'] ?? 'بدون اسم', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1565C0))),
-                      subtitle: Text('الصف: ${data['grade']} - الجوال: ${data['parentPhone']}'),
+                      title: Text(data['studentName'] ?? 'بدون اسم', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1565C0), fontFamily: 'Cairo')),
+                      subtitle: Text('الصف: ${data['grade']} - الجوال: ${data['parentPhone']}', style: const TextStyle(fontFamily: 'Cairo')),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () => _showRequestDetails(context, doc),
                     ),
@@ -1245,23 +1246,23 @@ class _FinalAdmissionApprovalPageState extends State<FinalAdmissionApprovalPage>
           return StatefulBuilder(builder: (ctx, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Text('القبول النهائي: ${data['studentName']}'),
+              title: Text('القبول النهائي: ${data['studentName']}', style: const TextStyle(fontFamily: 'Cairo')),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('الصف: ${data['grade']}'),
+                  Text('الصف: ${data['grade']}', style: const TextStyle(fontFamily: 'Cairo')),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedClass,
                     decoration: const InputDecoration(labelText: 'توزيعه على فصل *', border: OutlineInputBorder()),
-                    items: List.generate(10, (i) => 'الفصل ${i + 1}').map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: List.generate(10, (i) => 'الفصل ${i + 1}').map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                     onChanged: (val) => setDialogState(() => selectedClass = val!),
                   ),
                   if (processingLocal) const Padding(padding: EdgeInsets.only(top: 16), child: CircularProgressIndicator()),
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   onPressed: processingLocal ? null : () async {
                     setDialogState(() => processingLocal = true);
@@ -1352,10 +1353,10 @@ class _FinalAdmissionApprovalPageState extends State<FinalAdmissionApprovalPage>
                       _showAccountResultDialogLocal(data['studentName'], finalEmail, finalPassword, complaintsPin, selectedClass);
                     } catch (e) {
                       setDialogState(() => processingLocal = false);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e')));
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e', style: const TextStyle(fontFamily: 'Cairo'))));
                     }
                   },
-                  child: const Text('اعتماد الطالب وإنشاء الحساب'),
+                  child: const Text('اعتماد الطالب وإنشاء الحساب', style: TextStyle(fontFamily: 'Cairo')),
                 )
               ],
             );
@@ -1370,13 +1371,13 @@ class _FinalAdmissionApprovalPageState extends State<FinalAdmissionApprovalPage>
         builder: (ctx) {
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('تم اعتماد وبث بيانات الطالب'),
+            title: const Text('تم اعتماد وبث بيانات الطالب', style: TextStyle(fontFamily: 'Cairo')),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('الاسم: $name', style: const TextStyle(fontWeight: FontWeight.bold)),
-                Text('الفصل: $cls'),
+                Text('الاسم: $name', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                Text('الفصل: $cls', style: const TextStyle(fontFamily: 'Cairo')),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -1384,9 +1385,9 @@ class _FinalAdmissionApprovalPageState extends State<FinalAdmissionApprovalPage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('البريد: $email'),
-                      Text('كلمة المرور للحساب: $pass'),
-                      Text('الرمز السري للشكاوى: $pin', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                      Text('البريد: $email', style: const TextStyle(fontFamily: 'Cairo')),
+                      Text('كلمة المرور للحساب: $pass', style: const TextStyle(fontFamily: 'Cairo')),
+                      Text('الرمز السري للشكاوى: $pin', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontFamily: 'Cairo')),
                     ],
                   ),
                 ),
@@ -1395,17 +1396,17 @@ class _FinalAdmissionApprovalPageState extends State<FinalAdmissionApprovalPage>
             actions: [
               ElevatedButton.icon(
                 icon: const Icon(Icons.print),
-                label: const Text('طباعة الباركود'),
+                label: const Text('طباعة الباركود', style: TextStyle(fontFamily: 'Cairo')),
                 onPressed: () => StudentPrintHelper.printAccount(name: name, email: email, pass: pass, pin: pin, cls: cls),
               ),
               ElevatedButton(
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: 'تم تفعيل حساب الطالب:\nالاسم: $name\nالفصل: $cls\nالبريد: $email\nكلمة المرور: $pass\nالرمز السري للشكاوى: $pin'));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم النسخ!')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم النسخ!', style: TextStyle(fontFamily: 'Cairo'))));
                 },
-                child: const Text('نسخ للوالد'),
+                child: const Text('نسخ للوالد', style: TextStyle(fontFamily: 'Cairo')),
               ),
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
             ],
           );
         }
@@ -1416,7 +1417,7 @@ class _FinalAdmissionApprovalPageState extends State<FinalAdmissionApprovalPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('القبول النهائي - ${widget.stageFilter}'),
+        title: Text('القبول النهائي - ${widget.stageFilter}', style: const TextStyle(fontFamily: 'Cairo')),
         backgroundColor: const Color(0xFF2E7D32),
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -1428,7 +1429,7 @@ class _FinalAdmissionApprovalPageState extends State<FinalAdmissionApprovalPage>
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('لا يوجد طلاب مقبولين مبدئياً بانتظار الاعتماد النهائي.', style: TextStyle(fontSize: 14, color: Colors.grey)));
+            return const Center(child: Text('لا يوجد طلاب مقبولين مبدئياً بانتظار الاعتماد النهائي.', style: TextStyle(fontSize: 14, color: Colors.grey, fontFamily: 'Cairo')));
           }
 
           final docs = snapshot.data!.docs;
@@ -1440,8 +1441,8 @@ class _FinalAdmissionApprovalPageState extends State<FinalAdmissionApprovalPage>
               final data = doc.data() as Map<String, dynamic>;
               return Card(
                 child: ListTile(
-                  title: Text(data['studentName'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                  subtitle: Text('الصف: ${data['grade']} - موعد مقابلة: ${data['visitTime'] ?? 'لم يحدد'}'),
+                  title: Text(data['studentName'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontFamily: 'Cairo')),
+                  subtitle: Text('الصف: ${data['grade']} - موعد مقابلة: ${data['visitTime'] ?? 'لم يحدد'}', style: const TextStyle(fontFamily: 'Cairo')),
                   trailing: const Icon(Icons.verified_user, color: Colors.green),
                   onTap: () => _processFinalApproval(doc),
                 ),
@@ -1467,18 +1468,50 @@ class _TeacherScheduleFlowPageState extends State<TeacherScheduleFlowPage> {
   Map<String, dynamic>? _scheduleData;
   User? _user;
 
+  bool _isAdmin = false;
+  List<Map<String, dynamic>> _teachersList = [];
+  String _selectedTeacherId = '';
+  String _selectedTeacherName = '';
+
   @override
   void initState() {
     super.initState();
-    _fetchSchedule();
+    _fetchInitialData();
   }
 
-  Future<void> _fetchSchedule() async {
+  Future<void> _fetchInitialData() async {
     _user = FirebaseAuth.instance.currentUser;
     if (_user == null) return;
 
     try {
-      final doc = await FirebaseFirestore.instance.collection('teacher_schedules').doc(_user!.uid).get();
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(_user!.uid).get();
+      _isAdmin = userDoc.data()?['profession'] == 'admin';
+
+      if (_isAdmin) {
+        final tSnap = await FirebaseFirestore.instance.collection('users').where('profession', isNotEqualTo: 'admin').get();
+        _teachersList = tSnap.docs.map((d) => {'id': d.id, 'name': d['name'] ?? 'معلم'}).toList();
+        if (_teachersList.isNotEmpty) {
+          _selectedTeacherId = _teachersList.first['id'];
+          _selectedTeacherName = _teachersList.first['name'];
+        }
+      } else {
+        _selectedTeacherId = _user!.uid;
+        _selectedTeacherName = userDoc.data()?['name'] ?? 'معلم';
+      }
+      await _fetchSchedule();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e', style: const TextStyle(fontFamily: 'Cairo'))));
+      }
+    }
+  }
+
+  Future<void> _fetchSchedule() async {
+    if (_selectedTeacherId.isEmpty) return;
+    setState(() => _isLoading = true);
+    try {
+      final doc = await FirebaseFirestore.instance.collection('teacher_schedules').doc(_selectedTeacherId).get();
       if (doc.exists && doc.data() != null) {
         setState(() {
           _scheduleData = doc.data();
@@ -1486,12 +1519,16 @@ class _TeacherScheduleFlowPageState extends State<TeacherScheduleFlowPage> {
           _isLoading = false;
         });
       } else {
-        setState(() => _isLoading = false);
+        setState(() {
+          _scheduleData = null;
+          _status = null;
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e', style: const TextStyle(fontFamily: 'Cairo'))));
       }
     }
   }
@@ -1502,14 +1539,50 @@ class _TeacherScheduleFlowPageState extends State<TeacherScheduleFlowPage> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    if (_status == null || _status == 'draft') {
-      return TeacherSchedulePhase1(scheduleData: _scheduleData);
+    if ((_status == null || _status == 'draft') && !_isAdmin) {
+      return TeacherSchedulePhase1(
+        scheduleData: _scheduleData,
+        teacherId: _selectedTeacherId,
+        teacherName: _selectedTeacherName,
+        isAdmin: _isAdmin,
+      );
     }
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('جدول الحصص الخاص بي'),
+        title: Text(_isAdmin ? 'إدارة جداول الحصص' : 'جدول الحصص الخاص بي', style: const TextStyle(fontFamily: 'Cairo')),
         backgroundColor: Colors.deepOrange,
+        bottom: _isAdmin && _teachersList.isNotEmpty
+            ? PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.orange.shade800,
+            child: DropdownButtonFormField<String>(
+              value: _selectedTeacherId,
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              items: _teachersList.map((t) => DropdownMenuItem<String>(
+                value: t['id'],
+                child: Text('المعلم: ${t['name']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
+              )).toList(),
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _selectedTeacherId = val;
+                    _selectedTeacherName = _teachersList.firstWhere((e) => e['id'] == val)['name'];
+                  });
+                  _fetchSchedule();
+                }
+              },
+            ),
+          ),
+        )
+            : null,
       ),
       body: Column(
         children: [
@@ -1520,60 +1593,32 @@ class _TeacherScheduleFlowPageState extends State<TeacherScheduleFlowPage> {
               children: [
                 Icon(_status == 'approved' ? Icons.check_circle : Icons.hourglass_bottom, color: _status == 'approved' ? Colors.green : Colors.orange),
                 const SizedBox(width: 8),
-                Text(_status == 'approved' ? 'الجدول معتمد من الإدارة' : 'الجدول قيد مراجعة الإدارة', style: const TextStyle(fontWeight: FontWeight.bold)),
-                if (_status == 'approved') ...[
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () async {
-                      bool? confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('إعادة ضبط الجدول'),
-                            content: const Text('هل أنت متأكد من رغبتك في حذف الجدول الحالي وإدخال جدول جديد؟ عند حذف الجدول أو إعادة إدخاله سيتم تلقائياً حذف الفصول المسندة السابقة لحين اعتماد الجدول الجديد.'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('تراجع')),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text('موافق، إعادة ضبط'),
-                              )
-                            ],
-                          )
-                      );
-                      if (confirm == true && _user != null) {
-                        List<String> fieldsToReset = [
-                          'stage1', 'stage2', 'stage3',
-                          'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6',
-                          'grade11', 'grade22', 'grade33',
-                          'grade111', 'grade222', 'grade333',
-                          'class1', 'class2', 'class3', 'class4', 'class5', 'class6',
-                          'class11', 'class22', 'class33',
-                          'class111', 'class222', 'class333'
-                        ];
-                        Map<String, dynamic> updates = {};
-                        for (var f in fieldsToReset) {
-                          updates[f] = FieldValue.delete();
-                        }
-
-                        final batch = FirebaseFirestore.instance.batch();
-                        batch.update(FirebaseFirestore.instance.collection('users').doc(_user!.uid), updates);
-                        batch.delete(FirebaseFirestore.instance.collection('teacher_schedules').doc(_user!.uid));
-                        await batch.commit();
-
-                        setState(() {
-                          _status = null;
-                          _scheduleData = null;
-                        });
-                      }
-                    },
-                    child: const Text('طلب تعديل/إعادة ضبط', style: TextStyle(color: Colors.red)),
-                  )
-                ]
+                Expanded(
+                  child: Text(
+                      _scheduleData == null
+                          ? 'لا يوجد جدول لهذا المعلم'
+                          : (_status == 'approved' ? 'الجدول معتمد من الإدارة' : 'الجدول قيد مراجعة الإدارة'),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => TeacherSchedulePhase1(
+                      scheduleData: _scheduleData,
+                      teacherId: _selectedTeacherId,
+                      teacherName: _selectedTeacherName,
+                      isAdmin: _isAdmin,
+                    ))).then((value) => _fetchSchedule());
+                  },
+                  child: const Text('تعديل الجدول', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                )
               ],
             ),
           ),
           Expanded(
-            child: ScheduleViewer(scheduleData: _scheduleData!['phase2Data']),
+            child: _scheduleData == null || _scheduleData!['phase2Data'] == null
+                ? const Center(child: Text('لا يوجد جدول لعرضه', style: TextStyle(fontFamily: 'Cairo')))
+                : ScheduleViewer(scheduleData: _scheduleData!['phase2Data']),
           )
         ],
       ),
@@ -1583,7 +1628,17 @@ class _TeacherScheduleFlowPageState extends State<TeacherScheduleFlowPage> {
 
 class TeacherSchedulePhase1 extends StatefulWidget {
   final Map<String, dynamic>? scheduleData;
-  const TeacherSchedulePhase1({super.key, this.scheduleData});
+  final String teacherId;
+  final String teacherName;
+  final bool isAdmin;
+
+  const TeacherSchedulePhase1({
+    super.key,
+    this.scheduleData,
+    required this.teacherId,
+    required this.teacherName,
+    required this.isAdmin,
+  });
 
   @override
   State<TeacherSchedulePhase1> createState() => _TeacherSchedulePhase1State();
@@ -1594,8 +1649,9 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
     'رياضيات', 'لغتي', 'علوم', 'انجليزي', 'إسلاميات', 'اجتماعيات', 'فنية', 'بدنية', 'رقمية', 'حياتية', 'تفكير', 'نشاط', 'روبوت', 'قيم وسلوك', 'أخرى'
   ];
   final List<String> _allStages = ['المرحلة الابتدائية', 'المرحلة المتوسطة', 'المرحلة الثانوية'];
+
   final List<String> _allClasses = [
-    'الكل', 'الفصل 1', 'الفصل 2', 'الفصل 3', 'الفصل 4', 'الفصل 5', 'الفصل 6',
+    'الفصل 1', 'الفصل 2', 'الفصل 3', 'الفصل 4', 'الفصل 5', 'الفصل 6',
     'الفصل 7', 'الفصل 8', 'الفصل 9', 'الفصل 10', 'أ', 'ب', 'ج', 'د', 'هـ'
   ];
 
@@ -1626,7 +1682,7 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
 
   void _addAssignment() {
     if (_selectedStageToAdd == null || _selectedGradeToAdd == null || _selectedClassToAdd == null || _selectedSubjectToAdd == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار المرحلة والصف والفصل والمادة كمجموعة موحدة')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار المرحلة والصف والفصل والمادة كمجموعة موحدة', style: TextStyle(fontFamily: 'Cairo'))));
       return;
     }
 
@@ -1648,13 +1704,13 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
         _addedAssignments.add(assignment);
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('هذا الإسناد مضاف بالفعل')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('هذا الإسناد مضاف بالفعل', style: TextStyle(fontFamily: 'Cairo'))));
     }
   }
 
   void _goToPhase2() {
     if (_addedAssignments.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إضافة الفصول والمواد التي تدرسها (كتلة واحدة)')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إضافة الفصول والمواد التي تدرسها (كتلة واحدة)', style: TextStyle(fontFamily: 'Cairo'))));
       return;
     }
 
@@ -1669,6 +1725,9 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
         builder: (_) => TeacherSchedulePhase2(
           phase1Data: p1Data,
           existingPhase2Data: widget.scheduleData?['phase2Data'],
+          teacherId: widget.teacherId,
+          teacherName: widget.teacherName,
+          isAdmin: widget.isAdmin,
         ),
       ),
     );
@@ -1677,13 +1736,13 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('المرحلة 1: البيانات الأساسية للجدول')),
+      appBar: AppBar(title: Text('المرحلة 1: البيانات الأساسية لجدول ${widget.teacherName}', style: const TextStyle(fontFamily: 'Cairo'))),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('حدد الفصول والمواد التي تدرسها بالتتابع الموحد:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue)),
+            const Text('حدد الفصول والمواد التي تدرسها بالتتابع الموحد:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blue, fontFamily: 'Cairo')),
             const SizedBox(height: 8),
             Card(
               elevation: 2,
@@ -1695,27 +1754,32 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
                     DropdownButtonFormField<String>(
                       decoration: const InputDecoration(labelText: 'المرحلة الدراسية', border: OutlineInputBorder()),
                       value: _selectedStageToAdd,
-                      items: _allStages.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                      items: _allStages.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                       onChanged: (val) => setState(() {
                         _selectedStageToAdd = val;
                         _selectedGradeToAdd = null;
+                        _selectedClassToAdd = null;
                       }),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       decoration: const InputDecoration(labelText: 'الصف', border: OutlineInputBorder()),
                       value: _selectedGradeToAdd,
-                      items: _getGradesForStage(_selectedStageToAdd).map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                      onChanged: (val) => setState(() => _selectedGradeToAdd = val),
+                      items: _getGradesForStage(_selectedStageToAdd).map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
+                      onChanged: (val) => setState(() {
+                        _selectedGradeToAdd = val;
+                        _selectedClassToAdd = null;
+                      }),
                     ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
+                            isExpanded: true,
                             decoration: const InputDecoration(labelText: 'الفصل', border: OutlineInputBorder()),
                             value: _selectedClassToAdd,
-                            items: _allClasses.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                            items: _allClasses.map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                             onChanged: (val) => setState(() => _selectedClassToAdd = val),
                           ),
                         ),
@@ -1724,7 +1788,7 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
                           child: DropdownButtonFormField<String>(
                             decoration: const InputDecoration(labelText: 'المادة', border: OutlineInputBorder()),
                             value: _selectedSubjectToAdd,
-                            items: _allSubjects.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                            items: _allSubjects.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                             onChanged: (val) => setState(() => _selectedSubjectToAdd = val),
                           ),
                         ),
@@ -1736,7 +1800,7 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
                       child: ElevatedButton.icon(
                         onPressed: _addAssignment,
                         icon: const Icon(Icons.add),
-                        label: const Text('إضافة لجدولك'),
+                        label: const Text('إضافة لجدولك', style: TextStyle(fontFamily: 'Cairo')),
                       ),
                     )
                   ],
@@ -1745,13 +1809,13 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
             ),
             const SizedBox(height: 16),
             if (_addedAssignments.isNotEmpty) ...[
-              const Text('تمت الإضافة لجدولك:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+              const Text('تمت الإضافة لجدولك:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontFamily: 'Cairo')),
               const SizedBox(height: 8),
               ..._addedAssignments.map((a) => Card(
                 child: ListTile(
                   leading: const Icon(Icons.check_circle, color: Colors.green),
-                  title: Text('${a['stage']} - ${a['grade']} - ${a['class']}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                  subtitle: Text('المادة: ${a['subject']}'),
+                  title: Text('${a['stage']} - ${a['grade']} - ${a['class']}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                  subtitle: Text('المادة: ${a['subject']}', style: const TextStyle(fontFamily: 'Cairo')),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () => setState(() => _addedAssignments.remove(a)),
@@ -1767,7 +1831,7 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
               child: ElevatedButton(
                 onPressed: _goToPhase2,
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade800, foregroundColor: Colors.white),
-                child: const Text('الانتقال للمرحلة الثانية (تخطيط الجدول)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text('الانتقال للمرحلة الثانية (تخطيط الجدول)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               ),
             )
           ],
@@ -1780,8 +1844,18 @@ class _TeacherSchedulePhase1State extends State<TeacherSchedulePhase1> {
 class TeacherSchedulePhase2 extends StatefulWidget {
   final Map<String, dynamic> phase1Data;
   final Map<String, dynamic>? existingPhase2Data;
+  final String teacherId;
+  final String teacherName;
+  final bool isAdmin;
 
-  const TeacherSchedulePhase2({super.key, required this.phase1Data, this.existingPhase2Data});
+  const TeacherSchedulePhase2({
+    super.key,
+    required this.phase1Data,
+    this.existingPhase2Data,
+    required this.teacherId,
+    required this.teacherName,
+    required this.isAdmin,
+  });
 
   @override
   State<TeacherSchedulePhase2> createState() => _TeacherSchedulePhase2State();
@@ -1792,15 +1866,24 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
   late Map<String, List<Map<String, dynamic>>> _schedule;
   final List<String> periodTypes = ['حصة', 'فارغ', 'إشراف دور', 'اجتماع المادة'];
   final List<String> floors = ['الطابق الأول', 'الطابق الثاني', 'الطابق الثالث', 'الطابق الرابع', 'الطابق الخامس', 'الطابق السادس', 'الطابق السابع'];
-  final List<String> dailySupervisionTasks = ['فارغ', 'مشرف في المقصف', 'مشرف استقبال الباب الخارجي', 'مشرف استقبال الباب الداخلي', 'مشرف الساحة', 'مشرف دورات المياة', 'مشرفن الصلاة', 'مشرف تنظيم'];
+  final List<String> dailySupervisionTasks = ['فارغ', 'مشرف في المقصف', 'مشرف استقبال الباب الخارجي', 'مشرف استقبال الباب الداخلي', 'مشرف الساحة', 'مشرف دورات المياة', 'مشرف صلاة', 'مشرف تنظيم'];
+  List<String> _activeLabsList = [];
 
   bool _isSubmitting = false;
   Map<String, bool> _labSubjects = {};
 
+  bool _coreEditsUnlocked = false;
+
+  Map<String, Map<int, Map<String, dynamic>>> _classBookings = {};
+  Map<String, Map<int, Map<String, dynamic>>> _labBookings = {};
+
   @override
   void initState() {
     super.initState();
+    _coreEditsUnlocked = widget.existingPhase2Data == null || widget.isAdmin;
     _initSchedule();
+    _loadActiveLabs();
+    _loadOtherSchedules();
   }
 
   void _initSchedule() {
@@ -1831,53 +1914,330 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
     }
   }
 
+  Future<void> _loadActiveLabs() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('active_classrooms')
+          .where('type', isEqualTo: 'lab')
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      List<String> temp = [];
+      for (var doc in snap.docs) {
+        String name = doc.data()['name'] ?? '';
+        if (name.isNotEmpty && !temp.contains(name)) {
+          temp.add(name);
+        }
+      }
+      if (temp.isEmpty) {
+        temp = [
+          'معمل حاسوب 1', 'معمل حاسوب 2', 'معمل علوم 1', 'معمل علوم 2',
+          'معمل فنية 1', 'معمل روبوت 1', 'معمل إنجليزي 1', 'معمل إنجليزي 2', 'معمل لغات'
+        ];
+      }
+      if (mounted) {
+        setState(() => _activeLabsList = temp);
+      }
+    } catch (_) {}
+  }
+
+  // ✅ دالة الفلترة الذكية للمعامل حسب نوع المادة المسندة للحصة
+  List<String> _getFilteredLabsForSubject(String? subject) {
+    if (subject == null || subject.isEmpty) return _activeLabsList;
+
+    List<String> keywords = [];
+    if (subject.contains('انجليزي') || subject.contains('English')) {
+      keywords = ['انجليزي', 'إنجليزي', 'لغات', 'English'];
+    } else if (subject.contains('علوم')) {
+      keywords = ['علوم', 'مختبر'];
+    } else if (subject.contains('حاسوب') || subject.contains('رقمية')) {
+      keywords = ['حاسوب', 'حاسب', 'رقمية', 'كمبيوتر'];
+    } else if (subject.contains('فنية')) {
+      keywords = ['فنية', 'رسم'];
+    } else if (subject.contains('روبوت')) {
+      keywords = ['روبوت', 'STEM', 'ستيم'];
+    }
+
+    if (keywords.isEmpty) return _activeLabsList;
+
+    final filtered = _activeLabsList.where((lab) {
+      return keywords.any((k) => lab.toLowerCase().contains(k.toLowerCase()));
+    }).toList();
+
+    return filtered.isNotEmpty ? filtered : _activeLabsList;
+  }
+
+  Future<void> _loadOtherSchedules() async {
+    final snap = await FirebaseFirestore.instance.collection('teacher_schedules').get();
+    for (var doc in snap.docs) {
+      if (doc.id == widget.teacherId) continue;
+      final data = doc.data();
+      final phase2 = data['phase2Data'] as Map<String, dynamic>?;
+      if (phase2 == null) continue;
+      final tName = data['teacherName'] ?? 'معلم آخر';
+
+      for (String day in days) {
+        _classBookings.putIfAbsent(day, () => {});
+        _labBookings.putIfAbsent(day, () => {});
+
+        List periods = phase2[day] ?? [];
+        for (int i = 0; i < periods.length; i++) {
+          var slot = periods[i];
+          if (slot['type'] == 'حصة') {
+            String classKey = '${slot['stage']}-${slot['grade']}-${slot['class']}';
+            _classBookings[day]!.putIfAbsent(i, () => {});
+            _classBookings[day]![i]![classKey] = {'teacherId': doc.id, 'teacherName': tName};
+
+            if (slot['isLab'] == true && slot['labName'] != null) {
+              String labKey = slot['labName'];
+              _labBookings[day]!.putIfAbsent(i, () => {});
+              _labBookings[day]![i]![labKey] = {'teacherId': doc.id, 'teacherName': tName};
+            }
+          }
+        }
+      }
+    }
+  }
+
+  bool _isComprehensiveEdit() {
+    if (widget.existingPhase2Data == null) return true;
+    for (String day in days) {
+      for (int i = 0; i < 8; i++) {
+        var oldSlot = widget.existingPhase2Data![day][i];
+        var newSlot = _schedule[day]![i];
+
+        if (oldSlot['type'] != newSlot['type']) return true;
+
+        if (newSlot['type'] == 'حصة') {
+          if (oldSlot['stage'] != newSlot['stage'] ||
+              oldSlot['grade'] != newSlot['grade'] ||
+              oldSlot['class'] != newSlot['class'] ||
+              oldSlot['subject'] != newSlot['subject']) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  Future<void> _updateTeacherPermissions(String tId) async {
+    Map<String, dynamic> updates = {};
+    List<String> fieldsToReset = [
+      'stage1', 'stage2', 'stage3',
+      'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6',
+      'grade11', 'grade22', 'grade33',
+      'grade111', 'grade222', 'grade333',
+      'class1', 'class2', 'class3', 'class4', 'class5', 'class6',
+      'class11', 'class22', 'class33',
+      'class111', 'class222', 'class333'
+    ];
+    for (var f in fieldsToReset) {
+      updates[f] = FieldValue.delete();
+    }
+
+    final structure = {
+      'المرحلة الابتدائية': {
+        'field': 'stage1',
+        'grades': {
+          'الصف الأول': {'field': 'grade1', 'classField': 'class1'},
+          'الصف الثاني': {'field': 'grade2', 'classField': 'class2'},
+          'الصف الثالث': {'field': 'grade3', 'classField': 'class3'},
+          'الصف الرابع': {'field': 'grade4', 'classField': 'class4'},
+          'الصف الخامس': {'field': 'grade5', 'classField': 'class5'},
+          'الصف السادس': {'field': 'grade6', 'classField': 'class6'},
+        }
+      },
+      'المرحلة المتوسطة': {
+        'field': 'stage2',
+        'grades': {
+          'الصف الأول المتوسط': {'field': 'grade11', 'classField': 'class11'},
+          'الصف الثاني المتوسط': {'field': 'grade22', 'classField': 'class22'},
+          'الصف الثالث المتوسط': {'field': 'grade33', 'classField': 'class33'},
+        }
+      },
+      'المرحلة الثانوية': {
+        'field': 'stage3',
+        'grades': {
+          'الصف الأول الثانوي': {'field': 'grade111', 'classField': 'class111'},
+          'الصف الثاني الثانوي': {'field': 'grade222', 'classField': 'class222'},
+          'الصف الثالث الثانوي': {'field': 'grade333', 'classField': 'class333'},
+        }
+      },
+    };
+
+    Map<String, List<String>> classUpdates = {};
+    final assignments = widget.phase1Data['assignments'] as List? ?? [];
+
+    for (var item in assignments) {
+      final stage = item['stage'];
+      final grade = item['grade'];
+      String className = item['class'].toString().trim();
+      if (int.tryParse(className) != null) className = "الفصل $className";
+      final subject = item['subject'];
+
+      final stageInfo = structure[stage];
+      if (stageInfo != null) {
+        updates[stageInfo['field'] as String] = stage;
+        final gradeInfo = (stageInfo['grades'] as Map)[grade];
+        if (gradeInfo != null) {
+          updates[gradeInfo['field'] as String] = grade;
+          String classField = gradeInfo['classField'] as String;
+          String newPair = "$className=$subject";
+          classUpdates.putIfAbsent(classField, () => []).add(newPair);
+        }
+      }
+    }
+
+    classUpdates.forEach((key, list) {
+      updates[key] = list.toSet().join(', ');
+    });
+
+    await FirebaseFirestore.instance.collection('users').doc(tId).update(updates);
+  }
+
   Future<void> _submitSchedule() async {
     setState(() => _isSubmitting = true);
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
-      await FirebaseFirestore.instance.collection('teacher_schedules').doc(user.uid).set({
-        'teacherId': user.uid,
-        'teacherName': userDoc.data()?['name'] ?? 'معلم',
-        'status': 'pending',
+    for (String day in days) {
+      for (int i = 0; i < 8; i++) {
+        var slot = _schedule[day]![i];
+        if (slot['type'] == 'حصة') {
+          String classKey = '${slot['stage']}-${slot['grade']}-${slot['class']}';
+          var cConflict = _classBookings[day]?[i]?[classKey];
+          if (cConflict != null) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('تعارض! الفصل $classKey مسند بالفعل يوم $day في الحصة ${i + 1} مع المعلم (${cConflict['teacherName']}). لا يمكن وجود أكثر من معلم لنفس الفصل في نفس الحصة.', style: const TextStyle(fontFamily: 'Cairo')),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ));
+            setState(() => _isSubmitting = false);
+            return;
+          }
+
+          if (slot['isLab'] == true && slot['labName'] != null) {
+            String labKey = slot['labName'];
+            var lConflict = _labBookings[day]?[i]?[labKey];
+            if (lConflict != null) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('هذا ممنوع! الحصة محجوزة مع المعلم (${lConflict['teacherName']}) في معمل "$labKey". يرجى عقد اجتماع للاتفاق على حصص المعمل.', style: const TextStyle(fontFamily: 'Cairo')),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 7),
+              ));
+              setState(() => _isSubmitting = false);
+              return;
+            }
+          }
+        }
+      }
+    }
+
+    try {
+      bool isComprehensive = _isComprehensiveEdit();
+      String finalStatus = 'pending';
+
+      if (widget.isAdmin) {
+        finalStatus = 'approved';
+      } else if (!isComprehensive) {
+        finalStatus = 'approved';
+      }
+
+      await FirebaseFirestore.instance.collection('teacher_schedules').doc(widget.teacherId).set({
+        'teacherId': widget.teacherId,
+        'teacherName': widget.teacherName,
+        'status': finalStatus,
         'phase1Data': widget.phase1Data,
         'phase2Data': _schedule,
         'timestamp': FieldValue.serverTimestamp(),
       });
 
+      if (finalStatus == 'approved') {
+        await _updateTeacherPermissions(widget.teacherId);
+      }
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال الجدول للإدارة للموافقة بنجاح.'), backgroundColor: Colors.green));
+        if (finalStatus == 'approved') {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم اعتماد الجدول بنجاح وتحديث الصلاحيات المعنية! ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال طلب التعديل الشامل للإدارة بنجاح للموافقة عليه. ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
+        }
         Navigator.popUntil(context, ModalRoute.withName('/'));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
+  Future<void> _unlockCoreEdits() async {
+    bool? confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+            title: const Row(children: [Icon(Icons.warning, color: Colors.red), SizedBox(width:8), Text('كسر قفل الجدول', style: TextStyle(fontFamily: 'Cairo'))]),
+            content: const Text('التعديل المسموح به بدون الرجوع للإدارة هو إضافة أو إزالة معمل فقط.\n\nفي حال كسر القفل لتعديل الحصص الأساسية، سيتعين عليك إرسال طلب جديد للإدارة للموافقة عليه، ولن يتم اعتماد الجدول حتى توافق الإدارة. هل تريد المتابعة؟', style: TextStyle(fontFamily: 'Cairo', height: 1.5)),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('تراجع', style: TextStyle(fontFamily: 'Cairo'))),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('نعم، اكسر القفل', style: TextStyle(fontFamily: 'Cairo')),
+              )
+            ]
+        )
+    );
+
+    if (confirm == true) {
+      setState(() {
+        _coreEditsUnlocked = true;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('المرحلة 2: تخطيط الجدول')),
+      appBar: AppBar(title: const Text('المرحلة 2: تخطيط وتسكين الجدول', style: TextStyle(fontFamily: 'Cairo'))),
       body: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(10),
             color: Colors.blue.shade50,
-            child: const Text('قم بتعبئة حصصك لكل يوم. الحصة الثامنة مخصصة لإشراف اليوم. (يسمح لك باختيار حصص فراغ أو إشراف الدور)', style: TextStyle(fontSize: 12)),
+            child: const Text('حدد نوع كل حصة والفصل. عند تفعيل خيار المعمل، يتم عرض المعامل الخاصة بنوع المادة المحددة فقط لمنع الأخطاء.', style: TextStyle(fontSize: 12, fontFamily: 'Cairo')),
           ),
+          if (!widget.isAdmin && widget.existingPhase2Data != null && !_coreEditsUnlocked)
+            Container(
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.shade200)
+                ),
+                child: Row(
+                    children: [
+                      const Icon(Icons.lock, color: Colors.red),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text('تعديل الحصص الأساسية مقفل. يمكنك تفعيل المعامل فقط دون الرجوع للإدارة.', style: TextStyle(fontSize: 12, fontFamily: 'Cairo', color: Colors.red, fontWeight: FontWeight.bold)),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                        onPressed: _unlockCoreEdits,
+                        child: const Text('كسر القفل للتعديل الشامل', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                      )
+                    ]
+                )
+            ),
           Expanded(
             child: ListView.builder(
               itemCount: days.length,
               itemBuilder: (context, dIndex) {
                 String day = days[dIndex];
                 return ExpansionTile(
-                  title: Text(day, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                  title: Text(day, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontFamily: 'Cairo')),
                   initiallyExpanded: dIndex == 0,
                   children: List.generate(8, (pIndex) {
                     return _buildPeriodEditor(day, pIndex);
@@ -1893,7 +2253,8 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
               height: 50,
               child: ElevatedButton(
                 onPressed: _isSubmitting ? null : _submitSchedule,
-                child: _isSubmitting ? const CircularProgressIndicator(color: Colors.white) : const Text('إرسال الجدول للموافقة النهائية'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade800, foregroundColor: Colors.white),
+                child: _isSubmitting ? const CircularProgressIndicator(color: Colors.white) : const Text('حفظ واعتـماد الجدول', style: TextStyle(fontFamily: 'Cairo', fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           )
@@ -1904,6 +2265,7 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
 
   Widget _buildPeriodEditor(String day, int pIndex) {
     Map<String, dynamic> slot = _schedule[day]![pIndex];
+    bool isCoreLocked = !_coreEditsUnlocked;
 
     if (pIndex == 7) {
       return Card(
@@ -1915,14 +2277,18 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
             children: [
               const CircleAvatar(child: Text('8')),
               const SizedBox(width: 12),
-              const Expanded(flex: 1, child: Text('الفسحة / إشراف', style: TextStyle(fontWeight: FontWeight.bold))),
+              const Expanded(flex: 1, child: Text('الفسحة / إشراف اليوم', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'))),
               Expanded(
                 flex: 2,
                 child: DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8)),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.all(8),
+                    prefixIcon: isCoreLocked ? const Icon(Icons.lock, color: Colors.red, size: 16) : null,
+                  ),
                   value: dailySupervisionTasks.contains(slot['task']) ? slot['task'] : 'فارغ',
-                  items: dailySupervisionTasks.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12)))).toList(),
-                  onChanged: (val) => setState(() => slot['task'] = val),
+                  items: dailySupervisionTasks.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12, fontFamily: 'Cairo')))).toList(),
+                  onChanged: isCoreLocked ? null : (val) => setState(() => slot['task'] = val),
                 ),
               )
             ],
@@ -1930,6 +2296,9 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
         ),
       );
     }
+
+    // المعامل المفلترة حسب مادة الحصة الحالية
+    final List<String> availableSubjectLabs = _getFilteredLabsForSubject(slot['subject']);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1943,10 +2312,15 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8), labelText: 'نوع الحصة'),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.all(8),
+                      labelText: 'نوع الحصة',
+                      prefixIcon: isCoreLocked ? const Icon(Icons.lock, color: Colors.red, size: 16) : null,
+                    ),
                     value: slot['type'],
-                    items: periodTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                    onChanged: (val) {
+                    items: periodTypes.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
+                    onChanged: isCoreLocked ? null : (val) {
                       setState(() {
                         slot['type'] = val;
                         slot.remove('stage');
@@ -1954,6 +2328,7 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
                         slot.remove('class');
                         slot.remove('subject');
                         slot.remove('isLab');
+                        slot.remove('labName');
                         slot.remove('floor');
                         slot.remove('task');
                       });
@@ -1966,28 +2341,26 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 isExpanded: true,
-                decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8), labelText: 'الفصل والمادة'),
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding: const EdgeInsets.all(8),
+                  labelText: 'الفصل والمادة المسندة',
+                  prefixIcon: isCoreLocked ? const Icon(Icons.lock, color: Colors.red, size: 16) : null,
+                ),
                 value: () {
-                  if (slot['class'] != null && slot['subject'] != null) {
-                    try {
-                      var match = (widget.phase1Data['assignments'] as List).firstWhere(
-                              (a) => a['class'] == slot['class'] && a['subject'] == slot['subject'],
-                          orElse: () => null
-                      );
-                      if (match != null) {
-                        return '${match['grade']} - ${match['class']} - ${match['subject']}';
-                      }
-                    } catch (e) {
-                      return null;
-                    }
+                  if (slot['class'] != null && slot['subject'] != null && slot['grade'] != null) {
+                    final str = '${slot['grade']} - ${slot['class']} - ${slot['subject']}';
+                    final assignments = widget.phase1Data['assignments'] as List? ?? [];
+                    bool exists = assignments.any((a) => '${a['grade']} - ${a['class']} - ${a['subject']}' == str);
+                    if (exists) return str;
                   }
                   return null;
                 }(),
                 items: (widget.phase1Data['assignments'] as List).map((a) {
                   final str = '${a['grade']} - ${a['class']} - ${a['subject']}';
-                  return DropdownMenuItem(value: str, child: Text(str, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)));
+                  return DropdownMenuItem(value: str, child: Text(str, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontFamily: 'Cairo')));
                 }).toList(),
-                onChanged: (val) {
+                onChanged: isCoreLocked ? null : (val) {
                   setState(() {
                     if (val != null) {
                       final selectedA = (widget.phase1Data['assignments'] as List).firstWhere(
@@ -1998,32 +2371,61 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
                       slot['class'] = selectedA['class'];
                       slot['subject'] = selectedA['subject'];
 
+                      final labsForThis = _getFilteredLabsForSubject(slot['subject']);
                       if (_labSubjects[slot['subject']] == true) {
                         slot['isLab'] = true;
-                      }
-                    }
-                  });
-                },
-              ),
-              CheckboxListTile(
-                title: const Text('مادة معمل؟', style: TextStyle(fontSize: 12)),
-                value: slot['isLab'] ?? false,
-                dense: true,
-                onChanged: (val) {
-                  setState(() {
-                    slot['isLab'] = val;
-                    if (val == true && slot['subject'] != null) {
-                      _labSubjects[slot['subject']] = true;
-                      for (String d in days) {
-                        for (int i=0; i<7; i++) {
-                          if (_schedule[d]![i]['subject'] == slot['subject']) {
-                            _schedule[d]![i]['isLab'] = true;
-                          }
+                        if (labsForThis.isNotEmpty && (slot['labName'] == null || !labsForThis.contains(slot['labName']))) {
+                          slot['labName'] = labsForThis.first;
+                        }
+                      } else {
+                        if (slot['labName'] != null && !labsForThis.contains(slot['labName'])) {
+                          slot['labName'] = labsForThis.isNotEmpty ? labsForThis.first : null;
                         }
                       }
                     }
                   });
                 },
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: CheckboxListTile(
+                      title: Text(
+                        'معمل (${slot['subject'] ?? "الحصة"})',
+                        style: const TextStyle(fontSize: 12, fontFamily: 'Cairo', fontWeight: FontWeight.bold),
+                      ),
+                      value: slot['isLab'] ?? false,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (val) {
+                        setState(() {
+                          slot['isLab'] = val;
+                          if (val == true) {
+                            if (slot['subject'] != null) {
+                              _labSubjects[slot['subject']] = true;
+                            }
+                            final validLabs = _getFilteredLabsForSubject(slot['subject']);
+                            if (validLabs.isNotEmpty && (slot['labName'] == null || !validLabs.contains(slot['labName']))) {
+                              slot['labName'] = validLabs.first;
+                            }
+                          } else {
+                            slot.remove('labName');
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                  if (slot['isLab'] == true)
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8), labelText: 'المعمل المتاح للمادة'),
+                        value: (availableSubjectLabs.contains(slot['labName'])) ? slot['labName'] : (availableSubjectLabs.isNotEmpty ? availableSubjectLabs.first : null),
+                        items: availableSubjectLabs.map((l) => DropdownMenuItem(value: l, child: Text(l, style: const TextStyle(fontSize: 11, fontFamily: 'Cairo')))).toList(),
+                        onChanged: (val) => setState(() => slot['labName'] = val),
+                      ),
+                    ),
+                ],
               )
             ],
             if (slot['type'] == 'إشراف دور') ...[
@@ -2032,17 +2434,28 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8), labelText: 'الطابق'),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.all(8),
+                        labelText: 'الطابق',
+                        prefixIcon: isCoreLocked ? const Icon(Icons.lock, color: Colors.red, size: 16) : null,
+                      ),
                       value: slot['floor'],
-                      items: floors.map((f) => DropdownMenuItem(value: f, child: Text(f, style: const TextStyle(fontSize: 12)))).toList(),
-                      onChanged: (val) => setState(() => slot['floor'] = val),
+                      items: floors.map((f) => DropdownMenuItem(value: f, child: Text(f, style: const TextStyle(fontSize: 12, fontFamily: 'Cairo')))).toList(),
+                      onChanged: isCoreLocked ? null : (val) => setState(() => slot['floor'] = val),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextFormField(
-                      decoration: const InputDecoration(isDense: true, contentPadding: EdgeInsets.all(8), labelText: 'المهمة (اختياري)'),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.all(8),
+                        labelText: 'المهمة (اختياري)',
+                        prefixIcon: isCoreLocked ? const Icon(Icons.lock, color: Colors.red, size: 16) : null,
+                      ),
                       initialValue: slot['task'],
+                      readOnly: isCoreLocked,
                       onChanged: (val) => slot['task'] = val,
                     ),
                   )
@@ -2062,12 +2475,12 @@ class AdminScheduleApprovalsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('مراجعة وموافقة الجداول'), backgroundColor: Colors.purple),
+      appBar: AppBar(title: const Text('مراجعة وموافقة الجداول', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.purple),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('teacher_schedules').where('status', isEqualTo: 'pending').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد جداول بانتظار الموافقة.'));
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد جداول بانتظار الموافقة.', style: TextStyle(fontFamily: 'Cairo')));
 
           final docs = snapshot.data!.docs;
           return ListView.builder(
@@ -2081,8 +2494,8 @@ class AdminScheduleApprovalsPage extends StatelessWidget {
                 margin: const EdgeInsets.all(8),
                 child: ListTile(
                   leading: const Icon(Icons.schedule, color: Colors.purple),
-                  title: Text(teacherName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('مرحلة: ${data['phase1Data']?['stage'] ?? ''}'),
+                  title: Text(teacherName, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                  subtitle: Text('مرحلة: ${data['phase1Data']?['stage'] ?? ''}', style: const TextStyle(fontFamily: 'Cairo')),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 14),
                   onTap: () {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => AdminReviewSchedulePage(docId: docId, scheduleData: data)));
@@ -2122,7 +2535,7 @@ class _AdminReviewSchedulePageState extends State<AdminReviewSchedulePage> {
           return StatefulBuilder(builder: (ctx, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('تأكيد اعتماد الجدول بالـ PIN'),
+              title: const Text('تأكيد اعتماد الجدول بالـ PIN', style: TextStyle(fontFamily: 'Cairo')),
               content: Form(
                 key: fKey,
                 child: TextFormField(
@@ -2134,7 +2547,7 @@ class _AdminReviewSchedulePageState extends State<AdminReviewSchedulePage> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   onPressed: localChecking ? null : () async {
                     if (fKey.currentState!.validate()) {
@@ -2148,14 +2561,14 @@ class _AdminReviewSchedulePageState extends State<AdminReviewSchedulePage> {
                           _executeApproval();
                         } else {
                           setDialogState(() => localChecking = false);
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز السري غير صحيح'), backgroundColor: Colors.red));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز السري غير صحيح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
                         }
                       } catch (e) {
                         setDialogState(() => localChecking = false);
                       }
                     }
                   },
-                  child: const Text('تأكيد واعتماد'),
+                  child: const Text('تأكيد واعتماد', style: TextStyle(fontFamily: 'Cairo')),
                 )
               ],
             );
@@ -2250,13 +2663,13 @@ class _AdminReviewSchedulePageState extends State<AdminReviewSchedulePage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تمت الموافقة واعتماد صلاحيات الرصد للمعلم بناءً على جدوله بنجاح.'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('تمت الموافقة واعتماد صلاحيات الرصد للمعلم بناءً على جدوله بنجاح.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
@@ -2266,7 +2679,7 @@ class _AdminReviewSchedulePageState extends State<AdminReviewSchedulePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('جدول ${widget.scheduleData['teacherName']}'), backgroundColor: Colors.purple),
+      appBar: AppBar(title: Text('جدول ${widget.scheduleData['teacherName']}', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.purple),
       body: Stack(
         children: [
           Column(
@@ -2282,7 +2695,7 @@ class _AdminReviewSchedulePageState extends State<AdminReviewSchedulePage> {
                     Expanded(
                       child: Text(
                         'ملاحظة: الموافقة على هذا الجدول ستقوم آلياً بمنح المعلم صلاحيات الرصد للفصول والمواد المذكورة فيه وتحديث ملفه تلقائياً.',
-                        style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                       ),
                     ),
                   ],
@@ -2296,7 +2709,7 @@ class _AdminReviewSchedulePageState extends State<AdminReviewSchedulePage> {
                   height: 50,
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.check_circle),
-                    label: const Text('موافقة واعتماد الجدول والصلاحيات (PIN)'),
+                    label: const Text('موافقة واعتماد الجدول والصلاحيات (PIN)', style: TextStyle(fontFamily: 'Cairo')),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
                     onPressed: _isProcessing ? null : () => _approve(context),
                   ),
@@ -2323,12 +2736,12 @@ class AdminApprovedSchedulesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('الجداول المعتمدة'), backgroundColor: Colors.cyan),
+      appBar: AppBar(title: const Text('الجداول المعتمدة', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.cyan),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('teacher_schedules').where('status', isEqualTo: 'approved').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد جداول معتمدة.'));
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد جداول معتمدة.', style: TextStyle(fontFamily: 'Cairo')));
 
           final docs = snapshot.data!.docs;
           return ListView.builder(
@@ -2341,11 +2754,11 @@ class AdminApprovedSchedulesPage extends StatelessWidget {
                 margin: const EdgeInsets.all(8),
                 child: ListTile(
                   leading: const Icon(Icons.table_chart, color: Colors.cyan),
-                  title: Text(teacherName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  title: Text(teacherName, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 14),
                   onTap: () {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(
-                        appBar: AppBar(title: Text('جدول $teacherName')),
+                        appBar: AppBar(title: Text('جدول $teacherName', style: const TextStyle(fontFamily: 'Cairo'))),
                         body: ScheduleViewer(scheduleData: data['phase2Data'])
                     )));
                   },
@@ -2366,14 +2779,14 @@ class AdminClassPermissionsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('صلاحيات وصول الفصل للمعلمين'),
+        title: const Text('صلاحيات وصول الفصل للمعلمين', style: TextStyle(fontFamily: 'Cairo')),
         backgroundColor: Colors.redAccent.shade700,
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('users').where('profession', isNotEqualTo: 'admin').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا يوجد معلمين على النظام.'));
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا يوجد معلمين على النظام.', style: TextStyle(fontFamily: 'Cairo')));
 
           final teachers = snapshot.data!.docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
@@ -2408,11 +2821,11 @@ class AdminClassPermissionsPage extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(teacherName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                          Text(teacherName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87, fontFamily: 'Cairo')),
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
                             icon: const Icon(Icons.block, size: 16),
-                            label: const Text('إلغاء الوصول للكل (PIN)', style: TextStyle(fontSize: 12)),
+                            label: const Text('إلغاء الوصول للكل (PIN)', style: TextStyle(fontSize: 12, fontFamily: 'Cairo')),
                             onPressed: () async {
                               List<String> fieldsToReset = [
                                 'stage1', 'stage2', 'stage3',
@@ -2431,7 +2844,7 @@ class AdminClassPermissionsPage extends StatelessWidget {
                               await FirebaseFirestore.instance.collection('teacher_schedules').doc(teacherId).delete().catchError((_){});
 
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('تم سحب وإلغاء صلاحية الوصول لكافة الفصول للمعلم $teacherName بنجاح.'), backgroundColor: Colors.red),
+                                SnackBar(content: Text('تم سحب وإلغاء صلاحية الوصول لكافة الفصول للمعلم $teacherName بنجاح.', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
                               );
                             },
                           ),
@@ -2439,15 +2852,15 @@ class AdminClassPermissionsPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       if (assignedGradesClasses.isEmpty)
-                        const Text('لا يمتلك هذا المعلم صلاحية وصول لأي فصول حالياً.', style: TextStyle(color: Colors.grey, fontSize: 13))
+                        const Text('لا يمتلك هذا المعلم صلاحية وصول لأي فصول حالياً.', style: TextStyle(color: Colors.grey, fontSize: 13, fontFamily: 'Cairo'))
                       else ...[
-                        const Text('الفصول والمسندات المفتوحة حالياً للرصد:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey)),
+                        const Text('الفصول والمسندات المفتوحة حالياً للرصد:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, fontFamily: 'Cairo')),
                         const SizedBox(height: 6),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: assignedGradesClasses.map((item) => Chip(
-                            label: Text(item, style: const TextStyle(fontSize: 11)),
+                            label: Text(item, style: const TextStyle(fontSize: 11, fontFamily: 'Cairo')),
                             backgroundColor: Colors.grey.shade100,
                           )).toList(),
                         )
@@ -2479,7 +2892,7 @@ class ScheduleViewer extends StatelessWidget {
         return Card(
           margin: const EdgeInsets.all(8),
           child: ExpansionTile(
-            title: Text(day, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+            title: Text(day, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey, fontFamily: 'Cairo')),
             children: List.generate(periods.length, (pIndex) {
               final pData = periods[pIndex];
               String display = 'فارغ';
@@ -2488,7 +2901,7 @@ class ScheduleViewer extends StatelessWidget {
                 final gradeStr = pData['grade'] != null ? '${pData['grade']} - ' : '';
                 final classStr = pData['class'] ?? '';
                 final subjectStr = pData['subject'] ?? '';
-                final labStr = pData['isLab'] == true ? ' (معمل)' : '';
+                final labStr = pData['isLab'] == true ? ' (معمل: ${pData['labName'] ?? "غير محدد"})' : '';
 
                 display = 'حصة: $stageStr$gradeStr$classStr - $subjectStr$labStr';
               } else if (pData['type'] == 'إشراف دور') {
@@ -2500,8 +2913,8 @@ class ScheduleViewer extends StatelessWidget {
               }
 
               return ListTile(
-                leading: CircleAvatar(child: Text('${pIndex + 1}')),
-                title: Text(display, style: TextStyle(color: display == 'فارغ' ? Colors.grey : Colors.black87)),
+                leading: CircleAvatar(child: Text('${pIndex + 1}', style: const TextStyle(fontFamily: 'Cairo'))),
+                title: Text(display, style: TextStyle(color: display == 'فارغ' ? Colors.grey : Colors.black87, fontFamily: 'Cairo')),
               );
             }),
           ),

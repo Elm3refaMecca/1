@@ -13,7 +13,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'add1.dart';
 import 'main.dart'; // يحتوي على StudentPrintHelper و QRSessionTimer
-import 'package:almarefamecca/add2.dart' hide QRSessionOverlay, QRSessionTimer;
+import 'package:almarefamecca/add2.dart' hide QRSessionOverlay;
 import 'package:almarefamecca/secondary_pages.dart';
 import 'package:almarefamecca/student_view.dart';
 import 'lesson_prep_page.dart'; // ✅ استيراد صفحة تحضيري المضافة
@@ -145,14 +145,14 @@ class _BehaviorSelectionSheetState extends State<_BehaviorSelectionSheet> with S
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('تم تسجيل ${type == 'like' ? 'التميز' : 'المخالفة'} وتصنيفها في أوسمة الطالب بنجاح.'),
+            content: Text('تم تسجيل ${type == 'like' ? 'التميز' : 'المخالفة'} وتصنيفها في أوسمة الطالب بنجاح.', style: const TextStyle(fontFamily: 'Cairo')),
             backgroundColor: type == 'like' ? Colors.green : Colors.red,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -168,12 +168,13 @@ class _BehaviorSelectionSheetState extends State<_BehaviorSelectionSheet> with S
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Text('سجل السلوك: ${widget.studentName}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text('سجل السلوك: ${widget.studentName}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
             const SizedBox(height: 10),
             TabBar(
               controller: _tabController,
               labelColor: Colors.black,
               indicatorColor: Colors.blue,
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
               tabs: const [
                 Tab(text: 'إيجابي (Like)', icon: Icon(Icons.thumb_up_alt_rounded, color: Colors.green)),
                 Tab(text: 'سلبي (Dislike)', icon: Icon(Icons.thumb_down_alt_rounded, color: Colors.red)),
@@ -220,7 +221,7 @@ class _BehaviorSelectionSheetState extends State<_BehaviorSelectionSheet> with S
                 _submitBehavior(type, reason);
               }
             },
-            child: Text(reason, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            child: Text(reason, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
           );
         },
       ),
@@ -231,14 +232,14 @@ class _BehaviorSelectionSheetState extends State<_BehaviorSelectionSheet> with S
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(type == 'like' ? 'سبب التميز' : 'تفاصيل المخالفة/الشكوى'),
+        title: Text(type == 'like' ? 'سبب التميز' : 'تفاصيل المخالفة/الشكوى', style: const TextStyle(fontFamily: 'Cairo')),
         content: TextField(
           controller: _customReasonController,
           decoration: const InputDecoration(hintText: 'اكتب التفاصيل هنا...'),
           maxLines: 3,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
           ElevatedButton(
             onPressed: () {
               if (_customReasonController.text.trim().isNotEmpty) {
@@ -246,7 +247,7 @@ class _BehaviorSelectionSheetState extends State<_BehaviorSelectionSheet> with S
                 _submitBehavior(type, _customReasonController.text.trim());
               }
             },
-            child: const Text('إرسال'),
+            child: const Text('إرسال', style: TextStyle(fontFamily: 'Cairo')),
           ),
         ],
       ),
@@ -287,7 +288,7 @@ class _AddPageState extends State<AddPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('تم تسجيل الخروج تلقائياً لانتهاء جلسة الضيف (3 دقائق).'),
+          content: Text('تم تسجيل الخروج تلقائياً لانتهاء جلسة الضيف (3 دقائق).', style: TextStyle(fontFamily: 'Cairo')),
           backgroundColor: Colors.orange,
           duration: Duration(seconds: 5),
         ),
@@ -345,7 +346,7 @@ class _AddPageState extends State<AddPage> {
   void _showGuestError() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('هذه الميزة غير متاحة لحساب الضيف.'),
+        content: Text('هذه الميزة غير متاحة لحساب الضيف.', style: TextStyle(fontFamily: 'Cairo')),
         backgroundColor: Colors.orange,
       ),
     );
@@ -380,7 +381,7 @@ class _AddPageState extends State<AddPage> {
                 children: [
                   Icon(Icons.vpn_key_rounded, color: Colors.blueGrey),
                   SizedBox(width: 8),
-                  Text('شفرة المعلم'),
+                  Text('شفرة المعلم', style: TextStyle(fontFamily: 'Cairo')),
                 ],
               ),
               content: Column(
@@ -389,7 +390,7 @@ class _AddPageState extends State<AddPage> {
                   const Text(
                     'تقوم هذه الميزة بتوليد شفرة أمان مخفية صالحة لمدة نصف ساعة (30 دقيقة). تُحفظ الشفرة سحابياً لتأمين العمليات على شاشة الفصل في تطبيق الديسكتوب، دون إظهار الرقم للمعلم.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, height: 1.5),
+                    style: TextStyle(fontSize: 13, height: 1.5, fontFamily: 'Cairo'),
                   ),
                   const SizedBox(height: 20),
                   if (isActive)
@@ -404,9 +405,9 @@ class _AddPageState extends State<AddPage> {
                         children: [
                           const Icon(Icons.check_circle, color: Colors.green, size: 40),
                           const SizedBox(height: 8),
-                          const Text('الشفرة مفعلة ومحفوظة سحابياً', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 13)),
+                          const Text('الشفرة مفعلة ومحفوظة سحابياً', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 13, fontFamily: 'Cairo')),
                           const SizedBox(height: 4),
-                          Text('متبقي على انتهاء الصلاحية: $remainingMinutes دقيقة', style: const TextStyle(color: Colors.green, fontSize: 12)),
+                          Text('متبقي على انتهاء الصلاحية: $remainingMinutes دقيقة', style: const TextStyle(color: Colors.green, fontSize: 12, fontFamily: 'Cairo')),
                         ],
                       ),
                     )
@@ -422,17 +423,17 @@ class _AddPageState extends State<AddPage> {
                         children: [
                           Icon(Icons.cancel_outlined, color: Colors.red, size: 40),
                           SizedBox(height: 8),
-                          Text('لا توجد شفرة مفعلة حالياً', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13)),
+                          Text('لا توجد شفرة مفعلة حالياً', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13, fontFamily: 'Cairo')),
                         ],
                       ),
                     ),
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.sync_lock),
-                  label: Text(isActive ? 'تجديد الشفرة (30 دقيقة)' : 'تفعيل الشفرة الآن'),
+                  label: Text(isActive ? 'تجديد الشفرة (30 دقيقة)' : 'تفعيل الشفرة الآن', style: const TextStyle(fontFamily: 'Cairo')),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey, foregroundColor: Colors.white),
                   onPressed: () async {
                     try {
@@ -451,7 +452,7 @@ class _AddPageState extends State<AddPage> {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('تم توليد الشفرة وحفظها سحابياً بنجاح! تطبيق الديسكتوب جاهز للاستخدام.'),
+                            content: Text('تم توليد الشفرة وحفظها سحابياً بنجاح! تطبيق الديسكتوب جاهز للاستخدام.', style: TextStyle(fontFamily: 'Cairo')),
                             backgroundColor: Colors.green,
                           ),
                         );
@@ -459,7 +460,7 @@ class _AddPageState extends State<AddPage> {
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('حدث خطأ أثناء التفعيل: $e'), backgroundColor: Colors.red),
+                          SnackBar(content: Text('حدث خطأ أثناء التفعيل: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
                         );
                       }
                     }
@@ -481,16 +482,16 @@ class _AddPageState extends State<AddPage> {
           children: [
             Icon(Icons.power_settings_new_rounded, color: Colors.red),
             SizedBox(width: 8),
-            Text('تسجيل خروج طارئ سريع'),
+            Text('تسجيل خروج طارئ سريع', style: TextStyle(fontFamily: 'Cairo')),
           ],
         ),
-        content: const Text('هل تريد إنهاء كافة الجلسات المفتوحة على جميع الأجهزة والسبورات وتسجيل الخروج فوراً؟'),
+        content: const Text('هل تريد إنهاء كافة الجلسات المفتوحة على جميع الأجهزة والسبورات وتسجيل الخروج فوراً؟', style: TextStyle(fontFamily: 'Cairo')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('تأكيد الخروج المباشر'),
+            child: const Text('تأكيد الخروج المباشر', style: TextStyle(fontFamily: 'Cairo')),
           ),
         ],
       ),
@@ -515,13 +516,13 @@ class _AddPageState extends State<AddPage> {
         if (mounted) {
           Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تم الخروج السريع وإسقاط الجلسات بنجاح.'), backgroundColor: Colors.green),
+            const SnackBar(content: Text('تم الخروج السريع وإسقاط الجلسات بنجاح.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
+            SnackBar(content: Text('حدث خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
           );
         }
       }
@@ -544,11 +545,11 @@ class _AddPageState extends State<AddPage> {
             onSuccess();
           } else {
             setDialogState(() => false);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز السري غير صحيح!'), backgroundColor: Colors.red));
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز السري غير صحيح!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
           }
         } catch (e) {
           setDialogState(() => false);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
         }
       }
     }
@@ -565,7 +566,7 @@ class _AddPageState extends State<AddPage> {
                 children: [
                   Icon(Icons.security, color: Colors.red),
                   SizedBox(width: 10),
-                  Text('تأكيد الهوية (الأدمن)'),
+                  Text('تأكيد الهوية (الأدمن)', style: TextStyle(fontFamily: 'Cairo')),
                 ],
               ),
               content: Form(
@@ -585,11 +586,11 @@ class _AddPageState extends State<AddPage> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
                   onPressed: checking ? null : () => submitPin(setDialogState, ctx),
-                  child: const Text('تأكيد'),
+                  child: const Text('تأكيد', style: TextStyle(fontFamily: 'Cairo')),
                 ),
               ],
             );
@@ -614,7 +615,7 @@ class _AddPageState extends State<AddPage> {
                 children: [
                   Icon(Icons.move_up_rounded, color: Colors.purple),
                   SizedBox(width: 10),
-                  Text('الاعتماد وترحيل العام'),
+                  Text('الاعتماد وترحيل العام', style: TextStyle(fontFamily: 'Cairo')),
                 ],
               ),
               content: Form(
@@ -624,7 +625,7 @@ class _AddPageState extends State<AddPage> {
                   children: [
                     const Text(
                       'تنبيه هام: سيتم ترحيل جميع الطلاب للصف والمرحلة التالية، وأرشفة سجل درجاتهم للعام الحالي بالكامل ليتم الرجوع إليها لاحقاً.',
-                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13, height: 1.5),
+                      style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 13, height: 1.5, fontFamily: 'Cairo'),
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -640,7 +641,7 @@ class _AddPageState extends State<AddPage> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.purple, foregroundColor: Colors.white),
                   onPressed: isChecking ? null : () async {
@@ -650,16 +651,16 @@ class _AddPageState extends State<AddPage> {
                         setState(() => _isLoading = true);
                         try {
                           await _executePromotion(yearController.text.trim());
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم ترحيل الطلاب وأرشفة الدرجات بنجاح!'), backgroundColor: Colors.green));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم ترحيل الطلاب وأرشفة الدرجات بنجاح!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
                         } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الترحيل: $e'), backgroundColor: Colors.red));
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الترحيل: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
                         } finally {
                           setState(() => _isLoading = false);
                         }
                       });
                     }
                   },
-                  child: const Text('متابعة الترحيل'),
+                  child: const Text('متابعة الترحيل', style: TextStyle(fontFamily: 'Cairo')),
                 ),
               ],
             ) : const SizedBox.shrink();
@@ -748,7 +749,7 @@ class _AddPageState extends State<AddPage> {
       ),
       builder: (context) {
         if (_user == null) {
-          return const Center(child: Text("المستخدم غير مسجل."));
+          return const Center(child: Text("المستخدم غير مسجل.", style: TextStyle(fontFamily: 'Cairo')));
         }
         return DraggableScrollableSheet(
           expand: false,
@@ -758,7 +759,7 @@ class _AddPageState extends State<AddPage> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text("الإشعارات", style: Theme.of(context).textTheme.headlineSmall),
+                child: Text("الإشعارات", style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontFamily: 'Cairo')),
               ),
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
@@ -776,7 +777,7 @@ class _AddPageState extends State<AddPage> {
                       return const Center(
                         child: Padding(
                           padding: EdgeInsets.all(20.0),
-                          child: Text("لا توجد إشعارات حالياً.", style: TextStyle(fontSize: 18, color: Colors.grey)),
+                          child: Text("لا توجد إشعارات حالياً.", style: TextStyle(fontSize: 18, color: Colors.grey, fontFamily: 'Cairo')),
                         ),
                       );
                     }
@@ -800,8 +801,8 @@ class _AddPageState extends State<AddPage> {
 
                         return ListTile(
                           leading: const Icon(Icons.check_circle_outline_rounded, color: Colors.green),
-                          title: Text(data['message'] ?? '...'),
-                          subtitle: Text(formattedDate),
+                          title: Text(data['message'] ?? '...', style: const TextStyle(fontFamily: 'Cairo')),
+                          subtitle: Text(formattedDate, style: const TextStyle(fontFamily: 'Cairo')),
                         );
                       },
                     );
@@ -835,7 +836,7 @@ class _AddPageState extends State<AddPage> {
             children: [
               Icon(Icons.person_add_alt_1_rounded, color: Colors.indigo),
               SizedBox(width: 8),
-              Text('إدارة حسابات المعلمين'),
+              Text('إدارة حسابات المعلمين', style: TextStyle(fontFamily: 'Cairo')),
             ],
           ),
           content: Column(
@@ -846,8 +847,8 @@ class _AddPageState extends State<AddPage> {
                   backgroundColor: Colors.indigoAccent,
                   child: Icon(Icons.auto_mode_rounded, color: Colors.white),
                 ),
-                title: const Text('توليد حساب تلقائي للمعلم', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('توليد بريد وكلمة مرور عشوائية للرقم المتاح'),
+                title: const Text('توليد حساب تلقائي للمعلم', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                subtitle: const Text('توليد بريد وكلمة مرور عشوائية للرقم المتاح', style: TextStyle(fontFamily: 'Cairo')),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showCreateTeacherDialog();
@@ -859,8 +860,8 @@ class _AddPageState extends State<AddPage> {
                   backgroundColor: Colors.deepPurple,
                   child: Icon(Icons.edit_note_rounded, color: Colors.white),
                 ),
-                title: const Text('انشاء حساب جديد بشكل يدوي', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('إدخال الاسم والبريد وكلمة المرور وصلاحية الأدمن'),
+                title: const Text('انشاء حساب جديد بشكل يدوي', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                subtitle: const Text('إدخال الاسم والبريد وكلمة المرور وصلاحية الأدمن', style: TextStyle(fontFamily: 'Cairo')),
                 onTap: () {
                   Navigator.pop(ctx);
                   _showCreateTeacherManualDialog();
@@ -872,8 +873,8 @@ class _AddPageState extends State<AddPage> {
                   backgroundColor: Colors.teal,
                   child: Icon(Icons.badge, color: Colors.white),
                 ),
-                title: const Text('بيانات المعلمين', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('استعراض المعلمين وبطاقاتهم التعريفية وحذفهم'),
+                title: const Text('بيانات المعلمين', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                subtitle: const Text('استعراض المعلمين وبطاقاتهم التعريفية وحذفهم', style: TextStyle(fontFamily: 'Cairo')),
                 onTap: () {
                   Navigator.pop(ctx);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherAccountsListPage()));
@@ -882,7 +883,7 @@ class _AddPageState extends State<AddPage> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
           ],
         ),
       );
@@ -903,7 +904,7 @@ class _AddPageState extends State<AddPage> {
         return StatefulBuilder(builder: (ctx, setDialogState) {
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('إنشاء حساب جديد بشكل يدوي', style: TextStyle(fontWeight: FontWeight.bold)),
+            title: const Text('إنشاء حساب جديد بشكل يدوي', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -928,8 +929,8 @@ class _AddPageState extends State<AddPage> {
                   ),
                   const SizedBox(height: 12),
                   SwitchListTile(
-                    title: const Text('صلاحيات الأدمن', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: const Text('إعطاء هذا الحساب كافة صلاحيات مدير النظام'),
+                    title: const Text('صلاحيات الأدمن', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                    subtitle: const Text('إعطاء هذا الحساب كافة صلاحيات مدير النظام', style: TextStyle(fontFamily: 'Cairo')),
                     value: isAdminRole,
                     activeColor: Colors.indigo,
                     onChanged: (val) {
@@ -941,7 +942,7 @@ class _AddPageState extends State<AddPage> {
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
               ElevatedButton(
                 onPressed: creating ? null : () async {
                   final String name = nameCtrl.text.trim();
@@ -949,7 +950,7 @@ class _AddPageState extends State<AddPage> {
                   final String pass = passCtrl.text.trim();
 
                   if (name.isEmpty || email.isEmpty || pass.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء تعبئة جميع الحقول المطلوبة')));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء تعبئة جميع الحقول المطلوبة', style: TextStyle(fontFamily: 'Cairo'))));
                     return;
                   }
 
@@ -983,10 +984,10 @@ class _AddPageState extends State<AddPage> {
                     _showTeacherAccountResultDialog(name, email, pass);
                   } catch (e) {
                     setDialogState(() => creating = false);
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الإنشاء: $e')));
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الإنشاء: $e', style: const TextStyle(fontFamily: 'Cairo'))));
                   }
                 },
-                child: const Text('إنشاء الحساب وحفظه'),
+                child: const Text('إنشاء الحساب وحفظه', style: TextStyle(fontFamily: 'Cairo')),
               ),
             ],
           );
@@ -1006,7 +1007,7 @@ class _AddPageState extends State<AddPage> {
           return StatefulBuilder(builder: (ctx, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('انشاء حساب معلم جديد', style: TextStyle(fontWeight: FontWeight.bold)),
+              title: const Text('انشاء حساب معلم جديد', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1020,11 +1021,11 @@ class _AddPageState extends State<AddPage> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   onPressed: creating ? null : () async {
                     if (nameCtrl.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء كتابة اسم المعلم')));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء كتابة اسم المعلم', style: TextStyle(fontFamily: 'Cairo'))));
                       return;
                     }
                     setDialogState(() => creating = true);
@@ -1100,10 +1101,10 @@ class _AddPageState extends State<AddPage> {
                       _showTeacherAccountResultDialog(nameCtrl.text.trim(), finalEmail, finalPassword);
                     } catch (e) {
                       setDialogState(() => creating = false);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الإنشاء: $e')));
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الإنشاء: $e', style: const TextStyle(fontFamily: 'Cairo'))));
                     }
                   },
-                  child: const Text('توليد حساب المعلم وحفظه'),
+                  child: const Text('توليد حساب المعلم وحفظه', style: TextStyle(fontFamily: 'Cairo')),
                 ),
               ],
             );
@@ -1122,14 +1123,14 @@ class _AddPageState extends State<AddPage> {
               children: [
                 Icon(Icons.check_circle, color: Colors.green),
                 SizedBox(width: 8),
-                Text('تم إنشاء حساب المعلم بنجاح'),
+                Text('تم إنشاء حساب المعلم بنجاح', style: TextStyle(fontFamily: 'Cairo')),
               ],
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('اسم المعلم: $name', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('اسم المعلم: $name', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -1137,9 +1138,9 @@ class _AddPageState extends State<AddPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('البريد الإلكتروني: $email'),
+                      Text('البريد الإلكتروني: $email', style: const TextStyle(fontFamily: 'Cairo')),
                       const SizedBox(height: 4),
-                      Text('كلمة المرور للحساب: $pass'),
+                      Text('كلمة المرور للحساب: $pass', style: const TextStyle(fontFamily: 'Cairo')),
                     ],
                   ),
                 ),
@@ -1148,13 +1149,13 @@ class _AddPageState extends State<AddPage> {
             actions: [
               ElevatedButton.icon(
                 icon: const Icon(Icons.copy),
-                label: const Text('نسخ البيانات'),
+                label: const Text('نسخ البيانات', style: TextStyle(fontFamily: 'Cairo')),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: 'بيانات حساب المعلم:\nالاسم: $name\nالبريد: $email\nكلمة المرور: $pass'));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ البيانات بنجاح!'), backgroundColor: Colors.green));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ البيانات بنجاح!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
                 },
               ),
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
             ],
           );
         }
@@ -1190,7 +1191,7 @@ class _AddPageState extends State<AddPage> {
           return StatefulBuilder(builder: (ctx, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('انشاء حساب طالب جديد', style: TextStyle(fontWeight: FontWeight.bold)),
+              title: const Text('انشاء حساب طالب جديد', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1200,7 +1201,7 @@ class _AddPageState extends State<AddPage> {
                     DropdownButtonFormField<String>(
                       value: selectedStage,
                       decoration: const InputDecoration(labelText: 'المرحلة الدراسية *', border: OutlineInputBorder()),
-                      items: stages.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                      items: stages.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                       onChanged: (val) {
                         setDialogState(() {
                           selectedStage = val!;
@@ -1212,14 +1213,14 @@ class _AddPageState extends State<AddPage> {
                     DropdownButtonFormField<String>(
                       value: selectedGrade,
                       decoration: const InputDecoration(labelText: 'الصف *', border: OutlineInputBorder()),
-                      items: getGrades().map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                      items: getGrades().map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                       onChanged: (val) => setDialogState(() => selectedGrade = val),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: selectedClass,
                       decoration: const InputDecoration(labelText: 'الفصل *', border: OutlineInputBorder()),
-                      items: List.generate(10, (i) => 'الفصل ${i + 1}').map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                      items: List.generate(10, (i) => 'الفصل ${i + 1}').map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                       onChanged: (val) => setDialogState(() => selectedClass = val!),
                     ),
                     const SizedBox(height: 12),
@@ -1231,11 +1232,11 @@ class _AddPageState extends State<AddPage> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   onPressed: creating ? null : () async {
                     if (nameCtrl.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء كتابة اسم الطالب')));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء كتابة اسم الطالب', style: TextStyle(fontFamily: 'Cairo'))));
                       return;
                     }
                     setDialogState(() => creating = true);
@@ -1319,10 +1320,10 @@ class _AddPageState extends State<AddPage> {
                       _showAccountResultDialog(nameCtrl.text.trim(), finalEmail, finalPassword, complaintsPin, selectedClass);
                     } catch (e) {
                       setDialogState(() => creating = false);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الإنشاء: $e')));
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الإنشاء: $e', style: const TextStyle(fontFamily: 'Cairo'))));
                     }
                   },
-                  child: const Text('توليد الحساب وحفظه'),
+                  child: const Text('توليد الحساب وحفظه', style: TextStyle(fontFamily: 'Cairo')),
                 ),
               ],
             );
@@ -1341,16 +1342,16 @@ class _AddPageState extends State<AddPage> {
               children: [
                 Icon(Icons.check_circle, color: Colors.green),
                 SizedBox(width: 8),
-                Text('تم إنشاء الحساب بنجاح'),
+                Text('تم إنشاء الحساب بنجاح', style: TextStyle(fontFamily: 'Cairo')),
               ],
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('اسم الطالب: $name', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text('اسم الطالب: $name', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                 const SizedBox(height: 8),
-                Text('الفصل المسند: $cls'),
+                Text('الفصل المسند: $cls', style: const TextStyle(fontFamily: 'Cairo')),
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -1358,35 +1359,35 @@ class _AddPageState extends State<AddPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('البريد الإلكتروني: $email'),
+                      Text('البريد الإلكتروني: $email', style: const TextStyle(fontFamily: 'Cairo')),
                       const SizedBox(height: 4),
-                      Text('كلمة المرور للحساب: $pass'),
+                      Text('كلمة المرور للحساب: $pass', style: const TextStyle(fontFamily: 'Cairo')),
                       const SizedBox(height: 4),
-                      Text('الرمز السري للشكاوى: $pin', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                      Text('الرمز السري للشكاوى: $pin', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontFamily: 'Cairo')),
                     ],
                   ),
                 ),
                 const SizedBox(height: 12),
-                const Text('يمكنك طباعة أو نسخ البيانات كاملة لإعطائها لولي الأمر مباشرة.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const Text('يمكنك طباعة أو نسخ البيانات كاملة لإعطائها لولي الأمر مباشرة.', style: TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo')),
               ],
             ),
             actions: [
               ElevatedButton.icon(
                 icon: const Icon(Icons.print),
-                label: const Text('طباعة الباركود'),
+                label: const Text('طباعة الباركود', style: TextStyle(fontFamily: 'Cairo')),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال أمر الطباعة')));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال أمر الطباعة', style: TextStyle(fontFamily: 'Cairo'))));
                 },
               ),
               ElevatedButton.icon(
                 icon: const Icon(Icons.copy),
-                label: const Text('نسخ البيانات'),
+                label: const Text('نسخ البيانات', style: TextStyle(fontFamily: 'Cairo')),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: 'بيانات حساب الطالب المكتملة:\nالاسم: $name\nالفصل: $cls\nالبريد: $email\nكلمة المرور: $pass\nالرمز السري للشكاوى: $pin'));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ بيانات الحساب بنجاح!'), backgroundColor: Colors.green));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ بيانات الحساب بنجاح!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
                 },
               ),
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
             ],
           );
         }
@@ -1417,14 +1418,14 @@ class _AddPageState extends State<AddPage> {
           return StatefulBuilder(builder: (ctx, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('استعراض قوائم الفصول والمراحل', style: TextStyle(fontWeight: FontWeight.bold)),
+              title: const Text('استعراض قوائم الفصول والمراحل', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
                     value: selectedStage,
                     decoration: const InputDecoration(labelText: 'المرحلة الدراسية', border: OutlineInputBorder()),
-                    items: stages.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: stages.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                     onChanged: (val) {
                       setDialogState(() {
                         selectedStage = val!;
@@ -1436,26 +1437,26 @@ class _AddPageState extends State<AddPage> {
                   DropdownButtonFormField<String>(
                     value: selectedGrade,
                     decoration: const InputDecoration(labelText: 'الصف الدراسي', border: OutlineInputBorder()),
-                    items: getGrades().map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: getGrades().map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                     onChanged: (val) => setDialogState(() => selectedGrade = val),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedClass,
                     decoration: const InputDecoration(labelText: 'الفصل الدراسي', border: OutlineInputBorder()),
-                    items: List.generate(10, (i) => 'الفصل ${i + 1}').map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: List.generate(10, (i) => 'الفصل ${i + 1}').map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                     onChanged: (val) => setDialogState(() => selectedClass = val!),
                   ),
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(ctx);
                     Navigator.push(context, MaterialPageRoute(builder: (_) => ClassStudentsListPage(stage: selectedStage, grade: selectedGrade!, className: selectedClass, verifyAdminPin: _verifyAdminPin)));
                   },
-                  child: const Text('عرض القائمة'),
+                  child: const Text('عرض القائمة', style: TextStyle(fontFamily: 'Cairo')),
                 )
               ],
             );
@@ -1471,7 +1472,7 @@ class _AddPageState extends State<AddPage> {
       appBar: AppBar(
         backgroundColor: Colors.lightBlue.shade400,
         elevation: 0,
-        title: const Text('لوحة التحكم الرئيسي', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('لوحة التحكم الرئيسي', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
         centerTitle: true,
         actions: [
           IconButton(
@@ -1484,6 +1485,12 @@ class _AddPageState extends State<AddPage> {
             onPressed: _quickLogoutAllDevices,
           ),
         ],
+      ),
+      bottomNavigationBar: Container(
+        height: 35,
+        color: Colors.grey.shade200,
+        alignment: Alignment.center,
+        child: const Text('مطور الموقع أ : مصطفي سعيد', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
       ),
       body: RefreshIndicator(
         onRefresh: _onRefresh,
@@ -1553,7 +1560,7 @@ class _AddPageState extends State<AddPage> {
                     ),
                     Text(
                       jobTitle,
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      style: const TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Cairo'),
                     ),
                   ],
                 ),
@@ -1597,7 +1604,7 @@ class _AddPageState extends State<AddPage> {
                 },
               ),
 
-              // --- ميزة تحضيري (جديدة ومربوطة مباشرة بملف lesson_prep_page.dart) ---
+              // --- ميزة تحضيري ---
               _AnimatedGridButton(
                 title: _isAdmin ? 'متابعة التحضير' : 'تحضيري',
                 icon: Icons.auto_stories_rounded,
@@ -1627,7 +1634,7 @@ class _AddPageState extends State<AddPage> {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('عفواً، لا يوجد جدول حصص معتمد لك حالياً. يرجى اعتماد جدولك أولاً من قسم الخدمات والجداول.'),
+                            content: Text('عفواً، لا يوجد جدول حصص معتمد لك حالياً. يرجى اعتماد جدولك أولاً من قسم الخدمات والجداول.', style: TextStyle(fontFamily: 'Cairo')),
                             backgroundColor: Colors.orange,
                           ),
                         );
@@ -1648,7 +1655,7 @@ class _AddPageState extends State<AddPage> {
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('حدث خطأ أثناء جلب الجدول: $e'), backgroundColor: Colors.red),
+                        SnackBar(content: Text('حدث خطأ أثناء جلب الجدول: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
                       );
                     }
                   }
@@ -1856,7 +1863,7 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
     if (fileSize > 50 * 1024 * 1024) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('عفواً، حجم الملف يتجاوز الحد الأقصى (50 ميجابايت).'), backgroundColor: Colors.red),
+          const SnackBar(content: Text('عفواً، حجم الملف يتجاوز الحد الأقصى (50 ميجابايت).', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
         );
       }
       return;
@@ -1876,7 +1883,7 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
             children: [
               Icon(Icons.cloud_upload_rounded, color: Colors.cyan),
               SizedBox(width: 8),
-              Text('إعدادات المحتوى المرفوع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('إعدادات المحتوى المرفوع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
             ],
           ),
           content: SingleChildScrollView(
@@ -1886,7 +1893,7 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
                 DropdownButtonFormField<String>(
                   value: selectedType,
                   decoration: const InputDecoration(labelText: 'اختر القسم المستهدف *', border: OutlineInputBorder()),
-                  items: _typeLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+                  items: _typeLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                   onChanged: (val) {
                     if (val != null) setDialogState(() => selectedType = val);
                   },
@@ -1913,11 +1920,11 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.cyan.shade800, foregroundColor: Colors.white),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('متابعة الرفع للسحابة'),
+              child: const Text('متابعة الرفع للسحابة', style: TextStyle(fontFamily: 'Cairo')),
             ),
           ],
         ),
@@ -1952,11 +1959,11 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الرفع وحفظ المحتوى بنجاح ✅'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الرفع وحفظ المحتوى بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الرفع: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الرفع: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isUploading = false);
@@ -1979,7 +1986,7 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
             children: [
               Icon(Icons.edit_rounded, color: Colors.blue),
               SizedBox(width: 8),
-              Text('تعديل الخصائص والترتيب ✏️', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('تعديل الخصائص والترتيب ✏️', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
             ],
           ),
           content: SingleChildScrollView(
@@ -1989,7 +1996,7 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
                 DropdownButtonFormField<String>(
                   value: _typeLabels.containsKey(selectedType) ? selectedType : 'hero',
                   decoration: const InputDecoration(labelText: 'القسم المخصص', border: OutlineInputBorder()),
-                  items: _typeLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+                  items: _typeLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                   onChanged: (val) {
                     if (val != null) setDialogState(() => selectedType = val);
                   },
@@ -2016,11 +2023,11 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade800, foregroundColor: Colors.white),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('حفظ التعديلات'),
+              child: const Text('حفظ التعديلات', style: TextStyle(fontFamily: 'Cairo')),
             ),
           ],
         ),
@@ -2037,7 +2044,7 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث الترتيب والخصائص بنجاح ✨'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث الترتيب والخصائص بنجاح ✨', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
       }
     }
   }
@@ -2047,23 +2054,23 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('تحديث إحصائية: $title'),
+        title: Text('تحديث إحصائية: $title', style: const TextStyle(fontFamily: 'Cairo')),
         content: TextField(
           controller: ctrl,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(labelText: 'العدد المعتمد', border: OutlineInputBorder()),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
           ElevatedButton(
             onPressed: () async {
               await FirebaseFirestore.instance.collection('settings').doc('school_stats').set({
                 key: ctrl.text.trim(),
               }, SetOptions(merge: true));
               Navigator.pop(ctx);
-              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث الرقم بنجاح ✅'), backgroundColor: Colors.green));
+              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تحديث الرقم بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
             },
-            child: const Text('حفظ'),
+            child: const Text('حفظ', style: TextStyle(fontFamily: 'Cairo')),
           ),
         ],
       ),
@@ -2073,7 +2080,13 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('إدارة البروشورات وأقسام المعرض'), backgroundColor: Colors.cyan.shade700, foregroundColor: Colors.white),
+      appBar: AppBar(title: const Text('إدارة البروشورات وأقسام المعرض', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.cyan.shade700, foregroundColor: Colors.white),
+      bottomNavigationBar: Container(
+        height: 35,
+        color: Colors.grey.shade200,
+        alignment: Alignment.center,
+        child: const Text('مطور الموقع أ : مصطفي سعيد', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -2082,11 +2095,11 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
             if (_isUploading) ...[
               const LinearProgressIndicator(),
               const SizedBox(height: 10),
-              const Center(child: Text('جاري رفع الملف إلى السحابة... يرجى الانتظار ⏳', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
+              const Center(child: Text('جاري رفع الملف إلى السحابة... يرجى الانتظار ⏳', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontFamily: 'Cairo'))),
               const SizedBox(height: 16),
             ],
 
-            const Text('رفع محتوى جديد حسب القسم:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey)),
+            const Text('رفع محتوى جديد حسب القسم:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey, fontFamily: 'Cairo')),
             const SizedBox(height: 12),
 
             Wrap(
@@ -2106,7 +2119,7 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
             const Divider(),
             const SizedBox(height: 12),
 
-            const Text('إحصائيات وأرقام المدرسة المعروضة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.indigo)),
+            const Text('إحصائيات وأرقام المدرسة المعروضة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.indigo, fontFamily: 'Cairo')),
             const SizedBox(height: 10),
 
             StreamBuilder<DocumentSnapshot>(
@@ -2122,8 +2135,8 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
                       child: Card(
                         color: Colors.orange.shade50,
                         child: ListTile(
-                          title: const Text('إجمالي الخريجين', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          subtitle: Text(graduates, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
+                          title: const Text('إجمالي الخريجين', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                          subtitle: Text(graduates, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange, fontFamily: 'Cairo')),
                           trailing: IconButton(
                             icon: const Icon(Icons.edit, color: Colors.blue),
                             onPressed: () => _updateStatsDialog('graduates_count', 'إجمالي الخريجين', graduates),
@@ -2136,8 +2149,8 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
                       child: Card(
                         color: Colors.pink.shade50,
                         child: ListTile(
-                          title: const Text('ابتسامة حققناها', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          subtitle: Text(smiles, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.pink)),
+                          title: const Text('ابتسامة حققناها', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                          subtitle: Text(smiles, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.pink, fontFamily: 'Cairo')),
                           trailing: IconButton(
                             icon: const Icon(Icons.edit, color: Colors.blue),
                             onPressed: () => _updateStatsDialog('smiles_count', 'كم ابتسامة حققتها المدرسة', smiles),
@@ -2152,14 +2165,14 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
 
             const SizedBox(height: 24),
             const Divider(),
-            const Text('المحتويات والبروشورات المرفوعة سحابياً:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text('المحتويات والبروشورات المرفوعة سحابياً:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
             const SizedBox(height: 10),
 
             StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance.collection('website_brochures').orderBy('order', descending: false).snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('لا توجد عناصر مضافة حالياً.')));
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('لا توجد عناصر مضافة حالياً.', style: TextStyle(fontFamily: 'Cairo'))));
 
                 final docs = snapshot.data!.docs;
                 return ListView.builder(
@@ -2194,8 +2207,8 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
                             ),
                           ),
                         ),
-                        title: Text(data['title']?.isNotEmpty == true ? data['title'] : typeText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        subtitle: Text('الترتيب: $order ${!isVideo ? "| مدة العرض: $duration ثوانٍ" : ""}'),
+                        title: Text(data['title']?.isNotEmpty == true ? data['title'] : typeText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                        subtitle: Text('الترتيب: $order ${!isVideo ? "| مدة العرض: $duration ثوانٍ" : ""}', style: const TextStyle(fontFamily: 'Cairo')),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -2213,9 +2226,9 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
                                     await FirebaseStorage.instance.ref().child('website_brochures').child(data['fileName']).delete().catchError((_){});
                                   }
                                   await doc.reference.delete();
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الحذف بنجاح')));
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الحذف بنجاح', style: TextStyle(fontFamily: 'Cairo'))));
                                 } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الحذف: $e')));
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الحذف: $e', style: const TextStyle(fontFamily: 'Cairo'))));
                                 }
                               },
                             ),
@@ -2237,7 +2250,7 @@ class _AdminBrochuresManagementPageState extends State<AdminBrochuresManagementP
     return ActionChip(
       elevation: 2,
       backgroundColor: color,
-      label: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+      label: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo')),
       onPressed: onTap,
     );
   }
@@ -2268,11 +2281,11 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
             onSuccess();
           } else {
             setDialogState(() => false);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز السري غير صحيح!'), backgroundColor: Colors.red));
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز السري غير صحيح!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
           }
         } catch (e) {
           setDialogState(() => false);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
         }
       }
     }
@@ -2289,7 +2302,7 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
                 children: [
                   Icon(Icons.security, color: Colors.red),
                   SizedBox(width: 10),
-                  Text('تأكيد هوية الأدمن (PIN)'),
+                  Text('تأكيد هوية الأدمن (PIN)', style: TextStyle(fontFamily: 'Cairo')),
                 ],
               ),
               content: Form(
@@ -2309,11 +2322,11 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
                   onPressed: checking ? null : () => submitPin(setDialogState, ctx),
-                  child: const Text('تأكيد'),
+                  child: const Text('تأكيد', style: TextStyle(fontFamily: 'Cairo')),
                 ),
               ],
             );
@@ -2336,7 +2349,7 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
             children: [
               const Icon(Icons.badge, color: Colors.indigo),
               const SizedBox(width: 8),
-              Expanded(child: Text('البطاقة التعريفية: $name', style: const TextStyle(fontSize: 16))),
+              Expanded(child: Text('البطاقة التعريفية: $name', style: const TextStyle(fontSize: 16, fontFamily: 'Cairo'))),
             ],
           ),
           content: Column(
@@ -2349,11 +2362,11 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('الاسم: $name', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('الاسم: $name', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     const SizedBox(height: 6),
-                    Text('البريد الإلكتروني: $email', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                    Text('البريد الإلكتروني: $email', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     const SizedBox(height: 6),
-                    Text('كلمة المرور للحساب: $pass', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('كلمة المرور للحساب: $pass', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                   ],
                 ),
               ),
@@ -2362,13 +2375,13 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
           actions: [
             ElevatedButton.icon(
               icon: const Icon(Icons.copy),
-              label: const Text('نسخ البطاقة'),
+              label: const Text('نسخ البطاقة', style: TextStyle(fontFamily: 'Cairo')),
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: 'البطاقة التعريفية للمعلم:\nالاسم: $name\nالبريد: $email\nكلمة المرور: $pass'));
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ بيانات البطاقة!'), backgroundColor: Colors.green));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ بيانات البطاقة!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
               },
             ),
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
           ],
         ),
       );
@@ -2382,7 +2395,7 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
     if (currentEmail != 'mostafa.said@gmail.com') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('عفواً، الحساب mostafa.said@gmail.com فقط هو المخول بحذف المعلمين والأدمن!'),
+          content: Text('عفواً، الحساب mostafa.said@gmail.com فقط هو المخول بحذف المعلمين والأدمن!', style: TextStyle(fontFamily: 'Cairo')),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 4),
         ),
@@ -2394,11 +2407,11 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
       try {
         await FirebaseFirestore.instance.collection('users').doc(teacherId).delete();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم حذف حساب المعلم ($teacherName) بنجاح.'), backgroundColor: Colors.orange),
+          SnackBar(content: Text('تم حذف حساب المعلم ($teacherName) بنجاح.', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.orange),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ أثناء الحذف: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('حدث خطأ أثناء الحذف: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
         );
       }
     });
@@ -2407,13 +2420,19 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('قائمة بيانات المعلمين والأدمن'), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+      appBar: AppBar(title: const Text('قائمة بيانات المعلمين والأدمن', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+      bottomNavigationBar: Container(
+        height: 35,
+        color: Colors.grey.shade200,
+        alignment: Alignment.center,
+        child: const Text('مطور الموقع أ : مصطفي سعيد', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('users').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('لا يوجد حسابات مدرجة حالياً.', style: TextStyle(color: Colors.grey)));
+            return const Center(child: Text('لا يوجد حسابات مدرجة حالياً.', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')));
           }
 
           final docs = snapshot.data!.docs;
@@ -2436,9 +2455,9 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
                   ),
                   title: Text(
                     '${data['name'] ?? ''}${isAdmin ? ' (أدمن)' : ''}',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: isAdmin ? Colors.red.shade900 : Colors.black87),
+                    style: TextStyle(fontWeight: FontWeight.bold, color: isAdmin ? Colors.red.shade900 : Colors.black87, fontFamily: 'Cairo'),
                   ),
-                  subtitle: Text('البريد: ${data['email'] ?? '-'}'),
+                  subtitle: Text('البريد: ${data['email'] ?? '-'}', style: const TextStyle(fontFamily: 'Cairo')),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -2487,7 +2506,7 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
     if (lastSeenTimestamp == null) {
       return const Text(
         'لم يُسجل',
-        style: TextStyle(fontSize: 12, color: Colors.grey),
+        style: TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo'),
       );
     }
 
@@ -2498,27 +2517,27 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
     if (difference.inMinutes < 5) {
       return const Text(
         'متصل الآن',
-        style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+        style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
       );
     } else if (difference.inMinutes < 60) {
       return Text(
         'آخر ظهور: ${difference.inMinutes} د',
-        style: const TextStyle(fontSize: 12, color: Colors.grey),
+        style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo'),
       );
     } else if (difference.inHours < 24) {
       return Text(
         'آخر ظهور: ${difference.inHours} س',
-        style: const TextStyle(fontSize: 12, color: Colors.grey),
+        style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo'),
       );
     } else if (difference.inDays == 1) {
       return const Text(
         'آخر ظهور: أمس',
-        style: const TextStyle(fontSize: 12, color: Colors.grey),
+        style: TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo'),
       );
     } else {
       return Text(
         intl.DateFormat('yyyy/MM/dd', 'ar').format(lastSeen),
-        style: const TextStyle(fontSize: 12, color: Colors.grey),
+        style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo'),
       );
     }
   }
@@ -2591,11 +2610,11 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
     final bool? confirm1 = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('تغيير رمز الفيزا'),
-        content: Text('هل تريد تغيير رمز الفيزا للطالب: $studentName؟\nالرمز القديم سيتوقف عن العمل فوراً.'),
+        title: const Text('تغيير رمز الفيزا', style: TextStyle(fontFamily: 'Cairo')),
+        content: Text('هل تريد تغيير رمز الفيزا للطالب: $studentName؟\nالرمز القديم سيتوقف عن العمل فوراً.', style: const TextStyle(fontFamily: 'Cairo')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('نعم، متابعة')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('نعم، متابعة', style: TextStyle(fontFamily: 'Cairo'))),
         ],
       ),
     );
@@ -2605,17 +2624,17 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
     final bool? confirm2 = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(children: [Icon(Icons.warning_amber_rounded, color: Colors.red), SizedBox(width: 8), Text('تحذير هام')]),
+        title: const Row(children: [Icon(Icons.warning_amber_rounded, color: Colors.red), SizedBox(width: 8), Text('تحذير هام', style: TextStyle(fontFamily: 'Cairo'))]),
         content: const Text(
           'هذه العملية لا يمكن التراجع عنها.\nسيتم فقدان الرمز السابق نهائياً.\nهل أنت متأكد تماماً؟',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('تراجع')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('تراجع', style: TextStyle(fontFamily: 'Cairo'))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('نعم، أنا متأكد'),
+            child: const Text('نعم، أنا متأكد', style: TextStyle(fontFamily: 'Cairo')),
           ),
         ],
       ),
@@ -2637,11 +2656,11 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
             if (mounted) Navigator.pop(ctx, true);
           } else {
             setDialogState(() => false);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز غير صحيح!'), backgroundColor: Colors.red));
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز غير صحيح!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
           }
         } catch (e) {
           setDialogState(() => false);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
         }
       }
     }
@@ -2653,13 +2672,13 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
         bool isChecking = false;
         return StatefulBuilder(builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text('تأكيد الأمان'),
+            title: const Text('تأكيد الأمان', style: TextStyle(fontFamily: 'Cairo')),
             content: Form(
               key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('الرجاء إدخال الرقم السري للأدمن لإتمام العملية:'),
+                  const Text('الرجاء إدخال الرقم السري للأدمن لإتمام العملية:', style: TextStyle(fontFamily: 'Cairo')),
                   const SizedBox(height: 10),
                   TextFormField(
                     controller: pinController,
@@ -2684,11 +2703,11 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
             actions: [
               TextButton(
                   onPressed: isChecking ? null : () => Navigator.pop(context, false),
-                  child: const Text('إلغاء')
+                  child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))
               ),
               ElevatedButton(
                 onPressed: isChecking ? null : () => submitPin(setDialogState, context),
-                child: const Text('تأكيد وتغيير'),
+                child: const Text('تأكيد وتغيير', style: TextStyle(fontFamily: 'Cairo')),
               ),
             ],
           );
@@ -2704,13 +2723,13 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('تم تغيير رمز الفيزا للطالب $studentName بنجاح!'), backgroundColor: Colors.green),
+            SnackBar(content: Text('تم تغيير رمز الفيزا للطالب $studentName بنجاح!', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('فشل التحديث: $e'), backgroundColor: Colors.red),
+            SnackBar(content: Text('فشل التحديث: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
           );
         }
       }
@@ -2721,7 +2740,13 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('البحث عن طالب'),
+        title: const Text('البحث عن طالب', style: TextStyle(fontFamily: 'Cairo')),
+      ),
+      bottomNavigationBar: Container(
+        height: 35,
+        color: Colors.grey.shade200,
+        alignment: Alignment.center,
+        child: const Text('مطور الموقع أ : مصطفي سعيد', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
       ),
       body: Column(
         children: [
@@ -2753,7 +2778,7 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _searchResults.isEmpty
-                ? Center(child: Text(_searchStatus, style: const TextStyle(fontSize: 16, color: Colors.grey)))
+                ? Center(child: Text(_searchStatus, style: const TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo')))
                 : ListView.builder(
               itemCount: _searchResults.length,
               itemBuilder: (context, index) {
@@ -2768,8 +2793,8 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: ListTile(
                     leading: const Icon(Icons.person_rounded),
-                    title: Text(name),
-                    subtitle: Text('$grade / $className'),
+                    title: Text(name, style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+                    subtitle: Text('$grade / $className', style: const TextStyle(fontFamily: 'Cairo')),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -2797,7 +2822,7 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
                                 children: const [
                                   Icon(Icons.visibility_rounded, color: Colors.blue),
                                   SizedBox(width: 8),
-                                  Text('عرض الملف'),
+                                  Text('عرض الملف', style: TextStyle(fontFamily: 'Cairo')),
                                 ],
                               ),
                             ),
@@ -2807,7 +2832,7 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
                                 children: const [
                                   Icon(Icons.refresh, color: Colors.red),
                                   SizedBox(width: 8),
-                                  Text('تغيير رمز الفيزا'),
+                                  Text('تغيير رمز الفيزا', style: TextStyle(fontFamily: 'Cairo')),
                                 ],
                               ),
                             ),
@@ -2817,7 +2842,7 @@ class _StudentSearchPageState extends State<StudentSearchPage> {
                                 children: const [
                                   Icon(Icons.thumb_up_alt_rounded, color: Colors.orange),
                                   SizedBox(width: 8),
-                                  Text('تسجيل سلوك'),
+                                  Text('تسجيل سلوك', style: TextStyle(fontFamily: 'Cairo')),
                                 ],
                               ),
                             ),
@@ -2864,7 +2889,13 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('صندوق الشكاوى والردود'),
+        title: const Text('صندوق الشكاوى والردود', style: TextStyle(fontFamily: 'Cairo')),
+      ),
+      bottomNavigationBar: Container(
+        height: 35,
+        color: Colors.grey.shade200,
+        alignment: Alignment.center,
+        child: const Text('مطور الموقع أ : مصطفي سعيد', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
       ),
       body: Column(
         children: [
@@ -2879,7 +2910,7 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
                 Expanded(
                   child: Text(
                     'تنبيه هام: يرجى عدم الرد على أي رسالة تخص معلم آخر. الرد مسؤولية المعلم المرسل للشكوى فقط.',
-                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12),
+                    style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo'),
                   ),
                 ),
               ],
@@ -2893,7 +2924,7 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+                  return Center(child: Text('حدث خطأ: ${snapshot.error}', style: const TextStyle(fontFamily: 'Cairo')));
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(
@@ -2902,8 +2933,8 @@ class _ComplaintsBoxPageState extends State<ComplaintsBoxPage> {
                       children: [
                         Icon(Icons.inbox_rounded, size: 80, color: Colors.grey),
                         SizedBox(height: 16),
-                        Text('صندوق الشكاوى فارغ', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                        Text('لم تصل أي ردود من أولياء الأمور بعد.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+                        Text('صندوق الشكاوى فارغ', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                        Text('لم تصل أي ردود من أولياء الأمور بعد.', style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo')),
                       ],
                     ),
                   );
@@ -2957,7 +2988,7 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
     if (currentUser == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('خطأ: المستخدم غير مسجل.'), backgroundColor: Colors.red),
+          const SnackBar(content: Text('خطأ: المستخدم غير مسجل.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
         );
         setState(() => _isSubmitting = false);
       }
@@ -2998,13 +3029,13 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إرسال الرد وإغلاق الشكوى بنجاح.'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('تم إرسال الرد وإغلاق الشكوى بنجاح.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل إرسال الرد: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('فشل إرسال الرد: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -3047,12 +3078,12 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const CircleAvatar(child: Icon(Icons.person_rounded)),
-              title: Text(studentName, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text("مادة: $subject"),
+              title: Text(studentName, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+              subtitle: Text("مادة: $subject", style: const TextStyle(fontFamily: 'Cairo')),
               trailing: Chip(
                 label: Text(
                   teacherFinalReply != null ? 'مغلقة' : 'بانتظار الرد',
-                  style: TextStyle(color: teacherFinalReply != null ? Colors.white : Colors.black87),
+                  style: TextStyle(color: teacherFinalReply != null ? Colors.white : Colors.black87, fontFamily: 'Cairo'),
                 ),
                 backgroundColor: teacherFinalReply != null ? Colors.grey : Colors.amber.shade300,
               ),
@@ -3111,7 +3142,7 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
                                     ? const Center(child: CircularProgressIndicator())
                                     : ElevatedButton.icon(
                                   icon: const Icon(Icons.send_rounded),
-                                  label: const Text('إرسال الرد وإغلاق الشكوى'),
+                                  label: const Text('إرسال الرد وإغلاق الشكوى', style: TextStyle(fontFamily: 'Cairo')),
                                   onPressed: _submitTeacherFinalReply,
                                 ),
                               ),
@@ -3154,6 +3185,7 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
             fontWeight: FontWeight.bold,
             color: Colors.grey.shade600,
             height: 1.5,
+            fontFamily: 'Cairo',
           ),
         ),
         const SizedBox(height: 4),
@@ -3169,6 +3201,7 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
               color: textColor,
               fontSize: 15,
               height: 1.5,
+              fontFamily: 'Cairo',
             ),
           ),
         ),
@@ -3179,6 +3212,7 @@ class __ComplaintConversationCardState extends State<_ComplaintConversationCard>
             fontSize: 11,
             color: Colors.grey,
             height: 1.5,
+            fontFamily: 'Cairo',
           ),
           textDirection: TextDirection.ltr,
         ),
@@ -3238,7 +3272,13 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('تحليل مخالفات الطلاب'),
+        title: const Text('تحليل مخالفات الطلاب', style: TextStyle(fontFamily: 'Cairo')),
+      ),
+      bottomNavigationBar: Container(
+        height: 35,
+        color: Colors.grey.shade200,
+        alignment: Alignment.center,
+        child: const Text('مطور الموقع أ : مصطفي سعيد', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -3249,7 +3289,7 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+            return Center(child: Text('حدث خطأ: ${snapshot.error}', style: const TextStyle(fontFamily: 'Cairo')));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(
@@ -3258,11 +3298,11 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
                 children: [
                   Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 80),
                   SizedBox(height: 16),
-                  Text('لا توجد مخالفات مسجلة', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text('لا توجد مخالفات مسجلة', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20.0),
                     child: Text('لم يتم تسجيل أي ملاحظات سلوكية على الطلاب بعد.',
-                        style: TextStyle(fontSize: 16, color: Colors.grey), textAlign: TextAlign.center),
+                        style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo'), textAlign: TextAlign.center),
                   ),
                 ],
               ),
@@ -3310,8 +3350,8 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
-                  title: Text(studentName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
-                  subtitle: Text(_isAdmin ? "عرض مخالفات الطالب" : 'اضغط لعرض تفاصيل المخالفات'),
+                  title: Text(studentName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, fontFamily: 'Cairo')),
+                  subtitle: Text(_isAdmin ? "عرض مخالفات الطالب" : 'اضغط لعرض تفاصيل المخالفات', style: const TextStyle(fontFamily: 'Cairo')),
                   children: studentViolations.map((violationDoc) {
                     final data = violationDoc.data() as Map<String, dynamic>;
                     final note = data['reason'] ?? data['teacherNote'] ?? 'لا يوجد تفصيل.';
@@ -3322,8 +3362,8 @@ class _ViolationsLogPageState extends State<ViolationsLogPage> {
                         : '...';
 
                     return ListTile(
-                      title: Text(note),
-                      subtitle: Text("بواسطة: أ. $teacherName - في: $formattedDate"),
+                      title: Text(note, style: const TextStyle(fontFamily: 'Cairo')),
+                      subtitle: Text("بواسطة: أ. $teacherName - في: $formattedDate", style: const TextStyle(fontFamily: 'Cairo')),
                       dense: true,
                     );
                   }).toList(),
@@ -3354,9 +3394,9 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
     widget.verifyAdminPin(context, () async {
       try {
         await FirebaseFirestore.instance.collection('students').doc(id).delete();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حذف الطالب $name بنجاح نهائياً.'), backgroundColor: Colors.orange));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم حذف الطالب $name بنجاح نهائياً.', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.orange));
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الحذف: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الحذف: $e', style: const TextStyle(fontFamily: 'Cairo'))));
       }
     });
   }
@@ -3378,7 +3418,7 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
               children: [
                 const Icon(Icons.badge_rounded, color: Colors.blue),
                 const SizedBox(width: 8),
-                Expanded(child: Text('تفاصيل حساب الطالب: ${data['name'] ?? ''}', style: const TextStyle(fontSize: 16))),
+                Expanded(child: Text('تفاصيل حساب الطالب: ${data['name'] ?? ''}', style: const TextStyle(fontSize: 16, fontFamily: 'Cairo'))),
               ],
             ),
             content: Column(
@@ -3396,7 +3436,7 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
             actions: [
               ElevatedButton.icon(
                 icon: const Icon(Icons.print),
-                label: const Text('طباعة'),
+                label: const Text('طباعة', style: TextStyle(fontFamily: 'Cairo')),
                 onPressed: () {
                   StudentPrintHelper.printAccount(
                     name: data['name'] ?? '',
@@ -3409,13 +3449,13 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
               ),
               ElevatedButton.icon(
                 icon: const Icon(Icons.copy_all),
-                label: const Text('نسخ الكل'),
+                label: const Text('نسخ الكل', style: TextStyle(fontFamily: 'Cairo')),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: 'تفاصيل حساب الطالب:\nالاسم: ${data['name']}\nالبريد: $email\nكلمة المرور: $password\nالرمز السري للشكاوى: $complaintsPin\nهاتف الشكاوى/الوالد: $guardianPhone'));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ تفاصيل الحساب بالكامل!'), backgroundColor: Colors.green));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نسخ تفاصيل الحساب بالكامل!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
                 },
               ),
-              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
             ],
           );
         }
@@ -3433,8 +3473,8 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                Text(title, style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo')),
+                Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               ],
             ),
           ),
@@ -3442,7 +3482,7 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
             icon: const Icon(Icons.copy, size: 18, color: Colors.blue),
             onPressed: () {
               Clipboard.setData(ClipboardData(text: value));
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم نسخ $title!'), duration: const Duration(seconds: 1)));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم نسخ $title!', style: const TextStyle(fontFamily: 'Cairo')), duration: const Duration(seconds: 1)));
             },
           )
         ],
@@ -3476,14 +3516,14 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
           return StatefulBuilder(builder: (ctx, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Text('نقل الطالب: ${data['name']}'),
+              title: Text('نقل الطالب: ${data['name']}', style: const TextStyle(fontFamily: 'Cairo')),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DropdownButtonFormField<String>(
                     value: selectedStage,
                     decoration: const InputDecoration(labelText: 'المرحلة الجديدة', border: OutlineInputBorder()),
-                    items: stages.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: stages.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                     onChanged: (val) {
                       setDialogState(() {
                         selectedStage = val!;
@@ -3495,20 +3535,20 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
                   DropdownButtonFormField<String>(
                     value: selectedGrade,
                     decoration: const InputDecoration(labelText: 'الصف الجديد', border: OutlineInputBorder()),
-                    items: getGrades().map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: getGrades().map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                     onChanged: (val) => setDialogState(() => selectedGrade = val!),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedClass,
                     decoration: const InputDecoration(labelText: 'الفصل الجديد', border: OutlineInputBorder()),
-                    items: List.generate(10, (i) => 'الفصل ${i + 1}').map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                    items: List.generate(10, (i) => 'الفصل ${i + 1}').map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                     onChanged: (val) => setDialogState(() => selectedClass = val!),
                   ),
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.pop(ctx);
@@ -3518,10 +3558,10 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
                         'grades': selectedGrade,
                         'classes': selectedClass,
                       });
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نقل الطالب وتحديث فصله بنجاح'), backgroundColor: Colors.green));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم نقل الطالب وتحديث فصله بنجاح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
                     });
                   },
-                  child: const Text('تأكيد النقل برمز PIN'),
+                  child: const Text('تأكيد النقل برمز PIN', style: TextStyle(fontFamily: 'Cairo')),
                 )
               ],
             );
@@ -3533,7 +3573,13 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('قائمة ${widget.grade} - ${widget.className}')),
+      appBar: AppBar(title: Text('قائمة ${widget.grade} - ${widget.className}', style: const TextStyle(fontFamily: 'Cairo'))),
+      bottomNavigationBar: Container(
+        height: 35,
+        color: Colors.grey.shade200,
+        alignment: Alignment.center,
+        child: const Text('مطور الموقع أ : مصطفي سعيد', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('students')
@@ -3544,7 +3590,7 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('لا يوجد طلاب مدرجين في هذا الفصل حالياً.', style: TextStyle(color: Colors.grey)));
+            return const Center(child: Text('لا يوجد طلاب مدرجين في هذا الفصل حالياً.', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')));
           }
 
           final docs = snapshot.data!.docs;
@@ -3557,8 +3603,8 @@ class _ClassStudentsListPageState extends State<ClassStudentsListPage> {
               return Card(
                 child: ListTile(
                   leading: CircleAvatar(child: Text('${index + 1}')),
-                  title: Text(data['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('البريد: ${data['email'] ?? '-'}'),
+                  title: Text(data['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                  subtitle: Text('البريد: ${data['email'] ?? '-'}', style: const TextStyle(fontFamily: 'Cairo')),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -3790,7 +3836,7 @@ class _TeacherPortfolioFormPageState extends State<TeacherPortfolioFormPage> {
       if (bytes.length > 15 * 1024 * 1024) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('عفواً، حجم الصورة يتجاوز الحد الأقصى.'), backgroundColor: Colors.red)
+              const SnackBar(content: Text('عفواً، حجم الصورة يتجاوز الحد الأقصى.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red)
           );
         }
         return;
@@ -3831,12 +3877,12 @@ class _TeacherPortfolioFormPageState extends State<TeacherPortfolioFormPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم العودة للرابط والباركود القديم بنجاح ✅'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('تم العودة للرابط والباركود القديم بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الاستعادة: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الاستعادة: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
       }
     }
   }
@@ -3860,19 +3906,19 @@ class _TeacherPortfolioFormPageState extends State<TeacherPortfolioFormPage> {
             children: [
               Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
               SizedBox(width: 8),
-              Expanded(child: Text('تنبيه: تغيير الـ QR والرابط', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+              Expanded(child: Text('تنبيه: تغيير الـ QR والرابط', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo'))),
             ],
           ),
           content: const Text(
             'تأكيد تعديل الرابط سيتسبب في تغيير الرمز القديم (QR Code) واستبداله بآخر جديد.\n\nتنويه: يمكنك العودة واسترجاع الرابط القديم خلال 24 ساعة من التعديل.',
-            style: TextStyle(height: 1.5),
+            style: TextStyle(height: 1.5, fontFamily: 'Cairo'),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('تأكيد التعديل والتبديل'),
+              child: const Text('تأكيد التعديل والتبديل', style: TextStyle(fontFamily: 'Cairo')),
             ),
           ],
         ),
@@ -3915,7 +3961,7 @@ class _TeacherPortfolioFormPageState extends State<TeacherPortfolioFormPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('تم حفظ وتحديث بيانات ملف الإنجاز بنجاح ✅'),
+            content: Text('تم حفظ وتحديث بيانات ملف الإنجاز بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
           ),
@@ -3925,7 +3971,7 @@ class _TeacherPortfolioFormPageState extends State<TeacherPortfolioFormPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('حدث خطأ أثناء الحفظ: $e'), backgroundColor: Colors.red)
+            SnackBar(content: Text('حدث خطأ أثناء الحفظ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red)
         );
       }
     } finally {
@@ -3936,7 +3982,13 @@ class _TeacherPortfolioFormPageState extends State<TeacherPortfolioFormPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('إعداد ملف الإنجاز'), backgroundColor: const Color(0xFF37474F), foregroundColor: Colors.white),
+      appBar: AppBar(title: const Text('إعداد ملف الإنجاز', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: const Color(0xFF37474F), foregroundColor: Colors.white),
+      bottomNavigationBar: Container(
+        height: 35,
+        color: Colors.grey.shade200,
+        alignment: Alignment.center,
+        child: const Text('مطور الموقع أ : مصطفي سعيد', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -3985,7 +4037,7 @@ class _TeacherPortfolioFormPageState extends State<TeacherPortfolioFormPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Center(child: Text('اضغط على الكاميرا لاختيار صورتك الشخصية', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.blueGrey, fontWeight: FontWeight.bold))),
+              const Center(child: Text('اضغط على الكاميرا لاختيار صورتك الشخصية', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.blueGrey, fontWeight: FontWeight.bold, fontFamily: 'Cairo'))),
               const SizedBox(height: 24),
               TextFormField(
                 controller: _nameCtrl,
@@ -4052,13 +4104,13 @@ class _TeacherPortfolioFormPageState extends State<TeacherPortfolioFormPage> {
                       const Expanded(
                         child: Text(
                           'يمكنك الاسترجاع والعودة للينك والـ QR القديم (متاح خلال 24 ساعة من التعديل).',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                         ),
                       ),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white),
                         onPressed: _restorePreviousLink,
-                        child: const Text('استرجاع الآن', style: TextStyle(fontSize: 11)),
+                        child: const Text('استرجاع الآن', style: TextStyle(fontSize: 11, fontFamily: 'Cairo')),
                       )
                     ],
                   ),
@@ -4074,7 +4126,7 @@ class _TeacherPortfolioFormPageState extends State<TeacherPortfolioFormPage> {
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF37474F), foregroundColor: Colors.white),
                   child: _isSaving
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('حفظ التعديلات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      : const Text('حفظ التعديلات', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                 ),
               )
             ],
@@ -4128,41 +4180,41 @@ class AllTeachersPortfoliosPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                  Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.indigo, fontFamily: 'Cairo')),
                   const SizedBox(height: 4),
-                  Text('$position - $specialty', style: TextStyle(fontSize: 14, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                  Text('$position - $specialty', style: TextStyle(fontSize: 14, color: Colors.grey.shade700, fontWeight: FontWeight.w600, fontFamily: 'Cairo')),
                   const Divider(height: 30),
 
                   const Align(
                     alignment: Alignment.centerRight,
-                    child: Text('النبذة التعريفية:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                    child: Text('النبذة التعريفية:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87, fontFamily: 'Cairo')),
                   ),
                   const SizedBox(height: 6),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
-                    child: Text(about, style: const TextStyle(fontSize: 14, height: 1.5, color: Colors.black87)),
+                    child: Text(about, style: const TextStyle(fontSize: 14, height: 1.5, color: Colors.black87, fontFamily: 'Cairo')),
                   ),
                   const SizedBox(height: 16),
 
                   if (experience.isNotEmpty && experience != 'لا توجد خبرات مضافة.') ...[
                     const Align(
                       alignment: Alignment.centerRight,
-                      child: Text('الخبرات:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                      child: Text('الخبرات:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87, fontFamily: 'Cairo')),
                     ),
                     const SizedBox(height: 6),
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12)),
-                      child: Text(experience, style: const TextStyle(fontSize: 14, height: 1.5, color: Colors.indigo)),
+                      child: Text(experience, style: const TextStyle(fontSize: 14, height: 1.5, color: Colors.indigo, fontFamily: 'Cairo')),
                     ),
                     const SizedBox(height: 16),
                   ],
 
                   if (portfolioLink.isNotEmpty) ...[
-                    const Text('رمز QR الخاص بملف الإنجاز المباشر:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    const Text('رمز QR الخاص بملف الإنجاز المباشر:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey, fontFamily: 'Cairo')),
                     const SizedBox(height: 10),
                     InkWell(
                       onTap: () async {
@@ -4178,7 +4230,7 @@ class AllTeachersPortfoliosPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Text('اضغط على الرمز لفتح الرابط مباشرة', style: TextStyle(fontSize: 11, color: Colors.blue)),
+                    const Text('اضغط على الرمز لفتح الرابط مباشرة', style: TextStyle(fontSize: 11, color: Colors.blue, fontFamily: 'Cairo')),
                   ],
                   const SizedBox(height: 20),
                 ],
@@ -4192,12 +4244,18 @@ class AllTeachersPortfoliosPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('سجل ملفات الإنجاز'), backgroundColor: const Color(0xFF00695C), foregroundColor: Colors.white),
+      appBar: AppBar(title: const Text('سجل ملفات الإنجاز', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: const Color(0xFF00695C), foregroundColor: Colors.white),
+      bottomNavigationBar: Container(
+        height: 35,
+        color: Colors.grey.shade200,
+        alignment: Alignment.center,
+        child: const Text('مطور الموقع أ : مصطفي سعيد', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('teacher_portfolios_profiles').orderBy('timestamp', descending: true).snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد ملفات إنجاز حالياً.'));
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد ملفات إنجاز حالياً.', style: TextStyle(fontFamily: 'Cairo')));
 
           final docs = snapshot.data!.docs;
           return GridView.builder(
@@ -4249,7 +4307,7 @@ class AllTeachersPortfoliosPage extends StatelessWidget {
                         Text(
                           name,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87, fontFamily: 'Cairo'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -4257,7 +4315,7 @@ class AllTeachersPortfoliosPage extends StatelessWidget {
                         Text(
                           position,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.indigo, fontSize: 12, fontWeight: FontWeight.w600),
+                          style: const TextStyle(color: Colors.indigo, fontSize: 12, fontWeight: FontWeight.w600, fontFamily: 'Cairo'),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -4266,7 +4324,7 @@ class AllTeachersPortfoliosPage extends StatelessWidget {
                           Text(
                             'تخصص: $specialty',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 11, fontFamily: 'Cairo'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -4285,7 +4343,7 @@ class AllTeachersPortfoliosPage extends StatelessWidget {
                             ),
                           )
                         else
-                          const Expanded(child: Center(child: Text('اضغط لقراءة النبذة', style: TextStyle(color: Colors.blue, fontSize: 11)))),
+                          const Expanded(child: Center(child: Text('اضغط لقراءة النبذة', style: TextStyle(color: Colors.blue, fontSize: 11, fontFamily: 'Cairo')))),
                       ],
                     ),
                   ),

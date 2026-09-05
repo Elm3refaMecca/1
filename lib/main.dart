@@ -43,6 +43,8 @@ import 'package:almarefamecca/secondary_pages.dart';
 import 'package:almarefamecca/add.dart';
 import 'package:almarefamecca/student_view.dart';
 
+import 'add2.dart';
+
 // ===========================================================================
 // CONSTANTS & ICONS
 // ===========================================================================
@@ -766,6 +768,7 @@ class _StudentResultsViewState extends State<StudentResultsView> {
                   Text(
                     year == 'العام الحالي' ? 'نتائج العام الدراسي الحالي' : 'نتائج العام الدراسي: $year',
                     style: TextStyle(
+                      fontFamily: 'Cairo',
                       fontWeight: year == 'العام الحالي' ? FontWeight.bold : FontWeight.normal,
                       color: year == _selectedYear ? Colors.blue.shade800 : Colors.black87,
                     ),
@@ -834,7 +837,7 @@ class _StudentResultsViewState extends State<StudentResultsView> {
                   ),
                   labelColor: Colors.white,
                   unselectedLabelColor: Colors.black87,
-                  labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo'),
                   tabs: const [
                     Tab(text: "الترم الأول"),
                     Tab(text: "الترم الثاني"),
@@ -864,7 +867,7 @@ class _StudentResultsViewState extends State<StudentResultsView> {
           children: [
             const Icon(Icons.school_outlined, size: 80, color: Colors.grey),
             const SizedBox(height: 16),
-            Text("لا توجد نتائج تحليلية لعرضها حالياً للترم ${term == 1 ? 'الأول' : 'الثاني'}.", style: const TextStyle(color: Colors.grey, fontSize: 16)),
+            Text("لا توجد نتائج تحليلية لعرضها حالياً للترم ${term == 1 ? 'الأول' : 'الثاني'}.", style: const TextStyle(color: Colors.grey, fontSize: 16, fontFamily: 'Cairo')),
           ],
         ),
       );
@@ -922,7 +925,7 @@ class _StudentResultsViewState extends State<StudentResultsView> {
           Expanded(
             child: Text(
               "أهلاً بك، شريك النجاح. كلنا هنا لخدمة بطلنا $name.",
-              style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontSize: 13),
+              style: TextStyle(color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo'),
             ),
           ),
         ],
@@ -952,7 +955,7 @@ class OverallSummaryCard extends StatelessWidget {
         children: [
           CircularPercentIndicator(
             radius: 45.0, lineWidth: 8.0, percent: avg,
-            center: Text("${(avg * 100).toStringAsFixed(1)}%", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+            center: Text("${(avg * 100).toStringAsFixed(1)}%", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, fontFamily: 'Cairo')),
             progressColor: Colors.white, backgroundColor: Colors.white24, circularStrokeCap: CircularStrokeCap.round,
           ),
           const SizedBox(width: 20),
@@ -960,11 +963,11 @@ class OverallSummaryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("المؤشر العام للأداء", style: TextStyle(color: Colors.white70, fontSize: 14)),
+                const Text("المؤشر العام للأداء", style: TextStyle(color: Colors.white70, fontSize: 14, fontFamily: 'Cairo')),
                 const SizedBox(height: 4),
                 Text(
                   avg >= 0.85 ? "مستوى مشرف ورائع! 🌟" : (avg >= 0.6 ? "بداية جيدة، والقادم أفضل 💪" : "نحتاج لتكاتف الجهود معاً ❤️"),
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, height: 1.3),
+                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, height: 1.3, fontFamily: 'Cairo'),
                 ),
               ],
             ),
@@ -1029,21 +1032,21 @@ class DetailedSubjectCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(analysis.subjectName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                      Text(analysis.groupName, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                      Text(analysis.subjectName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, fontFamily: 'Cairo')),
+                      Text(analysis.groupName, style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontFamily: 'Cairo')),
                     ],
                   ),
                 ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text("المتوسط", style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    Text("المتوسط", style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontFamily: 'Cairo')),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(20)),
                       child: Text(
                         "${analysis.average.toStringAsFixed(1)} / ${analysis.maxPossibleGrade.toInt()}",
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                       ),
                     ),
                   ],
@@ -1057,7 +1060,7 @@ class DetailedSubjectCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("📝 سجل الدرجات والملاحظات:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const Text("📝 سجل الدرجات والملاحظات:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Cairo')),
                 const SizedBox(height: 10),
 
                 ...analysis.detailedTestResults.map((detail) {
@@ -1075,7 +1078,7 @@ class DetailedSubjectCard extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(detail.testName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                            Text(detail.testName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
@@ -1083,7 +1086,7 @@ class DetailedSubjectCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(color: Colors.grey.shade300),
                               ),
-                              child: Text("${detail.grade} / ${detail.maxGrade.toInt()}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: Text("${detail.grade} / ${detail.maxGrade.toInt()}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
                             ),
                           ],
                         ),
@@ -1098,7 +1101,7 @@ class DetailedSubjectCard extends StatelessWidget {
                               children: [
                                 Icon(Icons.info_outline, size: 14, color: Colors.orange.shade800),
                                 const SizedBox(width: 6),
-                                Expanded(child: Text(note, style: TextStyle(fontSize: 12, color: Colors.grey.shade800, height: 1.4))),
+                                Expanded(child: Text(note, style: TextStyle(fontSize: 12, color: Colors.grey.shade800, height: 1.4, fontFamily: 'Cairo'))),
                               ],
                             ),
                           )),
@@ -1130,9 +1133,9 @@ class DetailedSubjectCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(analysis.isPositiveTrend ? "مؤشر إيجابي ورائع!" : "وقفة للتصحيح",
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: analysis.isPositiveTrend ? Colors.green.shade900 : Colors.orange.shade900)),
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: analysis.isPositiveTrend ? Colors.green.shade900 : Colors.orange.shade900, fontFamily: 'Cairo')),
                               const SizedBox(height: 4),
-                              Text(analysis.predictionMessage, style: const TextStyle(fontSize: 13, height: 1.5, color: Colors.black87)),
+                              Text(analysis.predictionMessage, style: const TextStyle(fontSize: 13, height: 1.5, color: Colors.black87, fontFamily: 'Cairo')),
                             ],
                           ),
                         ),
@@ -1140,7 +1143,7 @@ class DetailedSubjectCard extends StatelessWidget {
                     ),
                   ),
 
-                const Text("🌱 خطة الدعم والمساندة المنزلية:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                const Text("🌱 خطة الدعم والمساندة المنزلية:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Cairo')),
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -1157,7 +1160,7 @@ class DetailedSubjectCard extends StatelessWidget {
                         children: [
                           Icon(Icons.access_time_filled, color: Colors.indigo.shade400, size: 20),
                           const SizedBox(width: 8),
-                          Text(analysis.timeRecommendation, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+                          Text(analysis.timeRecommendation, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900, fontFamily: 'Cairo')),
                         ],
                       ),
                       const Divider(height: 24),
@@ -1165,24 +1168,24 @@ class DetailedSubjectCard extends StatelessWidget {
                       Row(children: const [
                         Icon(Icons.person_outline, size: 18, color: Colors.green),
                         SizedBox(width: 8),
-                        Text("مهام البطل (الطالب):", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                        Text("مهام البطل (الطالب):", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                       ]),
                       const SizedBox(height: 8),
                       ...analysis.studentTasks.map((task) => Padding(
                         padding: const EdgeInsets.only(bottom: 6.0, right: 26.0),
-                        child: Text("• $task", style: const TextStyle(fontSize: 12, height: 1.4, color: Colors.black87)),
+                        child: Text("• $task", style: const TextStyle(fontSize: 12, height: 1.4, color: Colors.black87, fontFamily: 'Cairo')),
                       )),
 
                       const SizedBox(height: 16),
                       Row(children: const [
                         Icon(Icons.favorite_border, size: 18, color: Colors.redAccent),
                         SizedBox(width: 8),
-                        Text("دور الأسرة الكريمة:", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                        Text("دور الأسرة الكريمة:", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                       ]),
                       const SizedBox(height: 8),
                       ...analysis.parentTasks.map((task) => Padding(
                         padding: const EdgeInsets.only(bottom: 6.0, right: 26.0),
-                        child: Text("• $task", style: const TextStyle(fontSize: 12, height: 1.4, color: Colors.black87)),
+                        child: Text("• $task", style: const TextStyle(fontSize: 12, height: 1.4, color: Colors.black87, fontFamily: 'Cairo')),
                       )),
                     ],
                   ),
@@ -1198,13 +1201,13 @@ class DetailedSubjectCard extends StatelessWidget {
                       border: Border.all(color: Colors.teal.shade100),
                     ),
                     child: ExpansionTile(
-                      title: Text("التواصل المباشر مع المعلم", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.teal.shade800)),
+                      title: Text("التواصل المباشر مع المعلم", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.teal.shade800, fontFamily: 'Cairo')),
                       leading: CircleAvatar(
                         backgroundColor: Colors.teal.shade100,
                         radius: 18,
                         child: Icon(Icons.person, color: Colors.teal.shade700, size: 20),
                       ),
-                      subtitle: Text(teacherInfo!.name, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      subtitle: Text(teacherInfo!.name, style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo')),
                       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
                       childrenPadding: const EdgeInsets.all(16),
                       children: [
@@ -1216,7 +1219,7 @@ class DetailedSubjectCard extends StatelessWidget {
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
                                   icon: const Icon(Icons.chat_bubble_outline),
-                                  label: const Text("مراسلة عبر واتساب"),
+                                  label: const Text("مراسلة عبر واتساب", style: TextStyle(fontFamily: 'Cairo')),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF25D366),
                                     foregroundColor: Colors.white,
@@ -1234,15 +1237,15 @@ class DetailedSubjectCard extends StatelessWidget {
                                 child: const Center(
                                   child: Text(
                                     "رقم التواصل غير مدرج حالياً، يرجى مراجعة الإدارة.",
-                                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                                    style: TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'Cairo'),
                                   ),
                                 ),
                               ),
                             const SizedBox(height: 12),
-                            const Text("⚠️ للتكرم قبل التواصل:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const Text("⚠️ للتكرم قبل التواصل:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo')),
                             const SizedBox(height: 4),
-                            const Text("- التأكد من مراجعة الكتاب المدرسي ودفتر الطالب.", style: TextStyle(fontSize: 11, color: Colors.grey)),
-                            const Text("- التواصل في أوقات الدوام الرسمي.", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                            const Text("- التأكد من مراجعة الكتاب المدرسي ودفتر الطالب.", style: TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo')),
+                            const Text("- التواصل في أوقات الدوام الرسمي.", style: TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo')),
                           ],
                         ),
                       ],
@@ -1253,7 +1256,7 @@ class DetailedSubjectCard extends StatelessWidget {
                 const SizedBox(height: 20),
 
                 if (analysis.trendSpots.length >= 2) ...[
-                  const Text("📈 مسار التطور:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const Text("📈 مسار التطور:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
                   const SizedBox(height: 12),
                   SizedBox(
                     height: 150,
@@ -1261,10 +1264,10 @@ class DetailedSubjectCard extends StatelessWidget {
                       LineChartData(
                         gridData: FlGridData(show: true, drawVerticalLine: false),
                         titlesData: FlTitlesData(
-                          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, interval: 5, getTitlesWidget: (v,m) => Text(v.toInt().toString(), style: const TextStyle(fontSize: 10)))),
+                          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, interval: 5, getTitlesWidget: (v,m) => Text(v.toInt().toString(), style: const TextStyle(fontSize: 10, fontFamily: 'Cairo')))),
                           bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v,m) {
                             if (v.toInt() >= 0 && v.toInt() < analysis.testResults.length) {
-                              return Padding(padding: const EdgeInsets.only(top: 4), child: Text("خ ${v.toInt() + 1}", style: const TextStyle(fontSize: 10)));
+                              return Padding(padding: const EdgeInsets.only(top: 4), child: Text("خ ${v.toInt() + 1}", style: const TextStyle(fontSize: 10, fontFamily: 'Cairo')));
                             }
                             return const Text('');
                           })),
@@ -1310,7 +1313,7 @@ class ExcellenceHubPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text("جائزة المعرفة للتميز"),
+        title: const Text("جائزة المعرفة للتميز", style: TextStyle(fontFamily: 'Cairo')),
         backgroundColor: const Color(0xFF1A237E),
         centerTitle: true,
         elevation: 0,
@@ -1328,7 +1331,7 @@ class ExcellenceHubPage extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text("لا يوجد معلمين مسجلين"));
+                  return const Center(child: Text("لا يوجد معلمين مسجلين", style: TextStyle(fontFamily: 'Cairo')));
                 }
 
                 final teachers = snapshot.data!.docs;
@@ -1370,12 +1373,12 @@ class ExcellenceHubPage extends StatelessWidget {
           const SizedBox(height: 16),
           const Text(
             "الدورة الأولى ٢٠٢٦",
-            style: TextStyle(color: Colors.amberAccent, fontSize: 14, letterSpacing: 2),
+            style: TextStyle(color: Colors.amberAccent, fontSize: 14, letterSpacing: 2, fontFamily: 'Cairo'),
           ),
           const SizedBox(height: 8),
           const Text(
             "فئة المعلم المتميز",
-            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
           ),
         ],
       ),
@@ -1406,14 +1409,14 @@ class ExcellenceHubPage extends StatelessWidget {
               backgroundColor: Colors.grey.shade200,
               child: photoUrl == null ? const Icon(Icons.person, color: Colors.grey) : null,
             ),
-            title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
             subtitle: Text(isEvaluated ? "تم التقييم" : "بانتظار التقييم",
-                style: TextStyle(color: isEvaluated ? Colors.green : Colors.orange, fontSize: 12)),
+                style: TextStyle(color: isEvaluated ? Colors.green : Colors.orange, fontSize: 12, fontFamily: 'Cairo')),
             trailing: isEvaluated
                 ? Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(20)),
-              child: Text("${totalScore?.toStringAsFixed(1)}%", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              child: Text("${totalScore?.toStringAsFixed(1)}%", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade900, fontFamily: 'Cairo')),
             )
                 : const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
             onTap: () {
@@ -1459,7 +1462,7 @@ class _TeacherEvaluationPageState extends State<TeacherEvaluationPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text("تقييم: ${widget.teacherName}"),
+        title: Text("تقييم: ${widget.teacherName}", style: const TextStyle(fontFamily: 'Cairo')),
         backgroundColor: const Color(0xFF1A237E),
       ),
       body: Column(
@@ -1494,14 +1497,14 @@ class _TeacherEvaluationPageState extends State<TeacherEvaluationPage> {
                             backgroundColor: const Color(0xFF1A237E),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
-                          child: Text(_currentStep == domains.length - 1 ? 'اعتماد التقييم' : 'التالي'),
+                          child: Text(_currentStep == domains.length - 1 ? 'اعتماد التقييم' : 'التالي', style: const TextStyle(fontFamily: 'Cairo')),
                         ),
                       ),
                       const SizedBox(width: 12),
                       if (_currentStep > 0)
                         TextButton(
                           onPressed: details.onStepCancel,
-                          child: const Text('السابق', style: TextStyle(color: Colors.grey)),
+                          child: const Text('السابق', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')),
                         ),
                     ],
                   ),
@@ -1509,8 +1512,8 @@ class _TeacherEvaluationPageState extends State<TeacherEvaluationPage> {
               },
               steps: domains.map((domain) {
                 return Step(
-                  title: Text(domain.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("الوزن: ${domain.weight}%"),
+                  title: Text(domain.title, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                  subtitle: Text("الوزن: ${domain.weight}%", style: const TextStyle(fontFamily: 'Cairo')),
                   isActive: _currentStep == domains.indexOf(domain),
                   state: _currentStep > domains.indexOf(domain) ? StepState.complete : StepState.indexed,
                   content: Column(
@@ -1536,8 +1539,8 @@ class _TeacherEvaluationPageState extends State<TeacherEvaluationPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("النتيجة الحالية:", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("${_calculateTotalScore.toStringAsFixed(1)}%", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
+              const Text("النتيجة الحالية:", style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+              Text("${_calculateTotalScore.toStringAsFixed(1)}%", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
             ],
           ),
           const SizedBox(height: 8),
@@ -1564,7 +1567,7 @@ class _TeacherEvaluationPageState extends State<TeacherEvaluationPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(criterion.title, style: const TextStyle(fontSize: 14)),
+            Text(criterion.title, style: const TextStyle(fontSize: 14, fontFamily: 'Cairo')),
             Row(
               children: [
                 Expanded(
@@ -1586,7 +1589,7 @@ class _TeacherEvaluationPageState extends State<TeacherEvaluationPage> {
                   width: 40,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(5)),
-                  child: Text("${criterion.obtainedPoints.toInt()}/${criterion.maxPoints.toInt()}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text("${criterion.obtainedPoints.toInt()}/${criterion.maxPoints.toInt()}", style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                 ),
               ],
             ),
@@ -1666,7 +1669,7 @@ class ResultSummaryPage extends StatelessWidget {
             children: [
               const Icon(Icons.verified, size: 100, color: Color(0xFF1A237E)).animate().scale(duration: 500.ms),
               const SizedBox(height: 24),
-              const Text("تم اعتماد التقييم بنجاح", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const Text("تم اعتماد التقييم بنجاح", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               const SizedBox(height: 32),
 
               Container(
@@ -1678,15 +1681,15 @@ class ResultSummaryPage extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    Text(teacherName, style: const TextStyle(fontSize: 18)),
+                    Text(teacherName, style: const TextStyle(fontSize: 18, fontFamily: 'Cairo')),
                     const Divider(height: 30),
-                    const Text("النتيجة النهائية", style: TextStyle(color: Colors.grey)),
-                    Text("${score.toStringAsFixed(1)}%", style: TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: statusColor)),
+                    const Text("النتيجة النهائية", style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')),
+                    Text("${score.toStringAsFixed(1)}%", style: TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: statusColor, fontFamily: 'Cairo')),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(20)),
-                      child: Text(classification, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      child: Text(classification, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     ),
                   ],
                 ),
@@ -1696,7 +1699,7 @@ class ResultSummaryPage extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.home),
-                label: const Text("العودة للقائمة"),
+                label: const Text("العودة للقائمة", style: TextStyle(fontFamily: 'Cairo')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF1A237E),
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
@@ -1765,112 +1768,6 @@ class _GlobalRefreshListenerState extends State<GlobalRefreshListener> {
   }
 }
 
-class QRSessionTimer {
-  static Timer? _timer;
-  static final ValueNotifier<int> remainingSeconds = ValueNotifier<int>(0);
-  static bool isActive = false;
-
-  static void startSession(BuildContext context) {
-    isActive = true;
-    remainingSeconds.value = 300;
-
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (remainingSeconds.value > 0) {
-        remainingSeconds.value--;
-      } else {
-        stopSession();
-        await FirebaseAuth.instance.signOut();
-        if (context.mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('انتهت جلسة السبورة. تم الخروج تلقائياً.'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 5),
-            ),
-          );
-        }
-      }
-    });
-  }
-
-  static void stopSession() {
-    _timer?.cancel();
-    isActive = false;
-    remainingSeconds.value = 0;
-  }
-}
-
-class QRSessionOverlay extends StatelessWidget {
-  final Widget child;
-  const QRSessionOverlay({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        child,
-        if (QRSessionTimer.isActive)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: ValueListenableBuilder<int>(
-              valueListenable: QRSessionTimer.remainingSeconds,
-              builder: (context, seconds, _) {
-                if (seconds <= 0) return const SizedBox.shrink();
-                final mins = (seconds / 60).floor();
-                final secs = seconds % 60;
-                final bool isUrgent = seconds < 60;
-
-                return Material(
-                  color: isUrgent ? Colors.redAccent.shade700 : Colors.red,
-                  elevation: 6,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.timer_outlined, color: Colors.white, size: 18),
-                        const SizedBox(width: 8),
-                        Text(
-                          'جلسة مؤقتة: سيتم الخروج خلال ${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo'),
-                        ),
-                        const SizedBox(width: 12),
-                        InkWell(
-                          onTap: () async {
-                            QRSessionTimer.stopSession();
-                            await FirebaseAuth.instance.signOut();
-                            if (context.mounted) {
-                              Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                            child: const Row(
-                              children: [
-                                Icon(Icons.logout, size: 12, color: Colors.red),
-                                SizedBox(width: 4),
-                                Text('خروج', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                          ),
-                        )
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
-}
-
 class GlobalScrollBehavior extends MaterialScrollBehavior {
   @override
   Set<PointerDeviceKind> get dragDevices => {
@@ -1915,17 +1812,17 @@ class ExitPopupWrapper extends StatelessWidget {
               children: [
                 Icon(Icons.power_settings_new, color: Colors.red, size: 28),
                 SizedBox(width: 10),
-                Text('تنبيه الخروج', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('تنبيه الخروج', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
               ],
             ),
-            content: const Text('هل تريد فعلاً الخروج من التطبيق؟', style: TextStyle(fontSize: 16)),
+            content: const Text('هل تريد فعلاً الخروج من التطبيق؟', style: TextStyle(fontSize: 16, fontFamily: 'Cairo')),
             actionsPadding: const EdgeInsets.all(16),
             actionsAlignment: MainAxisAlignment.spaceEvenly,
             actions: [
               ElevatedButton.icon(
                 onPressed: () => Navigator.of(context).pop(false),
                 icon: const Icon(Icons.cancel_outlined, size: 18),
-                label: const Text('تراجع (بقاء)'),
+                label: const Text('تراجع (بقاء)', style: TextStyle(fontFamily: 'Cairo')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.grey.shade200,
                   foregroundColor: Colors.black87,
@@ -1939,7 +1836,7 @@ class ExitPopupWrapper extends StatelessWidget {
                   SystemNavigator.pop();
                 },
                 icon: const Icon(Icons.exit_to_app, size: 18),
-                label: const Text('خروج نهائي'),
+                label: const Text('خروج نهائي', style: TextStyle(fontFamily: 'Cairo')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red.shade600,
                   foregroundColor: Colors.white,
@@ -2086,7 +1983,7 @@ class TeacherLoginApp extends StatelessWidget {
 
     return GlobalRefreshListener(
       child: MaterialApp(
-        title: ' مدارس المعرفة الاهلية بمكة',
+        title: 'مدارس المعرفة الاهلية بمكة',
         debugShowCheckedModeBanner: false,
         scrollBehavior: GlobalScrollBehavior(),
         localizationsDelegates: const [
@@ -2159,8 +2056,8 @@ class TeacherLoginApp extends StatelessWidget {
             titleTextStyle: TextStyle(fontFamily: 'Cairo', fontSize: 22, fontWeight: FontWeight.bold, color: primaryColor),
           ),
           textTheme: const TextTheme(
-            headlineSmall: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
-            bodyLarge: TextStyle(fontSize: 16, color: Color(0xFF4A4A4A)),
+            headlineSmall: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A), fontFamily: 'Cairo'),
+            bodyLarge: TextStyle(fontSize: 16, color: Color(0xFF4A4A4A), fontFamily: 'Cairo'),
           ),
         ),
         initialRoute: '/',
@@ -2278,7 +2175,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           return const Scaffold(backgroundColor: Colors.white, body: SafeLoadingWidget());
         }
         if (authSnapshot.hasError) {
-          return const Scaffold(body: Center(child: Text("حدث خطأ في المصادقة.")));
+          return const Scaffold(body: Center(child: Text("حدث خطأ في المصادقة.", style: TextStyle(fontFamily: 'Cairo'))));
         }
 
         if (authSnapshot.hasData && authSnapshot.data != null) {
@@ -2319,7 +2216,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                             children: [
                               const Icon(Icons.security_update_warning_outlined, color: Colors.red, size: 80),
                               const SizedBox(height: 20),
-                              const Text("عذراً، فشل النظام في قراءة بياناتك من Firebase بسبب صلاحيات (Security Rules) أو مشكلة بالاتصال.", textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              const Text("عذراً، فشل النظام في قراءة بياناتك من Firebase بسبب صلاحيات (Security Rules) أو مشكلة بالاتصال.", textAlign: TextAlign.center, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                               const SizedBox(height: 10),
                               Text(role.replaceFirst('error:', ''), textAlign: TextAlign.center, style: const TextStyle(color: Colors.red, fontSize: 14), textDirection: TextDirection.ltr),
                               const SizedBox(height: 30),
@@ -2329,7 +2226,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
                                   FirebaseAuth.instance.signOut();
                                 },
                                 icon: const Icon(Icons.logout),
-                                label: const Text("تسجيل الخروج والمحاولة مرة أخرى"),
+                                label: const Text("تسجيل الخروج والمحاولة مرة أخرى", style: TextStyle(fontFamily: 'Cairo')),
                               )
                             ],
                           ),
@@ -2389,11 +2286,11 @@ class _AdmissionPageState extends State<AdmissionPage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('الاستعلام عن حالة القبول', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('الاستعلام عن حالة القبول', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('أدخل رقم هوية الطالب للتحقق من حالة القبول وموعد الزيارة المحدد لك', textAlign: TextAlign.center, style: TextStyle(fontSize: 14)),
+            const Text('أدخل رقم هوية الطالب للتحقق من حالة القبول وموعد الزيارة المحدد لك', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, fontFamily: 'Cairo')),
             const SizedBox(height: 16),
             TextField(
               controller: searchCtrl,
@@ -2408,7 +2305,7 @@ class _AdmissionPageState extends State<AdmissionPage> {
         ),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
           ElevatedButton(
             onPressed: () async {
               String id = searchCtrl.text.trim();
@@ -2434,9 +2331,9 @@ class _AdmissionPageState extends State<AdmissionPage> {
                       context: context,
                       builder: (context) => AlertDialog(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        title: const Text('نتيجة الاستعلام', textAlign: TextAlign.center),
-                        content: const Text('لا توجد بيانات مسجلة أو أن الطلب لا يزال قيد المعالجة المبدئية. يرجى مراجعتنا لاحقاً.', textAlign: TextAlign.center),
-                        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('حسناً'))],
+                        title: const Text('نتيجة الاستعلام', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Cairo')),
+                        content: const Text('لا توجد بيانات مسجلة أو أن الطلب لا يزال قيد المعالجة المبدئية. يرجى مراجعتنا لاحقاً.', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Cairo')),
+                        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('حسناً', style: TextStyle(fontFamily: 'Cairo')))],
                       ),
                     );
                   }
@@ -2464,20 +2361,20 @@ class _AdmissionPageState extends State<AdmissionPage> {
                       context: context,
                       builder: (context) => AlertDialog(
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        title: const Text('نتيجة الاستعلام', textAlign: TextAlign.center),
+                        title: const Text('نتيجة الاستعلام', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Cairo')),
                         content: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(data['studentName'] ?? 'بدون اسم', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                            Text(data['studentName'] ?? 'بدون اسم', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, fontFamily: 'Cairo')),
                             const SizedBox(height: 10),
-                            Text(statusText, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: statusColor)),
+                            Text(statusText, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: statusColor, fontFamily: 'Cairo')),
                             const Divider(height: 30),
-                            const Text('موعد الزيارة المحدد لك:', style: TextStyle(color: Colors.grey)),
+                            const Text('موعد الزيارة المحدد لك:', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')),
                             const SizedBox(height: 5),
-                            Text(visitTime, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue)),
+                            Text(visitTime, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.blue, fontFamily: 'Cairo')),
                           ],
                         ),
-                        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('حسناً'))],
+                        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('حسناً', style: TextStyle(fontFamily: 'Cairo')))],
                       ),
                     );
                   }
@@ -2485,11 +2382,11 @@ class _AdmissionPageState extends State<AdmissionPage> {
               } catch (e) {
                 if (mounted) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e')));
                 }
               }
             },
-            child: const Text('بحث'),
+            child: const Text('بحث', style: TextStyle(fontFamily: 'Cairo')),
           )
         ],
       ),
@@ -2525,7 +2422,7 @@ class _AdmissionPageState extends State<AdmissionPage> {
           'timestamp': FieldValue.serverTimestamp(),
         });
       } catch (e) {
-        debugPrint('Error saving admission request to Firestore: $e');
+        debugPrint('Error saving admission request: $e');
       }
 
       final String message = '''
@@ -2554,16 +2451,16 @@ class _AdmissionPageState extends State<AdmissionPage> {
                   children: [
                     const Icon(Icons.check_circle, color: Colors.green, size: 80),
                     const SizedBox(height: 20),
-                    const Text('تم الإرسال بنجاح', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                    const Text('تم الإرسال بنجاح', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     const SizedBox(height: 10),
-                    const Text('تم استلام طلب الالتحاق الخاص بك وإرساله للإدارة بنجاح. سيقوم فريق القبول والتسجيل بالتواصل معكم قريباً.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+                    const Text('تم استلام طلب الالتحاق الخاص بك وإرساله للإدارة بنجاح. سيقوم فريق القبول والتسجيل بالتواصل معكم قريباً.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, fontFamily: 'Cairo')),
                     const SizedBox(height: 30),
                     ElevatedButton(
                       onPressed: () {
                         Navigator.of(context).pop();
                         Navigator.of(context).pop();
                       },
-                      child: const Text('العودة للرئيسية'),
+                      child: const Text('العودة للرئيسية', style: TextStyle(fontFamily: 'Cairo')),
                     )
                   ],
                 ),
@@ -2603,9 +2500,9 @@ class _AdmissionPageState extends State<AdmissionPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('البروشور التعريفي والمميزات', textAlign: TextAlign.center, style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFF0D47A1))),
+        const Text('البروشور التعريفي والمميزات', textAlign: TextAlign.center, style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFF0D47A1), fontFamily: 'Cairo')),
         const SizedBox(height: 10),
-        const Text('اضغط على اسم أو أيقونة كل مرحلة لاستعراض مميزاتها بالتفصيل', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey)),
+        const Text('اضغط على اسم أو أيقونة كل مرحلة لاستعراض مميزاتها بالتفصيل', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo')),
         const SizedBox(height: 30),
 
         _buildExpandableFeatureCard(
@@ -2672,8 +2569,8 @@ class _AdmissionPageState extends State<AdmissionPage> {
             decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
             child: Icon(mainIcon, color: color, size: 30),
           ),
-          title: Text(title, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
-          subtitle: const Text('اضغط لعرض المميزات والتفاصيل', style: TextStyle(color: Colors.grey, fontSize: 14)),
+          title: Text(title, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color, fontFamily: 'Cairo')),
+          subtitle: const Text('اضغط لعرض المميزات والتفاصيل', style: TextStyle(color: Colors.grey, fontSize: 14, fontFamily: 'Cairo')),
           childrenPadding: const EdgeInsets.all(24),
           children: [
             ...features.map((f) => _buildFeatureItem(f)),
@@ -2685,7 +2582,7 @@ class _AdmissionPageState extends State<AdmissionPage> {
                     child: ElevatedButton.icon(
                       onPressed: () => _launchUrlHelper('https://wa.me/${contact['number']}'),
                       icon: SvgPicture.string(waIconSvgGlobal, width: 26, height: 26, colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
-                      label: Text(contact['label']!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                      label: Text(contact['label']!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2, fontFamily: 'Cairo')),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF25D366),
                         padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
@@ -2709,7 +2606,7 @@ class _AdmissionPageState extends State<AdmissionPage> {
         children: [
           const Icon(Icons.check_circle, color: Colors.green, size: 24),
           const SizedBox(width: 12),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 17, height: 1.5, fontWeight: FontWeight.bold))),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 17, height: 1.5, fontWeight: FontWeight.bold, fontFamily: 'Cairo'))),
         ],
       ),
     );
@@ -2730,7 +2627,7 @@ class _AdmissionPageState extends State<AdmissionPage> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       appBar: AppBar(
-        title: const Text('طلب التحاق إلكتروني'),
+        title: const Text('طلب التحاق إلكتروني', style: TextStyle(fontFamily: 'Cairo')),
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pop()),
       ),
       body: Container(
@@ -2762,13 +2659,13 @@ class _AdmissionPageState extends State<AdmissionPage> {
                             Text(
                               'نموذج الانضمام المبدئي',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: isMobile ? 28 : 34, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor),
+                              style: TextStyle(fontSize: isMobile ? 28 : 34, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor, fontFamily: 'Cairo'),
                             ),
                             const SizedBox(height: 10),
                             Text(
                               'مرحباً بك في مدارس المعرفة الأهلية بمكة. يرجى تعبئة الحقول وسنتواصل معك بأقرب وقت لإكمال إجراءات القبول.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 16, color: Colors.grey.shade600, height: 1.6),
+                              style: TextStyle(fontSize: 16, color: Colors.grey.shade600, height: 1.6, fontFamily: 'Cairo'),
                             ),
                             const SizedBox(height: 40),
 
@@ -2776,7 +2673,7 @@ class _AdmissionPageState extends State<AdmissionPage> {
                               child: OutlinedButton.icon(
                                 onPressed: _showCheckStatusDialog,
                                 icon: const Icon(Icons.search, size: 20),
-                                label: const Text('الاستعلام عن حالة القبول وموعد الزيارة'),
+                                label: const Text('الاستعلام عن حالة القبول وموعد الزيارة', style: TextStyle(fontFamily: 'Cairo')),
                                 style: OutlinedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                   textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
@@ -2787,7 +2684,7 @@ class _AdmissionPageState extends State<AdmissionPage> {
                             ),
 
                             const SizedBox(height: 40),
-                            const Text('البيانات الأساسية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            const Text('البيانات الأساسية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                             const Divider(),
                             const SizedBox(height: 16),
 
@@ -2840,7 +2737,7 @@ class _AdmissionPageState extends State<AdmissionPage> {
                                       DropdownButtonFormField<String>(
                                         decoration: const InputDecoration(labelText: 'الصف الدراسي المطلوب *', prefixIcon: Icon(Icons.school_outlined)),
                                         value: _selectedAdmissionGrade,
-                                        items: _admissionGrades.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                                        items: _admissionGrades.map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                                         onChanged: (v) => setState(() => _selectedAdmissionGrade = v),
                                         validator: (v) => v == null ? 'الرجاء اختيار الصف' : null,
                                       ),
@@ -2850,7 +2747,7 @@ class _AdmissionPageState extends State<AdmissionPage> {
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              const Text('تواصل مباشر:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                              const Text('تواصل مباشر:', style: TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo')),
                                               const SizedBox(width: 8),
                                               ..._getGradeWhatsAppIcons(_selectedAdmissionGrade!)
                                             ],
@@ -2894,7 +2791,8 @@ class _AdmissionPageState extends State<AdmissionPage> {
                                         child: Text(
                                             _selectedDateOfBirth == null
                                                 ? 'اضغط لاختيار التاريخ'
-                                                : '${_selectedDateOfBirth!.year}-${_selectedDateOfBirth!.month.toString().padLeft(2,'0')}-${_selectedDateOfBirth!.day.toString().padLeft(2,'0')}'
+                                                : '${_selectedDateOfBirth!.year}-${_selectedDateOfBirth!.month.toString().padLeft(2,'0')}-${_selectedDateOfBirth!.day.toString().padLeft(2,'0')}',
+                                            style: const TextStyle(fontFamily: 'Cairo')
                                         ),
                                       ),
                                     ),
@@ -2909,7 +2807,7 @@ class _AdmissionPageState extends State<AdmissionPage> {
                                   ? const Center(child: CircularProgressIndicator())
                                   : ElevatedButton.icon(
                                 icon: const Icon(Icons.send_rounded, size: 24),
-                                label: const Text('إرسال طلب التحاق', style: TextStyle(fontSize: 18, height: 1.2)),
+                                label: const Text('إرسال طلب التحاق', style: TextStyle(fontSize: 18, height: 1.2, fontFamily: 'Cairo')),
                                 onPressed: _submitAdmission,
                               ),
                             ),
@@ -3498,7 +3396,7 @@ class _WelcomePageState extends State<WelcomePage> {
 
                 return AlertDialog(
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  title: const Text('دخول سريع آمن (QR)', textAlign: TextAlign.center),
+                  title: const Text('دخول سريع آمن (QR)', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Cairo')),
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -3515,13 +3413,13 @@ class _WelcomePageState extends State<WelcomePage> {
                       const Text(
                         'افتح تطبيق المعلم على هاتفك، ثم اضغط على "دخول السبورة الذكية" من لوحة التحكم وامسح هذا الكود.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                        style: TextStyle(fontSize: 14, color: Colors.grey, fontFamily: 'Cairo'),
                       ),
                       const SizedBox(height: 12),
                       const Text(
                         'أمان 🔒: سيتم الخروج تلقائياً بعد 5 دقائق.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold),
+                        style: TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                       ),
                       const SizedBox(height: 8),
                       const CircularProgressIndicator(),
@@ -3530,7 +3428,7 @@ class _WelcomePageState extends State<WelcomePage> {
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('إلغاء'),
+                      child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo')),
                     ),
                   ],
                 );
@@ -3571,6 +3469,7 @@ class _WelcomePageState extends State<WelcomePage> {
               fontSize: 26,
               fontWeight: FontWeight.w900,
               color: color,
+              fontFamily: 'Cairo',
             ),
           ),
         ],
@@ -3658,7 +3557,7 @@ class _WelcomePageState extends State<WelcomePage> {
                     padding: const EdgeInsets.all(12.0),
                     child: Text(
                       title,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -3834,7 +3733,7 @@ class _WelcomePageState extends State<WelcomePage> {
                           SizedBox(height: 16),
                           Text(
                             'جاري تهيئة الحساب السريع...',
-                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                           ),
                         ],
                       ),
@@ -3891,25 +3790,26 @@ class _WelcomePageState extends State<WelcomePage> {
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'مدارس  المعرفة الاهلية بمكة',
+                  'مدارس المعرفة الاهلية بمكة',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    fontFamily: 'Cairo',
                     height: 1.4,
                   ),
                 ),
               ],
             ),
           ),
-          ListTile(leading: const Icon(Icons.image_outlined), title: const Text('المرفقات', style: TextStyle(fontWeight: FontWeight.bold)), onTap: () { Navigator.pop(context); _scrollToSection(_brochureKey); }),
-          ListTile(leading: const Icon(Icons.wechat, color: Colors.green), title: const Text('تواصل معنا (واتساب)', style: TextStyle(fontWeight: FontWeight.bold)), onTap: () { Navigator.pop(context); _launchUrlHelper(_waUrl); }),
+          ListTile(leading: const Icon(Icons.image_outlined), title: const Text('المرفقات', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')), onTap: () { Navigator.pop(context); _scrollToSection(_brochureKey); }),
+          ListTile(leading: const Icon(Icons.wechat, color: Colors.green), title: const Text('تواصل معنا (واتساب)', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')), onTap: () { Navigator.pop(context); _launchUrlHelper(_waUrl); }),
           const Divider(),
 
           if (screenWidth <= 600) ...[
-            ListTile(leading: const Icon(Icons.touch_app, color: Colors.blue), title: const Text('طلب التحاق', style: TextStyle(fontWeight: FontWeight.bold)), onTap: () { Navigator.pop(context); Navigator.of(context).pushNamed('/admission'); }),
-            ListTile(leading: const Icon(Icons.login, color: Colors.blue), title: const Text('دخول المنصة', style: TextStyle(fontWeight: FontWeight.bold)), onTap: () { Navigator.pop(context); _scrollToSection(_loginKey); }),
+            ListTile(leading: const Icon(Icons.touch_app, color: Colors.blue), title: const Text('طلب التحاق', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')), onTap: () { Navigator.pop(context); Navigator.of(context).pushNamed('/admission'); }),
+            ListTile(leading: const Icon(Icons.login, color: Colors.blue), title: const Text('دخول المنصة', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')), onTap: () { Navigator.pop(context); _scrollToSection(_loginKey); }),
             const Divider(),
           ],
 
@@ -3924,6 +3824,7 @@ class _WelcomePageState extends State<WelcomePage> {
                 color: Colors.grey.shade600,
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
+                fontFamily: 'Cairo',
                 height: 1.5,
               ),
             ),
@@ -3953,9 +3854,9 @@ class _WelcomePageState extends State<WelcomePage> {
             isRepeatingAnimation: false,
             animatedTexts: [
               TypewriterAnimatedText(
-                'مدارس  المعرفة الاهلية ترحب بكم\nنصنع المستقبل ونبني\nجيلاً واعياً ومبدعاً',
+                'مدارس المعرفة الاهلية ترحب بكم\nنصنع المستقبل ونبني\nجيلاً واعياً ومبدعاً',
                 textAlign: TextAlign.center,
-                textStyle: TextStyle(fontSize: isMobile ? 28 : 42, fontWeight: FontWeight.w900, color: const Color(0xFF1A1A1A), height: 1.4),
+                textStyle: TextStyle(fontSize: isMobile ? 28 : 42, fontWeight: FontWeight.w900, color: const Color(0xFF1A1A1A), height: 1.4, fontFamily: 'Cairo'),
                 speed: const Duration(milliseconds: 60),
               ),
             ],
@@ -3971,6 +3872,7 @@ class _WelcomePageState extends State<WelcomePage> {
                 fontSize: isMobile ? 18 : 22,
                 height: 1.8,
                 fontWeight: FontWeight.w500,
+                fontFamily: 'Cairo',
               ),
             ),
           ),
@@ -3986,7 +3888,7 @@ class _WelcomePageState extends State<WelcomePage> {
                 ),
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.touch_app, size: 24),
-                  label: const Text('قدم الآن'),
+                  label: const Text('قدم الآن', style: TextStyle(fontFamily: 'Cairo')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.secondary,
                     foregroundColor: Colors.white,
@@ -4002,7 +3904,7 @@ class _WelcomePageState extends State<WelcomePage> {
                 backgroundColor: Colors.transparent,
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.login, size: 24),
-                  label: const Text('دخول المنصة'),
+                  label: const Text('دخول المنصة', style: TextStyle(fontFamily: 'Cairo')),
                   style: OutlinedButton.styleFrom(
                     padding: EdgeInsets.symmetric(horizontal: isMobile ? 40 : 50, vertical: 20),
                     textStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
@@ -4037,9 +3939,9 @@ class _WelcomePageState extends State<WelcomePage> {
             children: [
               Icon(Icons.fingerprint_rounded, size: 60, color: Colors.white.withOpacity(0.9)),
               const SizedBox(height: 16),
-              const Text('بوابة الدخول الموحدة', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white)),
+              const Text('بوابة الدخول الموحدة', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, fontFamily: 'Cairo')),
               const SizedBox(height: 8),
-              Text('يرجى تحديد صفتك للمتابعة والدخول للنظام', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 16)),
+              Text('يرجى تحديد صفتك للمتابعة والدخول للنظام', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 16, fontFamily: 'Cairo')),
               const SizedBox(height: 40),
 
               Wrap(
@@ -4056,7 +3958,7 @@ class _WelcomePageState extends State<WelcomePage> {
                     ),
                     onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginPage(accountType: 'teacher'))),
                     icon: const Icon(Icons.admin_panel_settings_outlined),
-                    label: const Text('تسجيل دخول المعلمين والإداريين', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    label: const Text('تسجيل دخول المعلمين والإداريين', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
                   ),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
@@ -4067,7 +3969,7 @@ class _WelcomePageState extends State<WelcomePage> {
                     ),
                     onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginPage(accountType: 'student'))),
                     icon: const Icon(Icons.family_restroom),
-                    label: const Text('تسجيل دخول الطلاب وأولياء الأمور', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    label: const Text('تسجيل دخول الطلاب وأولياء الأمور', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
                   ),
                 ],
               ),
@@ -4084,13 +3986,13 @@ class _WelcomePageState extends State<WelcomePage> {
                       ),
                       onPressed: _signInWithGoogle,
                       icon: SvgPicture.asset('assets/g1.svg', height: 24),
-                      label: const Text('الدخول السريع بحساب Google', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                      label: const Text('الدخول السريع بحساب Google', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     ),
                     const SizedBox(height: 16),
                     TextButton.icon(
                       onPressed: _showQRLoginDialog,
                       icon: const Icon(Icons.qr_code_scanner, color: Colors.white70),
-                      label: const Text('دخول السبورة الذكية للمعلمين (QR)', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+                      label: const Text('دخول السبورة الذكية للمعلمين (QR)', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                     )
                   ],
                 ),
@@ -4115,7 +4017,7 @@ class _WelcomePageState extends State<WelcomePage> {
             spacing: 30.0,
             children: [
               _buildFooterWebColumn(
-                'مدارس  المعرفة الاهلية بمكة',
+                'مدارس المعرفة الاهلية بمكة',
                 [
                   'نصنع المستقبل ونبني جيلاً واعياً ومبدعاً.',
                   'قيمنا: الاعتزاز بالدين، المواطنة، المسؤولية، الإبداع.',
@@ -4126,7 +4028,7 @@ class _WelcomePageState extends State<WelcomePage> {
               _buildFooterWebColumn(
                 'التواصل والدعم',
                 [
-                  'مطور الموقع: مصطفى سعيد (966569064173+)',
+                  'مطور الموقع أ : مصطفي سعيد (966569064173+)',
                   'وكيل الشئون التعليمية: أ/ عماد الجندي (966502361091+)',
                 ],
                 isMobile: isMobile,
@@ -4177,7 +4079,7 @@ class _WelcomePageState extends State<WelcomePage> {
         children: [
           Text(
             title,
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: isBrand ? 24 : 20, color: Colors.white),
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: isBrand ? 24 : 20, color: Colors.white, fontFamily: 'Cairo'),
             textAlign: isMobile ? TextAlign.center : TextAlign.start,
           ),
           Container(
@@ -4190,7 +4092,7 @@ class _WelcomePageState extends State<WelcomePage> {
             padding: const EdgeInsets.only(bottom: 14.0),
             child: Text(
               item,
-              style: TextStyle(fontSize: 15, color: Colors.grey.shade400, height: 1.6),
+              style: TextStyle(fontSize: 15, color: Colors.grey.shade400, height: 1.6, fontFamily: 'Cairo'),
               textAlign: isMobile ? TextAlign.center : TextAlign.start,
               textDirection: TextDirection.rtl,
             ),
@@ -4382,6 +4284,7 @@ class _StickySideMenuState extends State<StickySideMenu> {
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
+                              fontFamily: 'Cairo',
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -4411,7 +4314,7 @@ class ScanBarcodePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('امسح الباركود الخاص بك'),
+        title: const Text('امسح الباركود الخاص بك', style: TextStyle(fontFamily: 'Cairo')),
         backgroundColor: const Color(0xFFE65100),
       ),
       body: MobileScanner(
@@ -4477,11 +4380,11 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message, style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حدث خطأ غير متوقع. حاول مرة أخرى.'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حدث خطأ غير متوقع. حاول مرة أخرى.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -4499,13 +4402,13 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   Icon(Icons.vpn_key_rounded, color: Color(0xFF0D47A1)),
                   SizedBox(width: 8),
-                  Text('الدخول السريع (بالشفرة)'),
+                  Text('الدخول السريع (بالشفرة)', style: TextStyle(fontFamily: 'Cairo')),
                 ],
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('قم بإدخال الشفرة الخاصة بك للولوج إلى حسابك.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('قم بإدخال الشفرة الخاصة بك للولوج إلى حسابك.', style: TextStyle(fontSize: 13, color: Colors.grey, fontFamily: 'Cairo')),
                   const SizedBox(height: 16),
                   TextField(
                     controller: codeCtrl,
@@ -4516,7 +4419,7 @@ class _LoginPageState extends State<LoginPage> {
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
                 ElevatedButton(
                   onPressed: _isLoading ? null : () async {
                     final String enteredCode = codeCtrl.text.trim();
@@ -4573,7 +4476,7 @@ class _LoginPageState extends State<LoginPage> {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('الشفرة غير صحيحة، أو غير مفعلة، أو بيانات الحساب المرتبط بها غير مكتملة.'),
+                            content: Text('الشفرة غير صحيحة، أو غير مفعلة، أو بيانات الحساب المرتبط بها غير مكتملة.', style: TextStyle(fontFamily: 'Cairo')),
                             backgroundColor: Colors.red,
                           ),
                         );
@@ -4581,14 +4484,14 @@ class _LoginPageState extends State<LoginPage> {
                     } catch (e) {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('حدث خطأ أثناء تسجيل الدخول: $e'), backgroundColor: Colors.red),
+                          SnackBar(content: Text('حدث خطأ أثناء تسجيل الدخول: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
                         );
                       }
                     } finally {
                       if (mounted) setDialogState(() => _isLoading = false);
                     }
                   },
-                  child: const Text('دخول الآن'),
+                  child: const Text('دخول الآن', style: TextStyle(fontFamily: 'Cairo')),
                 )
               ],
             )
@@ -4605,7 +4508,7 @@ class _LoginPageState extends State<LoginPage> {
         await _auth.signInWithEmailAndPassword(email: parts[0].trim(), password: parts[1].trim());
         if (mounted) Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
       } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الباركود غير صالح أو حساب الطالب غير موجود'), backgroundColor: Colors.red));
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الباركود غير صالح أو حساب الطالب غير موجود', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
       } finally {
         if (mounted) setState(() => _isLoading = false);
       }
@@ -4653,7 +4556,7 @@ class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 24),
                         Text(portalName,
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor)),
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor, fontFamily: 'Cairo')),
                         const SizedBox(height: 32),
 
                         TextFormField(
@@ -4683,7 +4586,7 @@ class _LoginPageState extends State<LoginPage> {
                           height: 55,
                           child: _isLoading
                               ? const Center(child: CircularProgressIndicator())
-                              : ElevatedButton(onPressed: _signIn, child: const Text('تسجيل الدخول', style: TextStyle(fontSize: 18))),
+                              : ElevatedButton(onPressed: _signIn, child: const Text('تسجيل الدخول', style: TextStyle(fontSize: 18, fontFamily: 'Cairo'))),
                         ),
 
                         const SizedBox(height: 24),
@@ -4700,7 +4603,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               onPressed: _isLoading ? null : _showTeacherCodeLoginDialog,
                               icon: const Icon(Icons.vpn_key_rounded),
-                              label: const Text('الدخول باستخدام الشفرة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              label: const Text('الدخول باستخدام الشفرة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
                             ),
                           ),
 
@@ -4715,7 +4618,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               onPressed: _isLoading ? null : _scanStudentBarcodeLogin,
                               icon: const Icon(Icons.qr_code_scanner_rounded),
-                              label: const Text('الدخول السريع بالباركود', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              label: const Text('الدخول السريع بالباركود', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
                             ),
                           ),
                       ],
@@ -4741,7 +4644,7 @@ class PendingApprovalScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('حالة الحساب')),
+      appBar: AppBar(title: const Text('حالة الحساب', style: TextStyle(fontFamily: 'Cairo'))),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -4750,14 +4653,14 @@ class PendingApprovalScreen extends StatelessWidget {
             children: [
               const Icon(Icons.hourglass_empty, size: 80, color: Colors.orange),
               const SizedBox(height: 24),
-              Text('حسابك قيد المراجعة', style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center),
+              Text('حسابك قيد المراجعة', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontFamily: 'Cairo'), textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              const Text('تم إرسال بياناتك للإدارة بنجاح. يرجى الانتظار حتى يتم قبول طلبك لتتمكن من الدخول للبوابة.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey)),
+              const Text('تم إرسال بياناتك للإدارة بنجاح. يرجى الانتظار حتى يتم قبول طلبك لتتمكن من الدخول للبوابة.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo')),
               const SizedBox(height: 32),
               ElevatedButton.icon(
                 onPressed: () async => await FirebaseAuth.instance.signOut(),
                 icon: const Icon(Icons.logout),
-                label: const Text('تسجيل الخروج والعودة للرئيسية'),
+                label: const Text('تسجيل الخروج والعودة للرئيسية', style: TextStyle(fontFamily: 'Cairo')),
               )
             ],
           ),
@@ -4784,7 +4687,7 @@ class _RegistrationFlowState extends State<RegistrationFlow> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('استكمال التسجيل'),
+        title: const Text('استكمال التسجيل', style: TextStyle(fontFamily: 'Cairo')),
         actions: [IconButton(icon: const Icon(Icons.logout), onPressed: () => FirebaseAuth.instance.signOut(), tooltip: 'إلغاء وتسجيل خروج')],
       ),
       body: Center(
@@ -4793,9 +4696,9 @@ class _RegistrationFlowState extends State<RegistrationFlow> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('أهلاً بك! يبدو أنك تسجل دخولك لأول مرة.', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+              const Text('أهلاً بك! يبدو أنك تسجل دخولك لأول مرة.', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'Cairo'), textAlign: TextAlign.center),
               const SizedBox(height: 10),
-              const Text('يرجى تحديد صفتك في المدرسة لاستكمال بياناتك:', style: TextStyle(fontSize: 16, color: Colors.grey)),
+              const Text('يرجى تحديد صفتك في المدرسة لاستكمال بياناتك:', style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo')),
               const SizedBox(height: 40),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -4826,7 +4729,7 @@ class _RegistrationFlowState extends State<RegistrationFlow> {
             children: [
               Icon(icon, size: 50, color: color),
               const SizedBox(height: 16),
-              Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+              Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color, fontFamily: 'Cairo')),
             ],
           ),
         ),
@@ -4862,17 +4765,17 @@ class _TeacherRegistrationFormState extends State<TeacherRegistrationForm> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedStage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار المرحلة')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار المرحلة'), backgroundColor: Colors.red));
       return;
     }
     if (_selectedClasses.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار فصل واحد على الأقل')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار فصل واحد على الأقل'), backgroundColor: Colors.red));
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('عذراً، فقدت جلسة الاتصال. يرجى تسجيل الدخول مجدداً')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('عذراً، فقدت جلسة الاتصال. يرجى تسجيل الدخول مجدداً'), backgroundColor: Colors.red));
       return;
     }
 
@@ -4904,7 +4807,7 @@ class _TeacherRegistrationFormState extends State<TeacherRegistrationForm> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('بيانات المعلم الجديد'),
+        title: const Text('بيانات المعلم الجديد', style: TextStyle(fontFamily: 'Cairo')),
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pushReplacementNamed('/registration')),
       ),
       body: Center(
@@ -4919,7 +4822,7 @@ class _TeacherRegistrationFormState extends State<TeacherRegistrationForm> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      const Text('يرجى تعبئة جميع البيانات بدقة ليتم مراجعتها من قبل الإدارة', style: TextStyle(color: Colors.grey)),
+                      const Text('يرجى تعبئة جميع البيانات بدقة ليتم مراجعتها من قبل الإدارة', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')),
                       const SizedBox(height: 24),
                       Row(
                         children: [
@@ -4940,7 +4843,7 @@ class _TeacherRegistrationFormState extends State<TeacherRegistrationForm> {
                       DropdownButtonFormField<String>(
                         decoration: const InputDecoration(labelText: 'المرحلة الدراسية'),
                         value: _selectedStage,
-                        items: stages.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                        items: stages.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                         onChanged: (v) => setState(() => _selectedStage = v),
                       ),
                       const SizedBox(height: 16),
@@ -4950,13 +4853,13 @@ class _TeacherRegistrationFormState extends State<TeacherRegistrationForm> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('الفصول التي تدرسها:', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const Text('الفصول التي تدرسها:', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                             Wrap(
                               spacing: 8,
                               children: availableClasses.map((c) {
                                 final isSelected = _selectedClasses.contains(c);
                                 return FilterChip(
-                                  label: Text(c),
+                                  label: Text(c, style: const TextStyle(fontFamily: 'Cairo')),
                                   selected: isSelected,
                                   onSelected: (bool selected) {
                                     setState(() {
@@ -4979,7 +4882,7 @@ class _TeacherRegistrationFormState extends State<TeacherRegistrationForm> {
                         height: 50,
                         child: _isLoading
                             ? const Center(child: CircularProgressIndicator())
-                            : ElevatedButton(onPressed: _submit, child: const Text('إرسال الطلب للإدارة')),
+                            : ElevatedButton(onPressed: _submit, child: const Text('إرسال الطلب للإدارة', style: TextStyle(fontFamily: 'Cairo'))),
                       )
                     ],
                   ),
@@ -5029,13 +4932,13 @@ class _StudentRegistrationFormState extends State<StudentRegistrationForm> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedGrade == null || _selectedClass == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار الصف والفصل')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار الصف والفصل'), backgroundColor: Colors.red));
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('عذراً، فقدت جلسة الاتصال. يرجى تسجيل الدخول مجدداً')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('عذراً، فقدت جلسة الاتصال. يرجى تسجيل الدخول مجدداً'), backgroundColor: Colors.red));
       return;
     }
 
@@ -5067,7 +4970,7 @@ class _StudentRegistrationFormState extends State<StudentRegistrationForm> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('بيانات الطالب الجديد'),
+        title: const Text('بيانات الطالب الجديد', style: TextStyle(fontFamily: 'Cairo')),
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.of(context).pushReplacementNamed('/registration')),
       ),
       body: Center(
@@ -5082,7 +4985,7 @@ class _StudentRegistrationFormState extends State<StudentRegistrationForm> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      const Text('يرجى تعبئة جميع البيانات بدقة ليتم مراجعتها من قبل الإدارة', style: TextStyle(color: Colors.grey)),
+                      const Text('يرجى تعبئة جميع البيانات بدقة ليتم مراجعتها من قبل الإدارة', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')),
                       const SizedBox(height: 24),
                       Row(
                         children: [
@@ -5110,7 +5013,7 @@ class _StudentRegistrationFormState extends State<StudentRegistrationForm> {
                             child: DropdownButtonFormField<String>(
                               decoration: const InputDecoration(labelText: 'الصف الدراسي'),
                               value: _selectedGrade,
-                              items: grades.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                              items: grades.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                               onChanged: (v) => setState(() => _selectedGrade = v),
                             ),
                           ),
@@ -5119,7 +5022,7 @@ class _StudentRegistrationFormState extends State<StudentRegistrationForm> {
                             child: DropdownButtonFormField<String>(
                               decoration: const InputDecoration(labelText: 'الفصل'),
                               value: _selectedClass,
-                              items: classes.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                              items: classes.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
                               onChanged: (v) => setState(() => _selectedClass = v),
                             ),
                           ),
@@ -5131,7 +5034,7 @@ class _StudentRegistrationFormState extends State<StudentRegistrationForm> {
                         height: 50,
                         child: _isLoading
                             ? const Center(child: CircularProgressIndicator())
-                            : ElevatedButton(onPressed: _submit, child: const Text('إرسال الطلب للإدارة')),
+                            : ElevatedButton(onPressed: _submit, child: const Text('إرسال الطلب للإدارة', style: TextStyle(fontFamily: 'Cairo'))),
                       )
                     ],
                   ),

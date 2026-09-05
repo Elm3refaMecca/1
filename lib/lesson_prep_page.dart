@@ -5,7 +5,7 @@ import 'package:intl/intl.dart' as intl;
 import 'lesson_prep_data.dart';
 
 // ===========================================================================
-// 1. صفحة استعراض ومتابعة جدول تحضير المعلمين (خاصة بالمعلم ومتابعة الإدارة)
+// 1. صفحة استعراض ومتابعة جدول تحضير المعلمين
 // ===========================================================================
 class LessonPrepSchedulePage extends StatefulWidget {
   final Map<String, dynamic>? teacherScheduleData;
@@ -80,6 +80,8 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
             _currentSchedule = widget.teacherScheduleData!['phase2Data'] ?? {};
             _isLoadingTeachers = false;
           });
+        } else {
+          _fetchSelectedTeacherSchedule();
         }
       }
     } catch (e) {
@@ -106,60 +108,37 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
     return _firstWeekStart.add(Duration(days: ((weekNumber - 1) * 7) + dayOffset));
   }
 
-  Future<void> _approveInitiative(String docId, List<OperationalTeacherItem> executors, Map<String, bool> approvals) async {
-    try {
-      final docRef = FirebaseFirestore.instance.collection('school_operational_plan_1448').doc(docId);
-      final updatedApprovals = Map<String, bool>.from(approvals);
-      updatedApprovals[currentAuthUid] = true;
-
-      final updatedExecutors = executors.map((e) {
-        if (e.id == currentAuthUid) {
-          return OperationalTeacherItem(id: e.id, name: e.name, isCustom: e.isCustom, hasApproved: true);
-        }
-        return e;
-      }).toList();
-
-      await docRef.update({
-        'collaboratorApprovals': updatedApprovals,
-        'executors': updatedExecutors.map((e) => e.toMap()).toList(),
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت الموافقة على التعاون في المبادرة بنجاح!'), backgroundColor: Colors.green));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الموافقة: $e'), backgroundColor: Colors.red));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final DateTime today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(_isAdmin ? 'متابعة تحضير المعلمين' : 'تحضيري - جدول الحصص المعتمد', style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-        backgroundColor: const Color(0xFF00796B),
+        title: Text(
+          _isAdmin ? 'متابعة خطط وتحضير المعلمين' : 'تحضير الدروس والجدول المدرسي',
+          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, fontFamily: 'Cairo'),
+        ),
+        backgroundColor: const Color(0xFF1E293B),
         foregroundColor: Colors.white,
+        elevation: 0,
         bottom: _isAdmin && !_isLoadingTeachers
             ? PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.teal.shade800,
+            color: const Color(0xFF0F172A),
             child: DropdownButtonFormField<String>(
               value: _selectedTeacherId.isNotEmpty ? _selectedTeacherId : null,
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 filled: true,
                 fillColor: Colors.white,
               ),
               items: _teachersList.map((t) => DropdownMenuItem<String>(
                 value: t['id'],
-                child: Text('المعلم: ${t['name']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
+                child: Text('المعلم: ${t['name']}', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, fontFamily: 'Cairo')),
               )).toList(),
               onChanged: (val) {
                 if (val != null) {
@@ -176,26 +155,29 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
             : null,
       ),
       body: _isLoadingTeachers
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
           : Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            color: Colors.teal.shade50,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
             child: Row(
               children: [
-                const Icon(Icons.date_range, color: Color(0xFF00796B)),
-                const SizedBox(width: 8),
-                const Text('اختر الأسبوع الدراسي:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                const Icon(Icons.calendar_today_outlined, size: 18, color: Color(0xFF475569)),
+                const SizedBox(width: 10),
+                const Text('الأسبوع الدراسي:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF334155), fontFamily: 'Cairo')),
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<int>(
                     value: _selectedWeek,
                     decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFCBD5E1))),
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: const Color(0xFFF8FAFC),
                     ),
                     items: List.generate(50, (index) {
                       int w = index + 1;
@@ -203,7 +185,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                       String dateStr = intl.DateFormat('yyyy/MM/dd').format(weekStart);
                       return DropdownMenuItem<int>(
                         value: w,
-                        child: Text('الأسبوع $w (يبدأ: $dateStr)', style: const TextStyle(fontSize: 13, fontFamily: 'Cairo')),
+                        child: Text('الأسبوع $w (يبدأ: $dateStr)', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo', color: Color(0xFF1E293B))),
                       );
                     }),
                     onChanged: (val) {
@@ -214,7 +196,6 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
               ],
             ),
           ),
-          const Divider(height: 1),
 
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
@@ -237,7 +218,6 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                 .where('executorsIds', arrayContains: _selectedTeacherId)
                                 .snapshots(),
                             builder: (context, planSnapshot) {
-
                               Map<String, Map<String, dynamic>> preparedLessons = {};
                               if (prepSnapshot.hasData) {
                                 for (var doc in prepSnapshot.data!.docs) {
@@ -276,34 +256,31 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                     margin: const EdgeInsets.only(left: 12),
                                     decoration: BoxDecoration(
                                       color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: Colors.teal.shade200, width: 1.5),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: const Color(0xFFE2E8F0)),
                                       boxShadow: [
-                                        BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 3))
+                                        BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))
                                       ],
                                     ),
                                     child: Column(
                                       children: [
                                         Container(
-                                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
                                           decoration: const BoxDecoration(
-                                            color: Color(0xFF00796B),
-                                            borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+                                            color: Color(0xFF334155),
+                                            borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
                                           ),
                                           child: Row(
                                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                             children: [
-                                              Text(dayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(8)),
-                                                child: Text(formattedDate, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                                              ),
+                                              Text(dayName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                                              Text(formattedDate, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontFamily: 'Cairo')),
                                             ],
                                           ),
                                         ),
                                         Expanded(
                                           child: ListView.builder(
+                                            padding: const EdgeInsets.symmetric(vertical: 6),
                                             itemCount: periods.isNotEmpty ? periods.length : 7,
                                             itemBuilder: (context, pIndex) {
                                               Map<String, dynamic> slot = (pIndex < periods.length)
@@ -321,64 +298,36 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                               bool isPrepared = preparedLessons.containsKey(prepDocId);
                                               bool isLatePrep = isPrepared ? (preparedLessons[prepDocId]!['isLatePrep'] ?? false) : false;
                                               bool isPast = lessonDateOnly.isBefore(today);
-                                              bool isMoreThan3Weeks = lessonDateOnly.difference(today).inDays > 21;
 
                                               String statusText = '';
-                                              Color statusColor = Colors.transparent;
-                                              IconData statusIcon = Icons.info;
+                                              Color badgeBg = const Color(0xFFF1F5F9);
+                                              Color badgeText = const Color(0xFF64748B);
 
                                               if (isClass) {
                                                 if (isPrepared) {
                                                   if (isLatePrep) {
-                                                    statusText = 'مُحَضَّرة (متأخر)';
-                                                    statusColor = Colors.orange.shade700;
-                                                    statusIcon = Icons.warning_amber_rounded;
+                                                    statusText = 'مُحضر (متأخر)';
+                                                    badgeBg = const Color(0xFFFEF3C7);
+                                                    badgeText = const Color(0xFF92400E);
                                                   } else {
-                                                    statusText = 'مُحَضَّرة';
-                                                    statusColor = Colors.green.shade700;
-                                                    statusIcon = Icons.check_circle;
+                                                    statusText = 'مُحضر';
+                                                    badgeBg = const Color(0xFFDCFCE7);
+                                                    badgeText = const Color(0xFF166534);
                                                   }
                                                 } else if (isPast) {
-                                                  statusText = 'فاتت ولم تُحضر';
-                                                  statusColor = Colors.red.shade700;
-                                                  statusIcon = Icons.cancel;
+                                                  statusText = 'غير محضر';
+                                                  badgeBg = const Color(0xFFFEE2E2);
+                                                  badgeText = const Color(0xFF991B1B);
                                                 } else {
                                                   statusText = 'بانتظار التحضير';
-                                                  statusColor = Colors.grey.shade600;
-                                                  statusIcon = Icons.hourglass_empty;
+                                                  badgeBg = const Color(0xFFF1F5F9);
+                                                  badgeText = const Color(0xFF64748B);
                                                 }
                                               }
-
-                                              List<OperationalPlanEntry> periodPlans = teacherPlans.where((plan) {
-                                                bool matchesWeek = plan.isContinuousUntilYearEnd;
-                                                if (!matchesWeek) {
-                                                  if (plan.dateSelectionMode == 'weeks') {
-                                                    int sW = plan.startWeek ?? plan.executionWeek ?? 1;
-                                                    int eW = plan.endWeek ?? sW;
-                                                    matchesWeek = _selectedWeek >= sW && _selectedWeek <= eW;
-                                                  } else {
-                                                    matchesWeek = plan.executionWeek == _selectedWeek;
-                                                  }
-                                                }
-                                                bool matchesDay = plan.executionDays.contains(dayName);
-                                                bool matchesPeriod = plan.executionPeriods.contains(pIndex + 1);
-
-                                                return matchesWeek && matchesDay && matchesPeriod;
-                                              }).toList();
 
                                               return InkWell(
                                                 onTap: isClass
                                                     ? () {
-                                                  if (isMoreThan3Weeks && _selectedTeacherId == currentAuthUid) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      const SnackBar(
-                                                        content: Text('تحذير: لا يمكنك التسابق في التحضير! الحد الأقصى المسموح به هو 3 أسابيع مقدماً فقط.'),
-                                                        backgroundColor: Colors.red,
-                                                      ),
-                                                    );
-                                                    return;
-                                                  }
-
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
@@ -400,142 +349,73 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                                                 }
                                                     : null,
                                                 child: Container(
-                                                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                   padding: const EdgeInsets.all(10),
                                                   decoration: BoxDecoration(
-                                                    color: isClass ? Colors.teal.shade50.withOpacity(0.3) : Colors.grey.shade100,
-                                                    borderRadius: BorderRadius.circular(10),
+                                                    color: isClass ? Colors.white : const Color(0xFFF8FAFC),
+                                                    borderRadius: BorderRadius.circular(8),
                                                     border: Border.all(
-                                                      color: isClass ? (isPast && !isPrepared ? Colors.red.shade300 : Colors.teal.shade200) : Colors.grey.shade200,
+                                                      color: isClass ? const Color(0xFFE2E8F0) : const Color(0xFFF1F5F9),
                                                     ),
                                                   ),
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                  child: Row(
                                                     children: [
-                                                      Row(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                        children: [
-                                                          CircleAvatar(
-                                                            radius: 14,
-                                                            backgroundColor: isClass ? const Color(0xFF00796B) : Colors.grey.shade400,
-                                                            child: Text('${pIndex + 1}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                                                          ),
-                                                          const SizedBox(width: 10),
-                                                          Expanded(
-                                                            child: Column(
-                                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                                              children: [
-                                                                Text(
-                                                                  isClass ? subject : (slot['type'] ?? 'فارغ'),
-                                                                  style: TextStyle(
-                                                                    fontWeight: FontWeight.bold,
-                                                                    fontSize: 14,
-                                                                    color: isClass ? Colors.black87 : Colors.grey,
-                                                                    fontFamily: 'Cairo',
-                                                                  ),
-                                                                ),
-                                                                if (isClass) ...[
-                                                                  if (grade.isNotEmpty || className.isNotEmpty)
-                                                                    Text('$grade - $className', style: TextStyle(color: Colors.grey.shade700, fontSize: 11, fontFamily: 'Cairo')),
-                                                                  const SizedBox(height: 8),
-                                                                  Wrap(
-                                                                    spacing: 6,
-                                                                    runSpacing: 4,
-                                                                    children: [
-                                                                      if (hasVisit)
-                                                                        Container(
-                                                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                                                          decoration: BoxDecoration(
-                                                                            color: Colors.yellow.shade600,
-                                                                            borderRadius: BorderRadius.circular(6),
-                                                                          ),
-                                                                          child: const Row(
-                                                                            mainAxisSize: MainAxisSize.min,
-                                                                            children: [
-                                                                              Icon(Icons.visibility, size: 12, color: Colors.black87),
-                                                                              SizedBox(width: 4),
-                                                                              Text('زيارة صفية', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.black87, fontFamily: 'Cairo')),
-                                                                            ],
-                                                                          ),
-                                                                        ),
-                                                                      Container(
-                                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                                                                        decoration: BoxDecoration(
-                                                                          color: statusColor.withOpacity(0.1),
-                                                                          border: Border.all(color: statusColor, width: 1.5),
-                                                                          borderRadius: BorderRadius.circular(6),
-                                                                        ),
-                                                                        child: Row(
-                                                                          mainAxisSize: MainAxisSize.min,
-                                                                          children: [
-                                                                            Icon(statusIcon, size: 12, color: statusColor),
-                                                                            const SizedBox(width: 4),
-                                                                            Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor, fontFamily: 'Cairo')),
-                                                                          ],
-                                                                        ),
-                                                                      ),
-                                                                    ],
-                                                                  )
-                                                                ],
-                                                              ],
-                                                            ),
-                                                          ),
-                                                          if (isClass)
-                                                            Icon(
-                                                                (_isAdmin && _selectedTeacherId != currentAuthUid) ? Icons.visibility : Icons.edit_note,
-                                                                color: const Color(0xFF00796B),
-                                                                size: 22
-                                                            ),
-                                                        ],
+                                                      Container(
+                                                        width: 24,
+                                                        height: 24,
+                                                        alignment: Alignment.center,
+                                                        decoration: BoxDecoration(
+                                                          color: isClass ? const Color(0xFF0F766E) : const Color(0xFFCBD5E1),
+                                                          borderRadius: BorderRadius.circular(6),
+                                                        ),
+                                                        child: Text('${pIndex + 1}', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                                                       ),
-
-                                                      if (periodPlans.isNotEmpty) ...[
-                                                        const SizedBox(height: 8),
-                                                        const Divider(height: 1, color: Colors.amber),
-                                                        const SizedBox(height: 8),
-                                                        ...periodPlans.map((plan) {
-                                                          bool needsMyApproval = plan.collaboratorApprovals[currentAuthUid] == false;
-                                                          return Container(
-                                                            margin: const EdgeInsets.only(bottom: 6),
-                                                            padding: const EdgeInsets.all(8),
-                                                            decoration: BoxDecoration(
-                                                              color: Colors.amber.shade50,
-                                                              borderRadius: BorderRadius.circular(8),
-                                                              border: Border.all(color: Colors.amber.shade300),
+                                                      const SizedBox(width: 10),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            Text(
+                                                              isClass ? subject : (slot['type'] ?? 'فارغ'),
+                                                              style: TextStyle(
+                                                                fontWeight: FontWeight.w600,
+                                                                fontSize: 13,
+                                                                color: isClass ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                                                                fontFamily: 'Cairo',
+                                                              ),
                                                             ),
-                                                            child: Column(
-                                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                                              children: [
-                                                                Row(
-                                                                  children: [
-                                                                    const Icon(Icons.star, color: Colors.amber, size: 16),
-                                                                    const SizedBox(width: 4),
-                                                                    Expanded(child: Text('مبادرة: ${plan.title}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo'))),
-                                                                  ],
-                                                                ),
-                                                                Text('الحالة: ${plan.status}', style: const TextStyle(fontSize: 10, fontFamily: 'Cairo', color: Colors.grey)),
-                                                                if (needsMyApproval && _selectedTeacherId == currentAuthUid)
-                                                                  Padding(
-                                                                    padding: const EdgeInsets.only(top: 6),
-                                                                    child: SizedBox(
-                                                                      width: double.infinity,
-                                                                      child: ElevatedButton(
-                                                                        style: ElevatedButton.styleFrom(
-                                                                          backgroundColor: Colors.green,
-                                                                          foregroundColor: Colors.white,
-                                                                          padding: const EdgeInsets.symmetric(vertical: 4),
-                                                                          minimumSize: const Size(0, 30),
-                                                                        ),
-                                                                        onPressed: () => _approveInitiative(plan.id!, plan.executors, plan.collaboratorApprovals),
-                                                                        child: const Text('موافقة على التعاون', style: TextStyle(fontSize: 11, fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+                                                            if (isClass) ...[
+                                                              if (grade.isNotEmpty || className.isNotEmpty)
+                                                                Text('$grade - $className', style: const TextStyle(color: Color(0xFF64748B), fontSize: 11, fontFamily: 'Cairo')),
+                                                              const SizedBox(height: 4),
+                                                              Wrap(
+                                                                spacing: 4,
+                                                                children: [
+                                                                  if (hasVisit)
+                                                                    Container(
+                                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                                      decoration: BoxDecoration(
+                                                                        color: const Color(0xFFFEF08A),
+                                                                        borderRadius: BorderRadius.circular(4),
                                                                       ),
+                                                                      child: const Text('زيارة صفية', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF854D0E), fontFamily: 'Cairo')),
                                                                     ),
-                                                                  )
-                                                              ],
-                                                            ),
-                                                          );
-                                                        }).toList(),
-                                                      ]
+                                                                  Container(
+                                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                                    decoration: BoxDecoration(
+                                                                      color: badgeBg,
+                                                                      borderRadius: BorderRadius.circular(4),
+                                                                    ),
+                                                                    child: Text(statusText, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: badgeText, fontFamily: 'Cairo')),
+                                                                  ),
+                                                                ],
+                                                              )
+                                                            ],
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      if (isClass)
+                                                        const Icon(Icons.chevron_left, size: 18, color: Color(0xFF94A3B8)),
                                                     ],
                                                   ),
                                                 ),
@@ -555,7 +435,7 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
                 }
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
         ],
       ),
     );
@@ -563,8 +443,49 @@ class _LessonPrepSchedulePageState extends State<LessonPrepSchedulePage> {
 }
 
 // ===========================================================================
-// 2. نموذج تحضير درس المعلم المفصل (LessonDetailPrepFormPage)
+// 2. نماذج البيانات الدقيقة للتحضير وإدارة الوقت
 // ===========================================================================
+
+class _TimedItemModel {
+  String text;
+  int triggerOffset;
+
+  _TimedItemModel({required this.text, this.triggerOffset = 0});
+
+  Map<String, dynamic> toMap() => {
+    'text': text,
+    'triggerOffset': triggerOffset,
+  };
+
+  factory _TimedItemModel.fromMap(Map<String, dynamic> map) => _TimedItemModel(
+    text: map['text'] ?? '',
+    triggerOffset: map['triggerOffset'] ?? 0,
+  );
+}
+
+class _DomainDigitalLink {
+  TextEditingController titleCtrl;
+  TextEditingController urlCtrl;
+  int triggerOffset;
+
+  _DomainDigitalLink({required this.titleCtrl, required this.urlCtrl, this.triggerOffset = 0});
+
+  Map<String, dynamic> toMap() => {
+    'title': titleCtrl.text.trim(),
+    'url': urlCtrl.text.trim(),
+    'triggerOffset': triggerOffset,
+  };
+
+  factory _DomainDigitalLink.fromMap(Map<String, dynamic> map) {
+    int offset = map['triggerOffset'] ?? 0;
+    return _DomainDigitalLink(
+      titleCtrl: TextEditingController(text: map['title'] ?? ''),
+      urlCtrl: TextEditingController(text: map['url'] ?? ''),
+      triggerOffset: offset,
+    );
+  }
+}
+
 class LessonDetailPrepFormPage extends StatefulWidget {
   final int weekNumber;
   final String dayName;
@@ -599,41 +520,76 @@ class LessonDetailPrepFormPage extends StatefulWidget {
 
 class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
   final _formKey = GlobalKey<FormState>();
+  final ScrollController _scrollController = ScrollController();
+
+  // مفاتيح تركيز الحقول الإجبارية للانتقال التلقائي
+  final GlobalKey _titleKey = GlobalKey();
+  final GlobalKey _introKey = GlobalKey();
+  final GlobalKey _timeKey = GlobalKey();
+  final GlobalKey _evalKey = GlobalKey();
+
+  final FocusNode _titleFocusNode = FocusNode();
+  final FocusNode _introFocusNode = FocusNode();
+  final FocusNode _hwTitleFocusNode = FocusNode();
+
   bool _isLoading = true;
   bool _isSaving = false;
 
+  // خيار اعتماد التحضير للأسبوع كاملاً
+  bool _applyToEntireWeek = false;
+
+  final List<String> _daysOrder = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+
   final TextEditingController _lessonTitleCtrl = TextEditingController();
-  final List<String> _selectedOutcomes = [];
-  final TextEditingController _customOutcomeCtrl = TextEditingController();
+  final TextEditingController _introQuestionCtrl = TextEditingController();
 
-  final List<String> _selectedValues = [];
-  final TextEditingController _customValueCtrl = TextEditingController();
-
-  final List<String> _selectedStrategies = [];
-  final TextEditingController _customStrategyCtrl = TextEditingController();
-
-  final List<String> _selectedGifted = [];
-  final TextEditingController _customGiftedCtrl = TextEditingController();
-
-  final List<String> _selectedPractical = [];
-  final TextEditingController _customPracticalCtrl = TextEditingController();
-
-  final List<TextEditingController> _digitalLinkControllers = [];
-  final List<String> _specializedSkills = [];
-  final TextEditingController _skillInputCtrl = TextEditingController();
+  final List<_TimedItemModel> _selectedOutcomes = [];
+  final List<_TimedItemModel> _explanationHeadings = [];
+  final List<_TimedItemModel> _selectedStrategies = [];
+  final List<_TimedItemModel> _selectedGifted = [];
+  final List<_TimedItemModel> _specializedSkills = [];
+  final List<_TimedItemModel> _selectedPractical = [];
+  final List<_TimedItemModel> _selectedValues = [];
 
   final TextEditingController _hwPageCtrl = TextEditingController();
   final TextEditingController _hwTitleCtrl = TextEditingController();
   final TextEditingController _hwTextCtrl = TextEditingController();
 
-  int _timeExplanation = 20;
-  int _timeOutcomes = 5;
-  int _timeStrategies = 10;
-  int _timeEvaluation = 5;
-  int _timeValues = 5;
+  // فترات الـ 45 دقيقة
+  int _timeWarmupAndOutcomes = 5;
+  int _timeExplanationAndTech = 20;
+  int _timeActivitiesAndGifted = 10;
+  int _timePracticalAndValues = 5;
+  int _timeEvaluationAndFeedback = 5;
 
   int get _totalAssignedTime =>
-      _timeExplanation + _timeOutcomes + _timeStrategies + _timeEvaluation + _timeValues;
+      _timeWarmupAndOutcomes +
+          _timeExplanationAndTech +
+          _timeActivitiesAndGifted +
+          _timePracticalAndValues +
+          _timeEvaluationAndFeedback;
+
+  final Map<String, List<_DomainDigitalLink>> _domainLinks = {
+    'warmup': [],
+    'explanation': [],
+    'activities': [],
+    'practical': [],
+    'evaluation': [],
+  };
+
+  List<String> _mySavedTitles = [];
+  final Map<String, List<String>> _myCustomItemsBank = {
+    'outcomes': [],
+    'headings': [],
+    'values': [],
+    'strategies': [],
+    'gifted': [],
+    'practical': [],
+    'skills': [],
+  };
+
+  List<Map<String, dynamic>> _desktopSchedule = [];
+  bool _isWinterTime = false;
 
   String get _prepDocId {
     String dateStr = intl.DateFormat('yyyyMMdd').format(widget.lessonDate);
@@ -643,29 +599,98 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
   @override
   void initState() {
     super.initState();
+    _loadDesktopSchedule();
+    _loadTeacherCustomBank();
     _loadExistingPrep();
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
+    _titleFocusNode.dispose();
+    _introFocusNode.dispose();
+    _hwTitleFocusNode.dispose();
+
     _lessonTitleCtrl.dispose();
-    _customOutcomeCtrl.dispose();
-    _customValueCtrl.dispose();
-    _customStrategyCtrl.dispose();
-    _customGiftedCtrl.dispose();
-    _customPracticalCtrl.dispose();
-    for (var c in _digitalLinkControllers) {
-      c.dispose();
-    }
-    _skillInputCtrl.dispose();
+    _introQuestionCtrl.dispose();
     _hwPageCtrl.dispose();
     _hwTitleCtrl.dispose();
     _hwTextCtrl.dispose();
+    for (var list in _domainLinks.values) {
+      for (var l in list) {
+        l.titleCtrl.dispose();
+        l.urlCtrl.dispose();
+      }
+    }
     super.dispose();
   }
 
-  List<String> _getFilteredList(Map<String, List<String>> sourceMap) {
+  Future<void> _loadDesktopSchedule() async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('settings').doc('school_schedule').get();
+      if (doc.exists && doc.data() != null) {
+        bool isLower = ['الصف الأول', 'الصف الثاني', 'الصف الثالث'].contains(widget.grade);
+        String key = isLower ? 'lower_primary' : 'upper_primary';
+        if (doc.data()!.containsKey(key)) {
+          _desktopSchedule = List<Map<String, dynamic>>.from(doc.data()![key]);
+        }
+      }
+      final winterDoc = await FirebaseFirestore.instance.collection('settings').doc('time_config').get();
+      if (winterDoc.exists) {
+        _isWinterTime = winterDoc.data()?['is_winter'] ?? false;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadTeacherCustomBank() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('teacher_custom_prep_bank')
+          .doc(widget.teacherId)
+          .get();
+
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        setState(() {
+          String titleKey = 'savedTitles_${widget.subject}_${widget.grade}';
+          _mySavedTitles = List<String>.from(data[titleKey] ?? []);
+
+          _myCustomItemsBank['outcomes'] = List<String>.from(data['outcomes'] ?? []);
+          _myCustomItemsBank['headings'] = List<String>.from(data['headings'] ?? []);
+          _myCustomItemsBank['values'] = List<String>.from(data['values'] ?? []);
+          _myCustomItemsBank['strategies'] = List<String>.from(data['strategies'] ?? []);
+          _myCustomItemsBank['gifted'] = List<String>.from(data['gifted'] ?? []);
+          _myCustomItemsBank['practical'] = List<String>.from(data['practical'] ?? []);
+          _myCustomItemsBank['skills'] = List<String>.from(data['skills'] ?? []);
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading teacher custom bank: $e");
+    }
+  }
+
+  Future<void> _saveToCustomBank(String categoryKey, String newItem) async {
+    if (newItem.trim().isEmpty) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('teacher_custom_prep_bank')
+          .doc(widget.teacherId)
+          .set({
+        categoryKey: FieldValue.arrayUnion([newItem.trim()]),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      _loadTeacherCustomBank();
+    } catch (_) {}
+  }
+
+  List<String> _getFilteredList(Map<String, List<String>> sourceMap, String bankKey) {
     List<String> combinedList = [];
+
+    if (_myCustomItemsBank.containsKey(bankKey) && _myCustomItemsBank[bankKey]!.isNotEmpty) {
+      combinedList.addAll(_myCustomItemsBank[bankKey]!);
+    }
+
     if (sourceMap.containsKey('عام')) combinedList.addAll(sourceMap['عام']!);
 
     bool isStemTarget = ['علوم', 'رياضيات', 'روبوت', 'رقمية'].contains(widget.subject);
@@ -678,7 +703,107 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
         if (sourceMap.containsKey('إسلاميات')) combinedList.addAll(sourceMap['إسلاميات']!);
       }
     }
-    return combinedList;
+    return combinedList.toSet().toList();
+  }
+
+  void _populateTimedList(List<dynamic>? source, List<_TimedItemModel> target) {
+    target.clear();
+    if (source != null) {
+      for (var item in source) {
+        if (item is Map) {
+          target.add(_TimedItemModel.fromMap(Map<String, dynamic>.from(item)));
+        } else if (item is String) {
+          target.add(_TimedItemModel(text: item));
+        }
+      }
+    }
+  }
+
+  void _populateStateFromData(Map<String, dynamic> data) {
+    _lessonTitleCtrl.text = data['lessonTitle'] ?? '';
+    _introQuestionCtrl.text = data['introQuestion'] ?? '';
+
+    _populateTimedList(data['outcomes'], _selectedOutcomes);
+    _populateTimedList(data['explanationHeadings'], _explanationHeadings);
+    _populateTimedList(data['values'], _selectedValues);
+    _populateTimedList(data['strategies'], _selectedStrategies);
+    _populateTimedList(data['gifted'], _selectedGifted);
+    _populateTimedList(data['practical'], _selectedPractical);
+    _populateTimedList(data['specializedSkills'], _specializedSkills);
+
+    for (var list in _domainLinks.values) {
+      for (var l in list) {
+        l.titleCtrl.dispose();
+        l.urlCtrl.dispose();
+      }
+      list.clear();
+    }
+
+    if (data['domainLinks'] != null) {
+      Map<String, dynamic> dl = Map<String, dynamic>.from(data['domainLinks']);
+      dl.forEach((key, val) {
+        if (_domainLinks.containsKey(key) && val is List) {
+          for (var item in val) {
+            _domainLinks[key]!.add(_DomainDigitalLink.fromMap(Map<String, dynamic>.from(item)));
+          }
+        }
+      });
+    }
+
+    final hw = data['homework'] as Map<String, dynamic>?;
+    if (hw != null) {
+      _hwPageCtrl.text = hw['page'] ?? '';
+      _hwTitleCtrl.text = hw['title'] ?? '';
+      _hwTextCtrl.text = hw['text'] ?? '';
+    }
+
+    final timeMap = data['timeDistribution'] as Map<String, dynamic>?;
+    if (timeMap != null) {
+      _timeWarmupAndOutcomes = timeMap['warmupAndOutcomes'] ?? 5;
+      _timeExplanationAndTech = timeMap['explanationAndTech'] ?? 20;
+      _timeActivitiesAndGifted = timeMap['activitiesAndGifted'] ?? 10;
+      _timePracticalAndValues = timeMap['practicalAndValues'] ?? 5;
+      _timeEvaluationAndFeedback = timeMap['evaluationAndFeedback'] ?? 5;
+    }
+    setState(() {});
+  }
+
+  Future<void> _fetchAndApplyPrepByTitle(String title) async {
+    final cleanTitle = title.trim();
+    if (cleanTitle.isEmpty) return;
+
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('lesson_preparations')
+          .where('teacherId', isEqualTo: widget.teacherId)
+          .where('subject', isEqualTo: widget.subject)
+          .where('grade', isEqualTo: widget.grade)
+          .where('lessonTitle', isEqualTo: cleanTitle)
+          .orderBy('updatedAt', descending: true)
+          .limit(1)
+          .get();
+
+      if (snap.docs.isNotEmpty) {
+        final previousData = snap.docs.first.data();
+        _populateStateFromData(previousData);
+        _lessonTitleCtrl.text = cleanTitle;
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'تم جلب محتوى "$cleanTitle" وتطبيقه. يمكنك التعديل عليه بحرية.',
+                style: const TextStyle(fontFamily: 'Cairo'),
+              ),
+              backgroundColor: const Color(0xFF0F766E),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Error fetching prep by title: $e");
+    }
   }
 
   Future<void> _loadExistingPrep() async {
@@ -689,74 +814,244 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
           .get();
 
       if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        _lessonTitleCtrl.text = data['lessonTitle'] ?? '';
-
-        if (data['outcomes'] != null) _selectedOutcomes.addAll(List<String>.from(data['outcomes']));
-        if (data['values'] != null) _selectedValues.addAll(List<String>.from(data['values']));
-        if (data['strategies'] != null) _selectedStrategies.addAll(List<String>.from(data['strategies']));
-        if (data['gifted'] != null) _selectedGifted.addAll(List<String>.from(data['gifted']));
-        if (data['practical'] != null) _selectedPractical.addAll(List<String>.from(data['practical']));
-        if (data['specializedSkills'] != null) _specializedSkills.addAll(List<String>.from(data['specializedSkills']));
-
-        if (data['digitalLinks'] != null) {
-          List<dynamic> links = data['digitalLinks'];
-          for (var l in links) {
-            _digitalLinkControllers.add(TextEditingController(text: l.toString()));
-          }
-        }
-
-        final hw = data['homework'] as Map<String, dynamic>?;
-        if (hw != null) {
-          _hwPageCtrl.text = hw['page'] ?? '';
-          _hwTitleCtrl.text = hw['title'] ?? '';
-          _hwTextCtrl.text = hw['text'] ?? '';
-        }
-
-        final timeMap = data['timeDistribution'] as Map<String, dynamic>?;
-        if (timeMap != null) {
-          _timeExplanation = timeMap['explanation'] ?? 20;
-          _timeOutcomes = timeMap['outcomes'] ?? 5;
-          _timeStrategies = timeMap['strategies'] ?? 10;
-          _timeEvaluation = timeMap['evaluation'] ?? 5;
-          _timeValues = timeMap['values'] ?? 5;
-        }
+        _populateStateFromData(doc.data()!);
       }
     } catch (e) {
       debugPrint("Error loading preparation: $e");
     } finally {
-      if (_digitalLinkControllers.isEmpty) {
-        _digitalLinkControllers.add(TextEditingController());
-      }
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _savePreparation() async {
-    if (widget.isViewerOnly) return;
-    if (!_formKey.currentState!.validate()) return;
+  int _timeToMins(String timeStr) {
+    try {
+      final parts = timeStr.split(':');
+      return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+    } catch (_) {
+      return 0;
+    }
+  }
 
+  String _formatMinsToTime(int totalMins) {
+    int h = totalMins ~/ 60;
+    int m = totalMins % 60;
+    String period = h >= 12 ? 'م' : 'ص';
+    int h12 = h > 12 ? h - 12 : (h == 0 ? 12 : h);
+    return '${h12.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')} $period';
+  }
+
+  Map<String, Map<String, dynamic>> _calculateAccurateDomainTimings() {
+    int periodStartMins = (7 * 60) + ((widget.periodIndex - 1) * 45);
+    int startOffset = _isWinterTime ? 15 : 0;
+
+    if (_desktopSchedule.isNotEmpty) {
+      int activeIndex = 0;
+      for (var s in _desktopSchedule) {
+        if (s['isBreak'] != true) {
+          activeIndex++;
+          if (activeIndex == widget.periodIndex) {
+            periodStartMins = _timeToMins(s['start']) + startOffset;
+            break;
+          }
+        }
+      }
+    }
+
+    int warmupStart = periodStartMins;
+    int warmupEnd = warmupStart + _timeWarmupAndOutcomes;
+
+    int explanationStart = warmupEnd;
+    int explanationEnd = explanationStart + _timeExplanationAndTech;
+
+    int activitiesStart = explanationEnd;
+    int activitiesEnd = activitiesStart + _timeActivitiesAndGifted;
+
+    int practicalStart = activitiesEnd;
+    int practicalEnd = practicalStart + _timePracticalAndValues;
+
+    int evaluationStart = practicalEnd;
+    int evaluationEnd = evaluationStart + _timeEvaluationAndFeedback;
+
+    return {
+      'warmup': {
+        'title': '1. التهيئة والدافعية ونواتج التعلم',
+        'duration': _timeWarmupAndOutcomes,
+        'startMins': warmupStart,
+        'endMins': warmupEnd,
+        'startTimeStr': _formatMinsToTime(warmupStart),
+        'endTimeStr': _formatMinsToTime(warmupEnd),
+      },
+      'explanation': {
+        'title': '2. الشرح والعرض والاستراتيجيات',
+        'duration': _timeExplanationAndTech,
+        'startMins': explanationStart,
+        'endMins': explanationEnd,
+        'startTimeStr': _formatMinsToTime(explanationStart),
+        'endTimeStr': _formatMinsToTime(explanationEnd),
+      },
+      'activities': {
+        'title': '3. الأنشطة الطلابية ورعاية الموهوبين',
+        'duration': _timeActivitiesAndGifted,
+        'startMins': activitiesStart,
+        'endMins': activitiesEnd,
+        'startTimeStr': _formatMinsToTime(activitiesStart),
+        'endTimeStr': _formatMinsToTime(activitiesEnd),
+      },
+      'practical': {
+        'title': '4. التطبيقات الحياتية والربط بالقيم',
+        'duration': _timePracticalAndValues,
+        'startMins': practicalStart,
+        'endMins': practicalEnd,
+        'startTimeStr': _formatMinsToTime(practicalStart),
+        'endTimeStr': _formatMinsToTime(practicalEnd),
+      },
+      'evaluation': {
+        'title': '5. التقويم والتغذية الراجعة والواجبات',
+        'duration': _timeEvaluationAndFeedback,
+        'startMins': evaluationStart,
+        'endMins': evaluationEnd,
+        'startTimeStr': _formatMinsToTime(evaluationStart),
+        'endTimeStr': _formatMinsToTime(evaluationEnd),
+      },
+    };
+  }
+
+  // انتقال وتمرير فوري للعنصر الإجباري الناقص
+  void _scrollToMissingField(GlobalKey key, [FocusNode? focusNode]) {
+    if (key.currentContext != null) {
+      Scrollable.ensureVisible(
+        key.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+      if (focusNode != null) {
+        focusNode.requestFocus();
+      }
+    }
+  }
+
+  // ✅ الفحص الدقيق والتحقق من البنود الإجبارية مع نقل المعلم فوراً إليها
+  bool _validateRequiredFields() {
     if (_lessonTitleCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء إدخال عنوان الدرس'), backgroundColor: Colors.red));
-      return;
+      _scrollToMissingField(_titleKey, _titleFocusNode);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('الرجاء كتابة عنوان الدرس أولاً (بند إجباري)', style: TextStyle(fontFamily: 'Cairo')),
+          backgroundColor: Color(0xFFB91C1C),
+        ),
+      );
+      return false;
+    }
+
+    if (_introQuestionCtrl.text.trim().isEmpty) {
+      _scrollToMissingField(_introKey, _introFocusNode);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('الرجاء إدخال السؤال التمهيدي للدرس (بند إجباري)', style: TextStyle(fontFamily: 'Cairo')),
+          backgroundColor: Color(0xFFB91C1C),
+        ),
+      );
+      return false;
     }
 
     if (_totalAssignedTime != 45) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تنبيه: يجب أن يكون مجموع الدقائق 45 دقيقة تماماً (المجموع الحالي: $_totalAssignedTime د).'), backgroundColor: Colors.red));
-      return;
+      _scrollToMissingField(_timeKey);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('يجب أن يكون مجموع دقائق الحصة 45 دقيقة تماماً (المجموع الحالي: $_totalAssignedTime د).', style: const TextStyle(fontFamily: 'Cairo')),
+          backgroundColor: const Color(0xFFB91C1C),
+        ),
+      );
+      return false;
     }
+
+    if (_hwTitleCtrl.text.trim().isEmpty && _hwTextCtrl.text.trim().isEmpty) {
+      _scrollToMissingField(_evalKey, _hwTitleFocusNode);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('الرجاء تسجيل مهمة التقويم أو الواجب (بند إجباري)', style: TextStyle(fontFamily: 'Cairo')),
+          backgroundColor: Color(0xFFB91C1C),
+        ),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _savePreparation() async {
+    if (widget.isViewerOnly) return;
+    if (!_validateRequiredFields()) return;
 
     setState(() => _isSaving = true);
 
     try {
-      final List<String> linksToSave = _digitalLinkControllers
-          .map((c) => c.text.trim())
-          .where((text) => text.isNotEmpty)
-          .toList();
-
       final DateTime today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
       final DateTime lessonDateOnly = DateTime(widget.lessonDate.year, widget.lessonDate.month, widget.lessonDate.day);
       bool isLatePrep = lessonDateOnly.isBefore(today);
+
+      String titleKey = 'savedTitles_${widget.subject}_${widget.grade}';
+      await _saveToCustomBank(titleKey, _lessonTitleCtrl.text.trim());
+
+      final accurateTimings = _calculateAccurateDomainTimings();
+
+      Map<String, List<Map<String, dynamic>>> domainLinksMap = {};
+      List<Map<String, dynamic>> flatTimelineEvents = [];
+
+      void addEvents(List<_TimedItemModel> items, String type, String domainKey) {
+        var dInfo = accurateTimings[domainKey]!;
+        for (var item in items) {
+          int actualOffset = item.triggerOffset > dInfo['duration'] ? dInfo['duration'] : item.triggerOffset;
+          int triggerMins = dInfo['startMins'] + actualOffset;
+          flatTimelineEvents.add({
+            'type': type,
+            'title': item.text,
+            'domainKey': domainKey,
+            'domainTitle': dInfo['title'],
+            'triggerOffset': actualOffset,
+            'triggerMins': triggerMins,
+            'triggerTimeStr': _formatMinsToTime(triggerMins),
+            'periodIndex': widget.periodIndex,
+          });
+        }
+      }
+
+      addEvents(_selectedOutcomes, 'outcome', 'warmup');
+      addEvents(_explanationHeadings, 'heading', 'explanation');
+      addEvents(_specializedSkills, 'skill', 'explanation');
+      addEvents(_selectedStrategies, 'strategy', 'explanation');
+      addEvents(_selectedGifted, 'gifted', 'activities');
+      addEvents(_selectedPractical, 'practical', 'practical');
+      addEvents(_selectedValues, 'value', 'practical');
+
+      _domainLinks.forEach((domainKey, links) {
+        domainLinksMap[domainKey] = links
+            .where((l) => l.urlCtrl.text.trim().isNotEmpty)
+            .map((l) => l.toMap())
+            .toList();
+
+        for (var l in links) {
+          if (l.urlCtrl.text.trim().isNotEmpty) {
+            var dInfo = accurateTimings[domainKey]!;
+            int actualOffset = l.triggerOffset > dInfo['duration'] ? dInfo['duration'] : l.triggerOffset;
+            int triggerMins = dInfo['startMins'] + actualOffset;
+
+            flatTimelineEvents.add({
+              'type': 'link',
+              'title': l.titleCtrl.text.trim().isNotEmpty ? l.titleCtrl.text.trim() : 'مصدر رقمي',
+              'url': l.urlCtrl.text.trim(),
+              'domainKey': domainKey,
+              'domainTitle': dInfo['title'],
+              'triggerOffset': actualOffset,
+              'triggerMins': triggerMins,
+              'triggerTimeStr': _formatMinsToTime(triggerMins),
+              'periodIndex': widget.periodIndex,
+            });
+          }
+        }
+      });
+
+      flatTimelineEvents.sort((a, b) => (a['triggerMins'] as int).compareTo(b['triggerMins'] as int));
 
       final prepData = {
         'docId': _prepDocId,
@@ -771,13 +1066,18 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
         'className': widget.className,
         'subject': widget.subject,
         'lessonTitle': _lessonTitleCtrl.text.trim(),
-        'outcomes': _selectedOutcomes,
-        'values': _selectedValues,
-        'strategies': _selectedStrategies,
-        'gifted': _selectedGifted,
-        'practical': _selectedPractical,
-        'specializedSkills': _specializedSkills,
-        'digitalLinks': linksToSave,
+        'introQuestion': _introQuestionCtrl.text.trim(),
+
+        'outcomes': _selectedOutcomes.map((e) => e.toMap()).toList(),
+        'explanationHeadings': _explanationHeadings.map((e) => e.toMap()).toList(),
+        'values': _selectedValues.map((e) => e.toMap()).toList(),
+        'strategies': _selectedStrategies.map((e) => e.toMap()).toList(),
+        'gifted': _selectedGifted.map((e) => e.toMap()).toList(),
+        'practical': _selectedPractical.map((e) => e.toMap()).toList(),
+        'specializedSkills': _specializedSkills.map((e) => e.toMap()).toList(),
+        'domainLinks': domainLinksMap,
+        'timelineEvents': flatTimelineEvents,
+
         'isLatePrep': isLatePrep,
         'homework': {
           'page': _hwPageCtrl.text.trim(),
@@ -785,41 +1085,109 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
           'text': _hwTextCtrl.text.trim(),
         },
         'timeDistribution': {
-          'explanation': _timeExplanation,
-          'outcomes': _timeOutcomes,
-          'strategies': _timeStrategies,
-          'evaluation': _timeEvaluation,
-          'values': _timeValues,
+          'warmupAndOutcomes': _timeWarmupAndOutcomes,
+          'explanationAndTech': _timeExplanationAndTech,
+          'activitiesAndGifted': _timeActivitiesAndGifted,
+          'practicalAndValues': _timePracticalAndValues,
+          'evaluationAndFeedback': _timeEvaluationAndFeedback,
           'total': 45,
+          'timingsDetailed': accurateTimings,
         },
+        'desktopSyncReady': true,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
+      // 1. حفظ الحصة الحالية دون التأثير على الحصص المحفوظة سابقاً
       await FirebaseFirestore.instance
           .collection('lesson_preparations')
           .doc(_prepDocId)
           .set(prepData, SetOptions(merge: true));
 
+      // 2. إذا تم تفعيل "اعتمد الدرس للاسبوع كاملا"، تطبيق التحضير على باقي حصص وفصول المعلم لنفس المادة في نفس الأسبوع
+      if (_applyToEntireWeek) {
+        await _applyPrepToEntireWeek(prepData);
+      }
+
+      setState(() => _isSaving = false);
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ تحضير الدرس بنجاح سحابياً! ✅'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _applyToEntireWeek
+                  ? 'تم اعتماد وحفظ التحضير لجميع حصص الأسبوع بنجاح.'
+                  : 'تم حفظ تحضير الحصة بنجاح دون التأثير على الحصص الأخرى.',
+              style: const TextStyle(fontFamily: 'Cairo'),
+            ),
+            backgroundColor: const Color(0xFF0F766E),
+          ),
+        );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الحفظ: $e'), backgroundColor: Colors.red));
+        setState(() => _isSaving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ أثناء الحفظ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
+        );
       }
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _applyPrepToEntireWeek(Map<String, dynamic> basePrepData) async {
+    try {
+      final schedDoc = await FirebaseFirestore.instance.collection('teacher_schedules').doc(widget.teacherId).get();
+      if (!schedDoc.exists || schedDoc.data() == null) return;
+
+      final phase2 = schedDoc.data()?['phase2Data'] as Map<String, dynamic>?;
+      if (phase2 == null) return;
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      for (var dName in _daysOrder) {
+        List periods = phase2[dName] as List? ?? [];
+        for (int pIdx = 0; pIdx < periods.length; pIdx++) {
+          final slot = periods[pIdx];
+          if (slot['type'] == 'حصة' &&
+              slot['subject'] == widget.subject &&
+              slot['grade'] == widget.grade) {
+
+            DateTime targetDate = widget.lessonDate.add(Duration(days: (_daysOrder.indexOf(dName) - _daysOrder.indexOf(widget.dayName))));
+            String dateStrForId = intl.DateFormat('yyyyMMdd').format(targetDate);
+            String docId = '${widget.teacherId}_W${widget.weekNumber}_${dateStrForId}_P${pIdx + 1}';
+
+            // تخطي الحصة الحالية لأنها حُفظت بالفعل
+            if (docId == _prepDocId) continue;
+
+            final cloned = Map<String, dynamic>.from(basePrepData);
+            cloned['docId'] = docId;
+            cloned['className'] = slot['class'];
+            cloned['dayName'] = dName;
+            cloned['periodIndex'] = pIdx + 1;
+            cloned['lessonDate'] = intl.DateFormat('yyyy/MM/dd').format(targetDate);
+            cloned['updatedAt'] = FieldValue.serverTimestamp();
+
+            final docRef = FirebaseFirestore.instance.collection('lesson_preparations').doc(docId);
+            batch.set(docRef, cloned, SetOptions(merge: true));
+          }
+        }
+      }
+
+      await batch.commit();
+    } catch (e) {
+      debugPrint("Error applying prep to entire week: $e");
     }
   }
 
   void _openMultiSelectDialog({
     required String title,
+    required String bankKey,
     required List<String> sourceList,
-    required List<String> targetList,
-    required TextEditingController customCtrl,
+    required List<_TimedItemModel> targetList,
   }) {
     String searchQuery = '';
+    final TextEditingController customCtrl = TextEditingController();
+
     showDialog(
       context: context,
       builder: (ctx) {
@@ -831,24 +1199,24 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
             }).toList();
 
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF00796B), fontFamily: 'Cairo')),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0F766E), fontFamily: 'Cairo')),
               content: SizedBox(
                 width: double.maxFinite,
-                height: 550,
+                height: 500,
                 child: Column(
                   children: [
                     TextField(
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        hintText: 'بحث سريع في البنك...',
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search, size: 20, color: Color(0xFF64748B)),
+                        hintText: 'بحث في البنك المقترح...',
                         isDense: true,
-                        border: OutlineInputBorder(),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
                       ),
                       onChanged: (val) {
-                        setDialogState(() {
-                          searchQuery = val.trim();
-                        });
+                        setDialogState(() => searchQuery = val.trim());
                       },
                     ),
                     const SizedBox(height: 10),
@@ -858,62 +1226,58 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                           Expanded(
                             child: TextField(
                               controller: customCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'إضافة بند يدوي مخصص...',
+                              decoration: InputDecoration(
+                                labelText: 'إضافة بند مخصص...',
                                 isDense: true,
-                                border: OutlineInputBorder(),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton(
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F766E),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            ),
+                            child: const Text('إضافة', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
                             onPressed: () {
-                              if (customCtrl.text.trim().isNotEmpty) {
+                              final text = customCtrl.text.trim();
+                              if (text.isNotEmpty) {
                                 setDialogState(() {
-                                  targetList.add(customCtrl.text.trim());
+                                  if (!targetList.any((e) => e.text == text)) {
+                                    targetList.add(_TimedItemModel(text: text));
+                                  }
+                                  sourceList.insert(0, text);
                                   customCtrl.clear();
                                 });
+                                _saveToCustomBank(bankKey, text);
                                 setState(() {});
                               }
                             },
-                            child: const Text('إضافة'),
                           ),
                         ],
                       ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-                      child: Row(
-                        children: [
-                          Icon(Icons.library_books, color: Colors.blue.shade700, size: 16),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text('معروض حالياً: ${filteredItems.length} من أصل ${sourceList.length} بند متخصص ومدمج.',
-                                style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Expanded(
-                      child: ListView.builder(
+                      child: ListView.separated(
                         itemCount: filteredItems.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (context, idx) {
-                          final item = filteredItems[idx];
-                          final isSelected = targetList.contains(item);
+                          final itemText = filteredItems[idx];
+                          final isSelected = targetList.any((e) => e.text == itemText);
+
                           return CheckboxListTile(
                             dense: true,
-                            title: Text(item, style: const TextStyle(fontSize: 13, height: 1.4, fontFamily: 'Cairo')),
+                            title: Text(itemText, style: const TextStyle(fontSize: 12, height: 1.4, fontFamily: 'Cairo', color: Color(0xFF1E293B))),
                             value: isSelected,
-                            activeColor: Colors.teal,
+                            activeColor: const Color(0xFF0F766E),
                             onChanged: widget.isViewerOnly ? null : (val) {
                               setDialogState(() {
                                 if (val == true) {
-                                  targetList.add(item);
+                                  targetList.add(_TimedItemModel(text: itemText));
                                 } else {
-                                  targetList.remove(item);
+                                  targetList.removeWhere((e) => e.text == itemText);
                                 }
                               });
                               setState(() {});
@@ -926,12 +1290,12 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق', style: TextStyle(fontFamily: 'Cairo', color: Color(0xFF64748B)))),
                 if (!widget.isViewerOnly)
                   ElevatedButton(
                     onPressed: () => Navigator.pop(ctx),
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00796B), foregroundColor: Colors.white),
-                    child: const Text('تم واعتماد'),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F766E), foregroundColor: Colors.white),
+                    child: const Text('حفظ واختيار', style: TextStyle(fontFamily: 'Cairo')),
                   ),
               ],
             );
@@ -941,410 +1305,695 @@ class _LessonDetailPrepFormPageState extends State<LessonDetailPrepFormPage> {
     );
   }
 
+  Widget _buildRequirementBadge(bool isRequired) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isRequired ? const Color(0xFFFEF2F2) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: isRequired ? const Color(0xFFFCA5A5) : const Color(0xFFCBD5E1)),
+      ),
+      child: Text(
+        isRequired ? 'إجباري' : 'اختياري',
+        style: TextStyle(
+          color: isRequired ? const Color(0xFF991B1B) : const Color(0xFF475569),
+          fontWeight: FontWeight.w600,
+          fontSize: 10,
+          fontFamily: 'Cairo',
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimedSectionPicker({
+    required String title,
+    required IconData icon,
+    required List<_TimedItemModel> selectedItems,
+    required int domainDuration,
+    required int domainStartMins,
+    required String bankKey,
+    required Map<String, List<String>> sourceMap,
+    bool isRequired = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(icon, color: const Color(0xFF475569), size: 18),
+                  const SizedBox(width: 8),
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                  const SizedBox(width: 6),
+                  _buildRequirementBadge(isRequired),
+                ],
+              ),
+              if (!widget.isViewerOnly)
+                OutlinedButton(
+                  onPressed: () => _openMultiSelectDialog(
+                    title: title,
+                    bankKey: bankKey,
+                    sourceList: _getFilteredList(sourceMap, bankKey),
+                    targetList: selectedItems,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0F766E),
+                    side: const BorderSide(color: Color(0xFF0F766E)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(0, 32),
+                  ),
+                  child: const Text('اختيار من البنك', style: TextStyle(fontSize: 11, fontFamily: 'Cairo')),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (selectedItems.isEmpty)
+            const Text('لم يتم إدراج بنود بعد.', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11, fontFamily: 'Cairo'))
+          else
+            ...selectedItems.map((item) {
+              int actualOffset = item.triggerOffset > domainDuration ? domainDuration : item.triggerOffset;
+              String calculatedTimeStr = _formatMinsToTime(domainStartMins + actualOffset);
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(item.text, style: const TextStyle(fontSize: 12, color: Color(0xFF334155), fontFamily: 'Cairo')),
+                    ),
+                    const SizedBox(width: 6),
+                    DropdownButton<int>(
+                      value: actualOffset,
+                      isDense: true,
+                      underline: const SizedBox.shrink(),
+                      icon: const Icon(Icons.arrow_drop_down, size: 16),
+                      items: List.generate(domainDuration + 1, (i) {
+                        return DropdownMenuItem(
+                            value: i,
+                            child: Text(i == 0 ? 'بدء الحصة' : 'بعد $i د', style: const TextStyle(fontSize: 10, color: Color(0xFF0F766E), fontWeight: FontWeight.w600, fontFamily: 'Cairo'))
+                        );
+                      }),
+                      onChanged: widget.isViewerOnly ? null : (val) {
+                        if (val != null) setState(() => item.triggerOffset = val);
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    Text(calculatedTimeStr, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontFamily: 'Cairo')),
+                    if (!widget.isViewerOnly)
+                      InkWell(
+                        onTap: () => setState(() => selectedItems.remove(item)),
+                        child: const Padding(
+                          padding: EdgeInsets.only(right: 6.0),
+                          child: Icon(Icons.close, size: 14, color: Color(0xFF94A3B8)),
+                        ),
+                      )
+                  ],
+                ),
+              );
+            }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDomainDigitalLinksSection(String domainKey, int domainStartMins, int domainDuration) {
+    List<_DomainDigitalLink> links = _domainLinks[domainKey]!;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.link, size: 16, color: Color(0xFF64748B)),
+                  const SizedBox(width: 6),
+                  const Text('المصادر الرقمية والروابط', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF334155), fontFamily: 'Cairo')),
+                  const SizedBox(width: 6),
+                  _buildRequirementBadge(false),
+                ],
+              ),
+              if (!widget.isViewerOnly)
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      links.add(_DomainDigitalLink(titleCtrl: TextEditingController(), urlCtrl: TextEditingController(), triggerOffset: 0));
+                    });
+                  },
+                  child: const Text('إضافة رابط +', style: TextStyle(fontSize: 11, fontFamily: 'Cairo', color: Color(0xFF0F766E))),
+                ),
+            ],
+          ),
+          if (links.isNotEmpty)
+            ...links.asMap().entries.map((entry) {
+              int idx = entry.key;
+              _DomainDigitalLink item = entry.value;
+              int actualOffset = item.triggerOffset > domainDuration ? domainDuration : item.triggerOffset;
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: item.titleCtrl,
+                        readOnly: widget.isViewerOnly,
+                        decoration: const InputDecoration(
+                          hintText: 'العنوان',
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      flex: 3,
+                      child: TextField(
+                        controller: item.urlCtrl,
+                        readOnly: widget.isViewerOnly,
+                        decoration: const InputDecoration(
+                          hintText: 'https://...',
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    DropdownButton<int>(
+                      value: actualOffset,
+                      isDense: true,
+                      items: List.generate(domainDuration + 1, (i) => DropdownMenuItem(value: i, child: Text('$i د', style: const TextStyle(fontSize: 10)))),
+                      onChanged: widget.isViewerOnly ? null : (val) {
+                        if (val != null) setState(() => item.triggerOffset = val);
+                      },
+                    ),
+                    if (!widget.isViewerOnly)
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                        onPressed: () {
+                          setState(() {
+                            item.titleCtrl.dispose();
+                            item.urlCtrl.dispose();
+                            links.removeAt(idx);
+                          });
+                        },
+                      )
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhaseCard({
+    required String phaseTitle,
+    required int timeValue,
+    required ValueChanged<int> onTimeChanged,
+    required String startTimeStr,
+    required String endTimeStr,
+    required String domainKey,
+    required Map<String, dynamic> accurateTimingInfo,
+    required List<Widget> content,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+              border: Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(phaseTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                      Text('الوقت المعتمد: $startTimeStr إلى $endTimeStr', style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontFamily: 'Cairo')),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 140,
+                  child: Slider(
+                    value: timeValue.toDouble(),
+                    min: 0, max: 45, divisions: 45,
+                    activeColor: const Color(0xFF0F766E),
+                    inactiveColor: const Color(0xFFE2E8F0),
+                    onChanged: widget.isViewerOnly ? null : (val) => onTimeChanged(val.round()),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: const Color(0xFFCBD5E1)),
+                  ),
+                  child: Text('$timeValue د', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 11, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                )
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...content,
+                _buildDomainDigitalLinksSection(domainKey, accurateTimingInfo['startMins'], timeValue),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    String formattedDate = intl.DateFormat('yyyy/MM/dd').format(widget.lessonDate);
+    bool isExact45 = _totalAssignedTime == 45;
+    final accurateTimings = _calculateAccurateDomainTimings();
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(widget.isViewerOnly ? 'عرض: ${widget.subject}' : 'تحضير: ${widget.subject} (${widget.grade} - ${widget.className})', style: const TextStyle(fontSize: 15, fontFamily: 'Cairo')),
-        backgroundColor: widget.isViewerOnly ? Colors.blueGrey : const Color(0xFF00796B),
+        title: Text(
+          widget.isViewerOnly ? 'عرض التحضير' : 'تحضير درس: ${widget.subject} (${widget.grade} - ${widget.className})',
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+        ),
+        backgroundColor: const Color(0xFF1E293B),
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
+        controller: _scrollController,
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.isViewerOnly)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(10)),
-                  child: const Text('أنت في وضع المشاهدة فقط (صلاحيات المدير)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontFamily: 'Cairo')),
-                ),
-
+              // بطاقة التحكم والاعتماد العلوية
               Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.teal.shade200)),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
                   children: [
-                    Text('الأسبوع: ${widget.weekNumber}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
-                    Text('اليوم: ${widget.dayName}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
-                    Text('التاريخ: $formattedDate', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF00796B), fontFamily: 'Cairo')),
+                    // خانة الاختيار: اعتماد الدرس للأسبوع كاملاً
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _applyToEntireWeek,
+                      activeColor: const Color(0xFF0F766E),
+                      title: const Text(
+                        'اعتماد هذا الدرس للأسبوع كاملاً لجميع الفصول والحصص',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo'),
+                      ),
+                      subtitle: const Text(
+                        'عند تفعيله، يتم تطبيق التحضير على كافة فصول المادة لهذا الأسبوع مع إمكانية التعديل على أي حصة لاحقاً دون التأثير على الحصص الأخرى.',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontFamily: 'Cairo'),
+                      ),
+                      onChanged: widget.isViewerOnly ? null : (val) {
+                        setState(() => _applyToEntireWeek = val ?? false);
+                      },
+                    ),
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('الأسبوع: ${widget.weekNumber} | ${widget.dayName} (الحصة ${widget.periodIndex})', style: const TextStyle(fontSize: 12, color: Color(0xFF475569), fontFamily: 'Cairo')),
+                        Container(
+                          key: _timeKey,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isExact45 ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isExact45 ? 'زمن الحصة: 45 دقيقة تماماً' : 'المجموع: $_totalAssignedTime / 45 د (يجب ضبطه)',
+                            style: TextStyle(
+                              color: isExact45 ? const Color(0xFF166534) : const Color(0xFF991B1B),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              fontFamily: 'Cairo',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
+
               const SizedBox(height: 16),
 
-              _buildTimeDistributionCard(),
-              const SizedBox(height: 20),
-
-              const Text('عنوان الدرس *', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Cairo')),
-              const SizedBox(height: 6),
-              TextFormField(
-                controller: _lessonTitleCtrl,
-                readOnly: widget.isViewerOnly,
-                decoration: const InputDecoration(
-                  hintText: 'اكتب عنوان الدرس هنا...',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.title_rounded, color: Colors.teal),
-                ),
-                validator: (v) => v!.trim().isEmpty ? 'مطلوب إدخال عنوان الدرس' : null,
-              ),
-              const SizedBox(height: 20),
-
-              _buildSectionPicker(
-                title: 'نواتج التعلم المستهدفة',
-                icon: Icons.track_changes_rounded,
-                color: Colors.blue.shade700,
-                selectedItems: _selectedOutcomes,
-                onOpen: () => _openMultiSelectDialog(
-                  title: 'نواتج التعلم (عام + ${widget.subject} + STEM)',
-                  sourceList: _getFilteredList(LessonPrepData.learningOutcomesMap),
-                  targetList: _selectedOutcomes,
-                  customCtrl: _customOutcomeCtrl,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              _buildSectionPicker(
-                title: 'الربط بالقيم والهوية الوطنية السعودية',
-                icon: Icons.flag_rounded,
-                color: Colors.green.shade800,
-                selectedItems: _selectedValues,
-                onOpen: () => _openMultiSelectDialog(
-                  title: 'القيم والهوية الوطنية',
-                  sourceList: _getFilteredList(LessonPrepData.valuesAndIdentityMap),
-                  targetList: _selectedValues,
-                  customCtrl: _customValueCtrl,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              _buildSectionPicker(
-                title: 'استراتيجيات التدريس والتعلم النشط',
-                icon: Icons.psychology_rounded,
-                color: Colors.orange.shade800,
-                selectedItems: _selectedStrategies,
-                onOpen: () => _openMultiSelectDialog(
-                  title: 'استراتيجيات التدريس وربط المواد (STEM)',
-                  sourceList: _getFilteredList(LessonPrepData.strategiesMap),
-                  targetList: _selectedStrategies,
-                  customCtrl: _customStrategyCtrl,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              _buildSectionPicker(
-                title: 'أنشطة رعاية الموهوبين والفائقين',
-                icon: Icons.star_rounded,
-                color: Colors.purple.shade700,
-                selectedItems: _selectedGifted,
-                onOpen: () => _openMultiSelectDialog(
-                  title: 'أنشطة الموهوبين (عام + ${widget.subject})',
-                  sourceList: _getFilteredList(LessonPrepData.giftedActivitiesMap),
-                  targetList: _selectedGifted,
-                  customCtrl: _customGiftedCtrl,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              _buildSectionPicker(
-                title: 'تطبيقات عملية مرتبطة بالحياة',
-                icon: Icons.public_rounded,
-                color: Colors.teal.shade800,
-                selectedItems: _selectedPractical,
-                onOpen: () => _openMultiSelectDialog(
-                  title: 'تطبيقات حياتية (عام + ${widget.subject})',
-                  sourceList: _getFilteredList(LessonPrepData.practicalApplicationsMap),
-                  targetList: _selectedPractical,
-                  customCtrl: _customPracticalCtrl,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              _buildSpecializedSkillsSection(),
-              const SizedBox(height: 20),
-
-              _buildDigitalLinksSection(),
-              const SizedBox(height: 20),
-
-              _buildHomeworkSection(),
-              const SizedBox(height: 35),
-
-              if (!widget.isViewerOnly)
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton.icon(
-                    onPressed: _isSaving ? null : _savePreparation,
-                    icon: const Icon(Icons.save_rounded),
-                    label: _isSaving
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text('اعتماد وحفظ التحضير سحابياً', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00796B),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              // المرحلة 1: التهيئة ونواتج التعلم
+              _buildPhaseCard(
+                phaseTitle: accurateTimings['warmup']!['title'],
+                timeValue: _timeWarmupAndOutcomes,
+                onTimeChanged: (val) => setState(() => _timeWarmupAndOutcomes = val),
+                startTimeStr: accurateTimings['warmup']!['startTimeStr'],
+                endTimeStr: accurateTimings['warmup']!['endTimeStr'],
+                domainKey: 'warmup',
+                accurateTimingInfo: accurateTimings['warmup']!,
+                content: [
+                  Container(
+                    key: _titleKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text('عنوان الدرس', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                            const SizedBox(width: 6),
+                            _buildRequirementBadge(true),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: _lessonTitleCtrl,
+                          focusNode: _titleFocusNode,
+                          readOnly: widget.isViewerOnly,
+                          decoration: InputDecoration(
+                            hintText: 'اكتب عنوان الدرس...',
+                            isDense: true,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onFieldSubmitted: (v) {
+                            if (v.trim().isNotEmpty) _fetchAndApplyPrepByTitle(v.trim());
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildTimeDistributionCard() {
-    bool isExact45 = _totalAssignedTime == 45;
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      color: Colors.pink.shade50.withOpacity(0.5),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.timer_rounded, color: Colors.pinkAccent),
-                    SizedBox(width: 8),
-                    Text('توزيع وقت الحصة (45 دقيقة)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                  if (_mySavedTitles.isNotEmpty && !widget.isViewerOnly) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: _mySavedTitles.map((t) => ActionChip(
+                        label: Text(t, style: const TextStyle(fontSize: 11, fontFamily: 'Cairo')),
+                        backgroundColor: const Color(0xFFF1F5F9),
+                        onPressed: () {
+                          setState(() => _lessonTitleCtrl.text = t);
+                          _fetchAndApplyPrepByTitle(t);
+                        },
+                      )).toList(),
+                    ),
                   ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: isExact45 ? Colors.green : Colors.red, borderRadius: BorderRadius.circular(12)),
-                  child: Text('المجموع: $_totalAssignedTime / 45 د', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo')),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildTimeSlider('الشرح والعرض:', _timeExplanation, (val) => setState(() => _timeExplanation = val)),
-            _buildTimeSlider('نواتج ومناقشة:', _timeOutcomes, (val) => setState(() => _timeOutcomes = val)),
-            _buildTimeSlider('أنشطة واستراتيجيات:', _timeStrategies, (val) => setState(() => _timeStrategies = val)),
-            _buildTimeSlider('قيم وتطبيقات:', _timeValues, (val) => setState(() => _timeValues = val)),
-            _buildTimeSlider('تقويم وواجبات:', _timeEvaluation, (val) => setState(() => _timeEvaluation = val)),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildTimeSlider(String label, int currentValue, ValueChanged<int> onChanged) {
-    return Row(
-      children: [
-        SizedBox(width: 140, child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, fontFamily: 'Cairo'))),
-        Expanded(
-          child: Slider(
-            value: currentValue.toDouble(), min: 0, max: 45, divisions: 45,
-            label: '$currentValue د', activeColor: const Color(0xFF00796B),
-            onChanged: widget.isViewerOnly ? null : (val) => onChanged(val.round()),
-          ),
-        ),
-        Container(width: 40, alignment: Alignment.center, child: Text('$currentValue د', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo'))),
-      ],
-    );
-  }
+                  const SizedBox(height: 14),
 
-  Widget _buildSectionPicker({required String title, required IconData icon, required Color color, required List<String> selectedItems, required VoidCallback onOpen}) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(icon, color: color, size: 22),
-                    const SizedBox(width: 8),
-                    Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color, fontFamily: 'Cairo')),
-                  ],
-                ),
-                if (!widget.isViewerOnly)
-                  ElevatedButton.icon(
-                    onPressed: onOpen,
-                    icon: const Icon(Icons.add_circle_outline, size: 16),
-                    label: const Text('اختيار/كتابة', style: TextStyle(fontSize: 12, fontFamily: 'Cairo')),
-                    style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (selectedItems.isEmpty)
-              const Text('لم يتم إدراج بنود بعد.', style: TextStyle(color: Colors.grey, fontSize: 12, fontFamily: 'Cairo'))
-            else
-              Wrap(
-                spacing: 6, runSpacing: 6,
-                children: selectedItems.map((item) {
-                  return Chip(
-                    backgroundColor: color.withOpacity(0.08),
-                    label: Text(item, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                    deleteIcon: widget.isViewerOnly ? null : const Icon(Icons.close, size: 14),
-                    onDeleted: widget.isViewerOnly ? null : () => setState(() => selectedItems.remove(item)),
-                  );
-                }).toList(),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSpecializedSkillsSection() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.workspace_premium, color: Colors.indigo),
-                SizedBox(width: 8),
-                Text('مهارات تخصصية دقيقة للمادة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.indigo, fontFamily: 'Cairo')),
-              ],
-            ),
-            if (!widget.isViewerOnly) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _skillInputCtrl,
-                      decoration: const InputDecoration(hintText: 'اكتب مهارة تخصصية...', isDense: true, border: OutlineInputBorder()),
+                  Container(
+                    key: _introKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text('السؤال التمهيدي للدرس', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                            const SizedBox(width: 6),
+                            _buildRequirementBadge(true),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        TextFormField(
+                          controller: _introQuestionCtrl,
+                          focusNode: _introFocusNode,
+                          readOnly: widget.isViewerOnly,
+                          maxLines: 2,
+                          decoration: InputDecoration(
+                            hintText: 'اكتب السؤال التمهيدي أو الموقف التعليمي للتهيئة...',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-                    onPressed: () {
-                      if (_skillInputCtrl.text.trim().isNotEmpty) {
-                        setState(() { _specializedSkills.add(_skillInputCtrl.text.trim()); _skillInputCtrl.clear(); });
-                      }
-                    },
-                    child: const Text('إضافة'),
+
+                  const SizedBox(height: 14),
+
+                  _buildTimedSectionPicker(
+                    title: 'نواتج التعلم المستهدفة',
+                    icon: Icons.track_changes_outlined,
+                    selectedItems: _selectedOutcomes,
+                    domainDuration: _timeWarmupAndOutcomes,
+                    domainStartMins: accurateTimings['warmup']!['startMins'],
+                    bankKey: 'outcomes',
+                    sourceMap: LessonPrepData.learningOutcomesMap,
+                    isRequired: false,
                   ),
                 ],
               ),
-            ],
-            const SizedBox(height: 8),
-            if (_specializedSkills.isNotEmpty)
-              Wrap(
-                spacing: 6, runSpacing: 6,
-                children: _specializedSkills.map((s) {
-                  return Chip(
-                    backgroundColor: Colors.indigo.shade50,
-                    label: Text(s, style: const TextStyle(fontSize: 12, color: Colors.indigo, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                    deleteIcon: widget.isViewerOnly ? null : const Icon(Icons.close, size: 14),
-                    onDeleted: widget.isViewerOnly ? null : () => setState(() => _specializedSkills.remove(s)),
-                  );
-                }).toList(),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildDigitalLinksSection() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Row(
-                  children: [
-                    Icon(Icons.link_rounded, color: Colors.blue),
-                    SizedBox(width: 8),
-                    Text('المصادر الرقمية (10 روابط)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue, fontFamily: 'Cairo')),
-                  ],
-                ),
-                if (!widget.isViewerOnly && _digitalLinkControllers.length < 10)
-                  TextButton.icon(
-                    onPressed: () { setState(() => _digitalLinkControllers.add(TextEditingController())); },
-                    icon: const Icon(Icons.add, size: 16), label: const Text('إضافة رابط'),
+              // المرحلة 2: الشرح والعرض والاستراتيجيات
+              _buildPhaseCard(
+                phaseTitle: accurateTimings['explanation']!['title'],
+                timeValue: _timeExplanationAndTech,
+                onTimeChanged: (val) => setState(() => _timeExplanationAndTech = val),
+                startTimeStr: accurateTimings['explanation']!['startTimeStr'],
+                endTimeStr: accurateTimings['explanation']!['endTimeStr'],
+                domainKey: 'explanation',
+                accurateTimingInfo: accurateTimings['explanation']!,
+                content: [
+                  _buildTimedSectionPicker(
+                    title: 'النقاط والعناوين الرئيسية',
+                    icon: Icons.format_list_bulleted,
+                    selectedItems: _explanationHeadings,
+                    domainDuration: _timeExplanationAndTech,
+                    domainStartMins: accurateTimings['explanation']!['startMins'],
+                    bankKey: 'headings',
+                    sourceMap: {'عام': []},
+                    isRequired: false,
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            ..._digitalLinkControllers.asMap().entries.map((entry) {
-              int idx = entry.key; TextEditingController ctrl = entry.value;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Row(
-                  children: [
-                    Text('${idx + 1}.', style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 8),
-                    Expanded(child: TextField(controller: ctrl, readOnly: widget.isViewerOnly, keyboardType: TextInputType.url, decoration: InputDecoration(hintText: 'https://...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-                    if (!widget.isViewerOnly && _digitalLinkControllers.length > 1)
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                        onPressed: () { setState(() { ctrl.dispose(); _digitalLinkControllers.removeAt(idx); }); },
-                      ),
-                  ],
-                ),
-              );
-            }),
-          ],
-        ),
-      ),
-    );
-  }
+                  _buildTimedSectionPicker(
+                    title: 'استراتيجيات التدريس والتعلم النشط',
+                    icon: Icons.psychology_outlined,
+                    selectedItems: _selectedStrategies,
+                    domainDuration: _timeExplanationAndTech,
+                    domainStartMins: accurateTimings['explanation']!['startMins'],
+                    bankKey: 'strategies',
+                    sourceMap: LessonPrepData.strategiesMap,
+                    isRequired: false,
+                  ),
+                  _buildTimedSectionPicker(
+                    title: 'المهارات التخصصية للمادة',
+                    icon: Icons.workspace_premium_outlined,
+                    selectedItems: _specializedSkills,
+                    domainDuration: _timeExplanationAndTech,
+                    domainStartMins: accurateTimings['explanation']!['startMins'],
+                    bankKey: 'skills',
+                    sourceMap: {'عام': []},
+                    isRequired: false,
+                  ),
+                ],
+              ),
 
-  Widget _buildHomeworkSection() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.assignment_turned_in, color: Colors.deepOrange),
-                SizedBox(width: 8),
-                Text('التقويم والتغذية الراجعة (الواجبات)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.deepOrange, fontFamily: 'Cairo')),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(flex: 1, child: TextField(controller: _hwPageCtrl, readOnly: widget.isViewerOnly, decoration: const InputDecoration(labelText: 'الصفحة', hintText: 'مثال: ص 45', border: OutlineInputBorder()))),
-                const SizedBox(width: 12),
-                Expanded(flex: 2, child: TextField(controller: _hwTitleCtrl, readOnly: widget.isViewerOnly, decoration: const InputDecoration(labelText: 'عنوان الواجب', hintText: 'مثال: حل تدريبات الدرس الأول', border: OutlineInputBorder()))),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(controller: _hwTextCtrl, readOnly: widget.isViewerOnly, maxLines: 3, decoration: const InputDecoration(labelText: 'تفاصيل الواجب', hintText: 'اكتب نص الواجب والتعليمات...', border: OutlineInputBorder())),
-          ],
+              // المرحلة 3: الأنشطة ورعاية الموهوبين
+              _buildPhaseCard(
+                phaseTitle: accurateTimings['activities']!['title'],
+                timeValue: _timeActivitiesAndGifted,
+                onTimeChanged: (val) => setState(() => _timeActivitiesAndGifted = val),
+                startTimeStr: accurateTimings['activities']!['startTimeStr'],
+                endTimeStr: accurateTimings['activities']!['endTimeStr'],
+                domainKey: 'activities',
+                accurateTimingInfo: accurateTimings['activities']!,
+                content: [
+                  _buildTimedSectionPicker(
+                    title: 'أنشطة رعاية الموهوبين والتحدي',
+                    icon: Icons.lightbulb_outline,
+                    selectedItems: _selectedGifted,
+                    domainDuration: _timeActivitiesAndGifted,
+                    domainStartMins: accurateTimings['activities']!['startMins'],
+                    bankKey: 'gifted',
+                    sourceMap: LessonPrepData.giftedActivitiesMap,
+                    isRequired: false,
+                  ),
+                ],
+              ),
+
+              // المرحلة 4: التطبيقات الحياتية والربط بالقيم
+              _buildPhaseCard(
+                phaseTitle: accurateTimings['practical']!['title'],
+                timeValue: _timePracticalAndValues,
+                onTimeChanged: (val) => setState(() => _timePracticalAndValues = val),
+                startTimeStr: accurateTimings['practical']!['startTimeStr'],
+                endTimeStr: accurateTimings['practical']!['endTimeStr'],
+                domainKey: 'practical',
+                accurateTimingInfo: accurateTimings['practical']!,
+                content: [
+                  _buildTimedSectionPicker(
+                    title: 'تطبيقات عملية مرتبطة بالحياة',
+                    icon: Icons.public_outlined,
+                    selectedItems: _selectedPractical,
+                    domainDuration: _timePracticalAndValues,
+                    domainStartMins: accurateTimings['practical']!['startMins'],
+                    bankKey: 'practical',
+                    sourceMap: LessonPrepData.practicalApplicationsMap,
+                    isRequired: false,
+                  ),
+                  _buildTimedSectionPicker(
+                    title: 'الربط بالقيم والهوية الوطنية',
+                    icon: Icons.flag_outlined,
+                    selectedItems: _selectedValues,
+                    domainDuration: _timePracticalAndValues,
+                    domainStartMins: accurateTimings['practical']!['startMins'],
+                    bankKey: 'values',
+                    sourceMap: LessonPrepData.valuesAndIdentityMap,
+                    isRequired: false,
+                  ),
+                ],
+              ),
+
+              // المرحلة 5: التقويم والواجبات
+              _buildPhaseCard(
+                phaseTitle: accurateTimings['evaluation']!['title'],
+                timeValue: _timeEvaluationAndFeedback,
+                onTimeChanged: (val) => setState(() => _timeEvaluationAndFeedback = val),
+                startTimeStr: accurateTimings['evaluation']!['startTimeStr'],
+                endTimeStr: accurateTimings['evaluation']!['endTimeStr'],
+                domainKey: 'evaluation',
+                accurateTimingInfo: accurateTimings['evaluation']!,
+                content: [
+                  Container(
+                    key: _evalKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text('التقويم والواجبات', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+                            const SizedBox(width: 6),
+                            _buildRequirementBadge(true),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 1,
+                              child: TextField(
+                                controller: _hwPageCtrl,
+                                readOnly: widget.isViewerOnly,
+                                decoration: InputDecoration(
+                                  labelText: 'الصفحة (اختياري)',
+                                  isDense: true,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 2,
+                              child: TextField(
+                                controller: _hwTitleCtrl,
+                                focusNode: _hwTitleFocusNode,
+                                readOnly: widget.isViewerOnly,
+                                decoration: InputDecoration(
+                                  labelText: 'عنوان الواجب أو السؤال التقويمي *',
+                                  isDense: true,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _hwTextCtrl,
+                          readOnly: widget.isViewerOnly,
+                          maxLines: 2,
+                          decoration: InputDecoration(
+                            labelText: 'التعليمات والتغذية الراجعة',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // زر الاعتماد والحفظ المريح
+              if (!widget.isViewerOnly)
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: _isSaving ? null : _savePreparation,
+                    icon: _isSaving
+                        ? const SizedBox.shrink()
+                        : const Icon(Icons.check_circle_outline, size: 20),
+                    label: _isSaving
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('اعتماد وحفظ التحضير', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F766E),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+
+              const SizedBox(height: 30),
+            ],
+          ),
         ),
       ),
     );
