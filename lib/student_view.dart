@@ -1687,7 +1687,7 @@ class StudentAttendanceGridPage extends StatelessWidget {
 
                     int totalSessions = subjRecords.length;
                     int attendedSessions = subjRecords.where((r) => r['status'] == 'present' || r['status'] == 'حاضر').length;
-                    int absentSessions = subjRecords.where((r) => r['status'] == 'absent' || r['status'] == 'غائب').length;
+                    int absentSessions = subjRecords.where((r) => r['status'] == 'absent' || r['status'] == 'غائب' || r['status'] == 'early_dismissal' || r['status'] == 'انصراف مبكر').length;
                     int lateSessions = subjRecords.where((r) => r['status'] == 'late' || r['status'] == 'متأخر').length;
 
                     double percent = totalSessions > 0 ? (attendedSessions / totalSessions) * 100 : 100.0;
@@ -1881,8 +1881,8 @@ class SubjectAttendanceDetailsPage extends StatelessWidget {
     }).toList();
 
     missedSessions.sort((a, b) {
-      final dateA = a['date'] ?? '';
-      final dateB = b['date'] ?? '';
+      final dateA = a['date'] ?? a['dateString'] ?? '';
+      final dateB = b['date'] ?? b['dateString'] ?? '';
       return dateB.compareTo(dateA);
     });
 
@@ -1986,12 +1986,58 @@ class _MissedLessonCard extends StatelessWidget {
     }
   }
 
+  int _extractPeriodIndex(String period) {
+    if (period.contains('الأولى')) return 1;
+    if (period.contains('الثانية')) return 2;
+    if (period.contains('الثالثة')) return 3;
+    if (period.contains('الرابعة')) return 4;
+    if (period.contains('الخامسة')) return 5;
+    if (period.contains('السادسة')) return 6;
+    if (period.contains('السابعة')) return 7;
+    if (period.contains('الثامنة')) return 8;
+    return 1;
+  }
+
+  Future<QuerySnapshot?> _fetchPreparation(String dateStr, String dayName, int periodIndex, int weekNumber) async {
+    final grade = studentData['grades'] ?? '';
+    final className = studentData['classes'] ?? '';
+
+    Query query = FirebaseFirestore.instance.collection('lesson_preparations').where('subject', isEqualTo: subjectName);
+
+    if (record.containsKey('weekNumber') && record['weekNumber'] != null) {
+      query = query.where('weekNumber', isEqualTo: weekNumber)
+          .where('dayName', isEqualTo: dayName)
+          .where('periodIndex', isEqualTo: periodIndex);
+    } else {
+      query = query.where('lessonDate', isEqualTo: dateStr)
+          .where('grade', isEqualTo: grade)
+          .where('className', isEqualTo: className);
+    }
+
+    final result = await query.limit(1).get();
+
+    if (result.docs.isEmpty && (!record.containsKey('weekNumber') || record['weekNumber'] == null)) {
+      final fallbackQuery = await FirebaseFirestore.instance.collection('lesson_preparations')
+          .where('weekNumber', isEqualTo: weekNumber)
+          .where('dayName', isEqualTo: dayName)
+          .where('periodIndex', isEqualTo: periodIndex)
+          .where('subject', isEqualTo: subjectName)
+          .limit(1)
+          .get();
+      return fallbackQuery;
+    }
+
+    return result;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final String dateStr = record['date'] ?? '';
+    final String dateStr = record['date'] ?? record['dateString'] ?? '';
     final String dayName = record['dayName'] ?? 'اليوم';
-    final int periodIndex = record['periodIndex'] is int ? record['periodIndex'] : int.tryParse(record['periodIndex']?.toString() ?? '1') ?? 1;
-    final String status = record['status'] ?? 'absent';
+    final int periodIndex = record['periodIndex'] is int
+        ? record['periodIndex']
+        : int.tryParse(record['periodIndex']?.toString() ?? '') ?? _extractPeriodIndex(record['period']?.toString() ?? '');
+    final String status = (record['status'] ?? 'absent').toString().toLowerCase();
     final int weekNumber = record['weekNumber'] is int ? record['weekNumber'] : int.tryParse(record['weekNumber']?.toString() ?? '1') ?? 1;
 
     String statusTitle = "غياب كامل";
@@ -2029,7 +2075,7 @@ class _MissedLessonCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Icon(status == 'late' ? Icons.alarm_on : Icons.event_busy, color: statusColor, size: 18),
+                    Icon(status == 'late' ? Icons.alarm_on : (status == 'early_dismissal' ? Icons.time_to_leave : Icons.event_busy), color: statusColor, size: 18),
                     const SizedBox(width: 8),
                     Text('$statusTitle - الحصة $periodIndex', style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 13, fontFamily: 'Cairo')),
                   ],
@@ -2040,15 +2086,8 @@ class _MissedLessonCard extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(12),
-            child: FutureBuilder<QuerySnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('lesson_preparations')
-                  .where('weekNumber', isEqualTo: weekNumber)
-                  .where('dayName', isEqualTo: dayName)
-                  .where('periodIndex', isEqualTo: periodIndex)
-                  .where('subject', isEqualTo: subjectName)
-                  .limit(1)
-                  .get(),
+            child: FutureBuilder<QuerySnapshot?>(
+              future: _fetchPreparation(dateStr, dayName, periodIndex, weekNumber),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Padding(
@@ -3008,9 +3047,6 @@ class SchoolBooksPage extends StatelessWidget {
   }
 }
 
-// ===========================================================================
-// صفحة ملف إنجاز الطالب (معتمدة بالكامل على Firebase Storage و Firestore)
-// ===========================================================================
 class StudentPortfolioPage extends StatefulWidget {
   final String studentId;
   final Map<String, dynamic> studentData;
@@ -3051,7 +3087,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
       Uint8List fileBytes = await pickedFile.readAsBytes();
       final String fileName = '${widget.studentId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
 
-      // 1. رفع الصورة مباشرة إلى Firebase Cloud Storage
       final Reference storageRef = FirebaseStorage.instance
           .ref()
           .child('student_portfolios')
@@ -3061,7 +3096,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
       await storageRef.putData(fileBytes, SettableMetadata(contentType: 'image/jpeg'));
       final String downloadUrl = await storageRef.getDownloadURL();
 
-      // 2. حفظ رابط التحميل واسم الملف والوصف في Firestore
       await FirebaseFirestore.instance
           .collection('students')
           .doc(widget.studentId)
@@ -3146,7 +3180,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
     if (confirm != true) return;
 
     try {
-      // 1. حذف الملف الفعلي من Firebase Storage إن وُجد اسمه
       if (fileName != null && fileName.isNotEmpty) {
         try {
           await FirebaseStorage.instance
@@ -3158,7 +3191,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
         } catch (_) {}
       }
 
-      // 2. حذف السجل من Firestore
       await FirebaseFirestore.instance
           .collection('students')
           .doc(widget.studentId)
