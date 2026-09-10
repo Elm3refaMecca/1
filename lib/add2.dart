@@ -1880,6 +1880,7 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
 
   bool _isSubmitting = false;
   Map<String, bool> _labSubjects = {};
+  Map<String, bool> _teacherReportVisibility = {};
 
   bool _coreEditsUnlocked = false;
 
@@ -2157,7 +2158,7 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
         'phase1Data': widget.phase1Data,
         'phase2Data': _schedule,
         'timestamp': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
 
       if (finalStatus == 'approved') {
         await _updateTeacherPermissions(widget.teacherId);
@@ -2939,7 +2940,6 @@ class ScheduleViewer extends StatelessWidget {
 
 // =========================================================================
 // الزيارات الصفية، الربط بالخطة التشغيلية، حجب/إظهار النتيجة، والجدول العرضي
-// والتقييم الشامل للمعلم (Master Summary)
 // =========================================================================
 
 const List<String> visitEvaluationQuestions = [
@@ -2952,7 +2952,7 @@ const List<String> visitEvaluationQuestions = [
   "ينفذ المعلم أنشطة وإستراتيجيات تدريس تستوفي نواتج التعلم المستهدفة في المنهج، وتتسق معها بوضوح.",
   "تتنوع إستراتيجيات التدريس وفقًا لقدرات المتعلمين، وتراعي الفروق الفردية بينهم.",
   "يستخدم المعلم مصادر تعلم رقمية تلبي احتياجات المتعلمين بمختلف فئاتهم.",
-  "تنفذ المدرسة أنشطة تعليم وتعلم تركز على تطبيقات عملية ترتبط بحياة المتعلمين.",
+  "تنفذ المدرسة أنشطة تعليم وتعلم تركز على تطبيقات عملية تركز على تطبيقات عملية ترتبط بحياة المتعلمين.",
   "تشجع بيئة التعلم داخل الصف على تنمية مهارات القراءة والكتابة لدى المتعلمين.",
   "تشجع بيئة التعلم داخل الصف على تنمية المهارات العددية (الحساب) لدى المتعلمين.",
   "تشجع الممارسات التدريسية على تنمية مهارات التفكير والبحث والابتكار لدى المتعلمين.",
@@ -3014,6 +3014,7 @@ class ClassroomVisitsHubPage extends StatelessWidget {
                   _buildMiniVisitButton(context, 'زيارات وكيل المدرسة', Icons.manage_accounts, Colors.orange.shade800),
                   _buildMiniVisitButton(context, 'زيارات تبادلية', Icons.sync_alt, Colors.green.shade700),
                   _buildMiniVisitButton(context, 'زيارات احتياطية', Icons.event_available, Colors.purple.shade700),
+                  _buildMiniVisitButton(context, 'جدول زياراتك الصفيه', Icons.calendar_month, Colors.indigo.shade600),
                 ],
               ),
             ),
@@ -3046,14 +3047,12 @@ class VisitSchedulePage extends StatefulWidget {
 }
 
 class _VisitSchedulePageState extends State<VisitSchedulePage> {
-  // فلاتر الأسابيع (محدد / الكل / نطاق)
-  String _weekFilterMode = 'single'; // 'single', 'all', 'range'
+  String _weekFilterMode = 'single';
   int _selectedWeek = 1;
   int _startRangeWeek = 1;
   int _endRangeWeek = 4;
 
-  // فلاتر المعلمين (محدد / مجموعة / الكل)
-  String _teacherFilterMode = 'single'; // 'single', 'multiple', 'all'
+  String _teacherFilterMode = 'single';
   String? _selectedTeacherId;
   String? _selectedTeacherName;
   List<String> _selectedTeacherIds = [];
@@ -3063,8 +3062,9 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
   bool _isAdmin = false;
 
   Map<String, Map<String, dynamic>> _allTeachersSchedules = {};
+  Map<String, bool> _teacherReportVisibility = {};
   List<DocumentSnapshot> _currentVisits = [];
-  List<DocumentSnapshot> _operationalPlans = []; // مضافة لجلب الخطط التشغيلية والمبادرات
+  List<DocumentSnapshot> _operationalPlans = [];
 
   final List<String> _daysOrder = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
   final Map<String, int> _dayIndexMap = {'الأحد': 0, 'الإثنين': 1, 'الثلاثاء': 2, 'الأربعاء': 3, 'الخميس': 4};
@@ -3073,6 +3073,7 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
   // إدارة الـ PIN لكل واجهة
   bool _isPinVerified = false;
   String _savedPin = '';
+  String _pinOwnerId = '';
   bool _isCheckingPin = true;
 
   String get _pinDocFieldKey {
@@ -3080,6 +3081,8 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
     if (widget.visitType == 'زيارات وكيل المدرسة') return 'vice_principal_visits_pin';
     return 'other_visits_pin';
   }
+
+  String get _pinOwnerDocFieldKey => '${_pinDocFieldKey}_owner';
 
   @override
   void initState() {
@@ -3089,9 +3092,33 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
   }
 
   Future<void> _checkInterfacePin() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() => _isCheckingPin = false);
+      return;
+    }
+
     try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() ?? {};
+      _isAdmin = (userData['profession'] == 'admin');
+
+      // المعلم العادي يتخطى شاشة القفل مباشرة للاطلاع على إسناداته فقط
+      if (!_isAdmin || widget.visitType == 'جدول زياراتك الصفيه') {
+        setState(() {
+          _isPinVerified = true;
+          _isCheckingPin = false;
+        });
+        _checkRoleAndLoad();
+        return;
+      }
+
       final doc = await FirebaseFirestore.instance.collection('settings').doc('page_pins').get();
-      _savedPin = doc.data()?[_pinDocFieldKey]?.toString().trim() ?? '';
+      final pinMap = doc.data() ?? {};
+      _savedPin = pinMap[_pinDocFieldKey]?.toString().trim() ?? '';
+      _pinOwnerId = pinMap[_pinOwnerDocFieldKey]?.toString().trim() ?? '';
+
+      // إذا لم يكن هناك رقم سري بعد، يفتح تلقائياً للأدمن
       if (_savedPin.isEmpty) {
         setState(() => _isPinVerified = true);
       }
@@ -3105,9 +3132,29 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
     }
   }
 
+  bool get _canModifyPin {
+    if (!_isAdmin) return false;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return false;
+    final email = currentUser.email?.toLowerCase().trim() ?? '';
+    // المالك الذي وضع الرقم أو الحساب الرئيسي للمطور
+    return _savedPin.isEmpty || _pinOwnerId.isEmpty || _pinOwnerId == currentUser.uid || email == 'mostafa.said@gmail.com';
+  }
+
   Future<void> _changeInterfacePinDialog() async {
+    if (!_canModifyPin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('عفواً، تم إغلاق وتعيين الرقم السري من قبل أدمن آخر، ولا يمكنك تعديله إلا بالرجوع إليه.', style: TextStyle(fontFamily: 'Cairo')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final currentPinCtrl = TextEditingController();
     final newPinCtrl = TextEditingController();
+    final currentUser = FirebaseAuth.instance.currentUser;
 
     showDialog(
       context: context,
@@ -3129,19 +3176,20 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'الافتراضي فارغ، يمكنك إضافة رقم سري أو تغييره أو إلغائه بجعله فارغاً تماماً.',
+              'عند تعيين رقم سري، سيغلق على الأدمن الآخرين ولن يستطيعوا الدخول إلا بالرقم، ويبقى متاحاً للمعلمين للاطلاع على إسناداتهم فقط.',
               style: TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo'),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: currentPinCtrl,
-              obscureText: true,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'الرمز الحالي (اتركه فارغاً إن لم يكن هناك رمز)',
-                border: OutlineInputBorder(),
+            if (_savedPin.isNotEmpty)
+              TextField(
+                controller: currentPinCtrl,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'الرمز الحالي',
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
             const SizedBox(height: 12),
             TextField(
               controller: newPinCtrl,
@@ -3165,19 +3213,22 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
               final doc = await FirebaseFirestore.instance.collection('settings').doc('page_pins').get();
               final actualPin = doc.data()?[_pinDocFieldKey]?.toString().trim() ?? '';
 
-              if (currentPinCtrl.text.trim() == actualPin || _isAdmin) {
+              if (actualPin.isEmpty || currentPinCtrl.text.trim() == actualPin || currentUser?.email?.toLowerCase().trim() == 'mostafa.said@gmail.com') {
+                final newPin = newPinCtrl.text.trim();
                 await FirebaseFirestore.instance.collection('settings').doc('page_pins').set({
-                  _pinDocFieldKey: newPinCtrl.text.trim(),
+                  _pinDocFieldKey: newPin,
+                  _pinOwnerDocFieldKey: newPin.isEmpty ? FieldValue.delete() : currentUser?.uid,
                 }, SetOptions(merge: true));
 
                 if (mounted) {
                   Navigator.pop(ctx);
                   setState(() {
-                    _savedPin = newPinCtrl.text.trim();
+                    _savedPin = newPin;
+                    _pinOwnerId = newPin.isEmpty ? '' : (currentUser?.uid ?? '');
                     _isPinVerified = true;
                   });
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم حفظ وتحديث رمز الـ PIN للواجهة بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+                    const SnackBar(content: Text('تم حفظ وتحديث رمز الـ PIN وقفل الواجهة بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
                   );
                 }
               } else {
@@ -3217,7 +3268,7 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
       final userData = userDoc.data() ?? {};
       _isAdmin = (userData['profession'] == 'admin');
 
-      if (_isAdmin) {
+      if (_isAdmin && widget.visitType != 'جدول زياراتك الصفيه') {
         final snap = await FirebaseFirestore.instance.collection('users').where('profession', isNotEqualTo: 'admin').get();
         List<Map<String, dynamic>> list = [];
         for (var doc in snap.docs) {
@@ -3260,23 +3311,36 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
     try {
       final schedSnap = await FirebaseFirestore.instance.collection('teacher_schedules').where('status', isEqualTo: 'approved').get();
       Map<String, Map<String, dynamic>> tempSchedules = {};
+      Map<String, bool> tempReportVisibility = {};
+
       for (var doc in schedSnap.docs) {
         tempSchedules[doc.id] = doc.data()['phase2Data'] ?? {};
+        tempReportVisibility[doc.id] = doc.data()['isReportVisible'] ?? false;
       }
       _allTeachersSchedules = tempSchedules;
+      _teacherReportVisibility = tempReportVisibility;
 
       Query visitsQuery = FirebaseFirestore.instance.collection('classroom_visits_schedule');
-      if (widget.visitType.isNotEmpty) {
+      if (widget.visitType == 'جدول زياراتك الصفيه' || !_isAdmin) {
+        visitsQuery = visitsQuery.where('teacherId', isEqualTo: FirebaseAuth.instance.currentUser?.uid);
+      } else if (widget.visitType.isNotEmpty) {
         visitsQuery = visitsQuery.where('visitType', isEqualTo: widget.visitType);
       }
       final visitsSnap = await visitsQuery.get();
 
-      // إحضار الخطط التشغيلية الخاصة بالمعلمين المحددين للتقييم
+      List<DocumentSnapshot> filteredVisits = visitsSnap.docs;
+      if (widget.visitType == 'جدول زياراتك الصفيه' || !_isAdmin) {
+        filteredVisits = filteredVisits.where((doc) {
+          final d = doc.data() as Map<String, dynamic>;
+          return d['isAnnounced'] == true;
+        }).toList();
+      }
+
       final plansSnap = await FirebaseFirestore.instance.collection('school_operational_plan_1448').get();
 
       if (mounted) {
         setState(() {
-          _currentVisits = visitsSnap.docs;
+          _currentVisits = filteredVisits;
           _operationalPlans = plansSnap.docs;
           _isLoading = false;
         });
@@ -3312,16 +3376,35 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
     if (user == null) return;
 
     final targetWeek = _weekFilterMode == 'single' ? _selectedWeek : _startRangeWeek;
+    bool isAnnounced = true;
 
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('تأكيد حجز الزيارة', style: TextStyle(fontFamily: 'Cairo')),
-        content: Text('حجز الحصة للمعلم $tName يوم $dayName الحصة ${periodIndex + 1} كـ (${widget.visitType}) للأسبوع $targetWeek؟', style: const TextStyle(fontFamily: 'Cairo')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تأكيد الحجز', style: TextStyle(fontFamily: 'Cairo'))),
-        ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          title: const Text('تأكيد حجز الزيارة', style: TextStyle(fontFamily: 'Cairo')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('حجز الحصة للمعلم $tName يوم $dayName الحصة ${periodIndex + 1} كـ (${widget.visitType}) للأسبوع $targetWeek؟', style: const TextStyle(fontFamily: 'Cairo')),
+              const SizedBox(height: 16),
+              SwitchListTile(
+                title: const Text('إعلان الزيارة (تظهر في جدول المعلم)', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.bold)),
+                value: isAnnounced,
+                activeColor: Colors.teal,
+                onChanged: (val) => setDlgState(() => isAnnounced = val),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('تأكيد الحجز', style: TextStyle(fontFamily: 'Cairo')),
+            ),
+          ],
+        ),
       ),
     ) ?? false;
 
@@ -3346,6 +3429,7 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
         'status': 'scheduled',
         'score': null,
         'isResultVisible': false,
+        'isAnnounced': isAnnounced,
         'timestamp': FieldValue.serverTimestamp(),
       });
 
@@ -3398,7 +3482,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
     }
   }
 
-  // حذف زيارة صفية بشرط أن يكون أدمن وهو من قام بوضعها
   Future<void> _deleteVisit(DocumentSnapshot doc) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -3497,7 +3580,7 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
   }
 
   List<Map<String, dynamic>> _getTargetTeachers() {
-    if (!_isAdmin) {
+    if (!_isAdmin || widget.visitType == 'جدول زياراتك الصفيه') {
       return [{'id': _selectedTeacherId ?? '', 'name': _selectedTeacherName ?? 'معلم'}];
     }
     if (_teacherFilterMode == 'all') {
@@ -3563,7 +3646,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
     );
   }
 
-  // حساب النقاط المكتسبة من الخطط التشغيلية لكل معلم
   int _calculatePlanPoints(Map<String, dynamic> planData) {
     if (planData['status'] != 'مكتمل') return 0;
 
@@ -3579,7 +3661,7 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
     int daysPerWeek = daysList.isEmpty ? 1 : daysList.length;
 
     int totalDays = weeks * daysPerWeek;
-    return totalDays * 4; // المعلم يأخذ 4 نقاط عن كل يوم للمبادرة المكتملة
+    return totalDays * 4;
   }
 
   void _showComprehensiveEvaluationDialog(String teacherId, String teacherName) {
@@ -3670,7 +3752,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // الزيارات الصفية
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
@@ -3689,8 +3770,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // الخطط التشغيلية والمبادرات
                 const Text('الخطط التشغيلية والمبادرات:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
                 Text('إجمالي المبادرات المقدمة: ${teacherPlans.length} | المنجزة: $completedPlansCount', style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo')),
                 const SizedBox(height: 8),
@@ -3705,7 +3784,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
 
                 const SizedBox(height: 16),
                 const Divider(),
-                // المجموع الكلي
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade200)),
@@ -3730,7 +3808,8 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isCheckingPin && !_isPinVerified) {
+    // التحقق من صلاحية قفل الواجهة على الأدمن دون المعلمين
+    if (!_isCheckingPin && !_isPinVerified && _isAdmin && widget.visitType != 'جدول زياراتك الصفيه') {
       return Scaffold(
         appBar: AppBar(
           title: Text(widget.visitType, style: const TextStyle(fontFamily: 'Cairo')),
@@ -3745,9 +3824,9 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
               children: [
                 const Icon(Icons.lock_rounded, size: 64, color: Colors.teal),
                 const SizedBox(height: 16),
-                const Text('هذه الواجهة محمية برمز PIN مخصص', style: TextStyle(fontFamily: 'Cairo', fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text('هذه الواجهة محمية ومغلقة برقم سري (PIN)', style: TextStyle(fontFamily: 'Cairo', fontSize: 16, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text('يرجى إدخال الرمز السري الخاص بالواجهة للمتابعة', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Colors.grey)),
+                const Text('يرجى إدخال الرمز السري للأدمن للدخول والتحكم', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Colors.grey)),
                 const SizedBox(height: 16),
                 SizedBox(
                   width: 200,
@@ -3785,11 +3864,13 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
         backgroundColor: Colors.teal.shade700,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.pin),
-            tooltip: 'تخصيص رمز PIN لهذه الواجهة',
-            onPressed: _changeInterfacePinDialog,
-          ),
+          // إتاحة تعديل الرمز السري الحصري فقط للأدمن المالك
+          if (_isAdmin && widget.visitType != 'جدول زياراتك الصفيه' && _canModifyPin)
+            IconButton(
+              icon: const Icon(Icons.pin),
+              tooltip: 'تخصيص/تغيير رمز PIN لهذه الواجهة',
+              onPressed: _changeInterfacePinDialog,
+            ),
         ],
       ),
       body: _isLoading
@@ -3799,7 +3880,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // لوحة تخصيص الفترات والأسابيع والمعلمين
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.teal.shade200)),
@@ -3879,7 +3959,7 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
                       ],
                     ),
 
-                  if (_isAdmin) ...[
+                  if (_isAdmin && widget.visitType != 'جدول زياراتك الصفيه') ...[
                     const Divider(height: 20),
                     const Text('تحديد المعلمين:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo', color: Colors.teal)),
                     const SizedBox(height: 6),
@@ -3928,25 +4008,40 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
             ),
             const SizedBox(height: 20),
 
-            // عرض جداول المعلمين المحددين مع الفواصل
             ...targetTeachers.map((teacher) {
               return _buildSingleTeacherSection(teacher);
             }).toList(),
 
             const SizedBox(height: 10),
             if (targetTeachers.isNotEmpty) ...[
-              const Divider(thickness: 2),
-              const SizedBox(height: 16),
-              const Row(
-                children: [
-                  Icon(Icons.analytics, color: Colors.teal, size: 24),
-                  SizedBox(width: 8),
-                  Text('الجدول المجمع لنتائج البحث والتطوير الشامل:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
-                ],
+              Builder(
+                builder: (context) {
+                  bool showMasterSummary = _isAdmin;
+                  if (!_isAdmin && targetTeachers.isNotEmpty) {
+                    showMasterSummary = _teacherReportVisibility[targetTeachers.first['id']] == true;
+                  }
+
+                  if (showMasterSummary) {
+                    return Column(
+                      children: [
+                        const Divider(thickness: 2),
+                        const SizedBox(height: 16),
+                        const Row(
+                          children: [
+                            Icon(Icons.analytics, color: Colors.teal, size: 24),
+                            SizedBox(width: 8),
+                            Text('الجدول المجمع لنتائج البحث والتطوير الشامل:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _buildMasterSummaryTable(targetTeachers),
+                        const SizedBox(height: 40),
+                      ],
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
               ),
-              const SizedBox(height: 12),
-              _buildMasterSummaryTable(targetTeachers),
-              const SizedBox(height: 40),
             ]
           ],
         ),
@@ -3958,6 +4053,7 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
     final tId = teacher['id'] ?? '';
     final tName = teacher['name'] ?? 'معلم';
     final schedule = _allTeachersSchedules[tId] ?? {};
+    bool canViewReport = _isAdmin || (_teacherReportVisibility[tId] == true);
 
     final teacherVisits = _currentVisits.where((v) {
       final d = v.data() as Map<String, dynamic>;
@@ -4012,6 +4108,27 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
                   child: _buildTeacherScheduleTable(tId, tName, schedule),
                 ),
 
+                if (_isAdmin)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('إظهار المجموع والتقرير الشامل للمعلم', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue)),
+                    value: _teacherReportVisibility[tId] ?? false,
+                    activeColor: Colors.teal,
+                    onChanged: (val) async {
+                      setState(() {
+                        _teacherReportVisibility[tId] = val;
+                      });
+                      try {
+                        await FirebaseFirestore.instance.collection('teacher_schedules').doc(tId).set({
+                          'isReportVisible': val
+                        }, SetOptions(merge: true));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(val ? 'تم إظهار التقرير للمعلم' : 'تم إخفاء التقرير عن المعلم', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: val ? Colors.green : Colors.orange));
+                        }
+                      } catch (e) {}
+                    },
+                  ),
+
                 if (scheduledVisits.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   const Divider(),
@@ -4034,22 +4151,25 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
                     scrollDirection: Axis.horizontal,
                     child: _buildTeacherEvaluatedVisitsTable(evaluatedVisits),
                   ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('متوسط درجات الزيارات الصفية للمعلم:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo', color: Colors.green)),
-                        const SizedBox(height: 6),
-                        ...weeklyScores.entries.map((e) {
-                          double avg = e.value.reduce((a, b) => a + b) / e.value.length;
-                          return Text('• الأسبوع ${e.key}: ${avg.toStringAsFixed(1)} / 100', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo', fontWeight: FontWeight.bold));
-                        }).toList(),
-                      ],
+
+                  if (canViewReport) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('متوسط درجات الزيارات الصفية للمعلم:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo', color: Colors.green)),
+                          const SizedBox(height: 6),
+                          ...weeklyScores.entries.map((e) {
+                            double avg = e.value.reduce((a, b) => a + b) / e.value.length;
+                            return Text('• الأسبوع ${e.key}: ${avg.toStringAsFixed(1)} / 100', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo', fontWeight: FontWeight.bold));
+                          }).toList(),
+                        ],
+                      ),
                     ),
-                  ),
+                  ]
                 ],
               ],
             ),
@@ -4143,7 +4263,25 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
         return DataRow(cells: [
           DataCell(Text('الأسبوع ${data['weekNumber'] ?? 1}', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
           DataCell(Text('${data['dayName']} - ح ${data['periodIndex'] + 1}', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
-          DataCell(Text('${data['subject']} (${_formatShortClassDisplay(data['grade'], data['className'])})', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
+          DataCell(
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('${data['subject']} (${_formatShortClassDisplay(data['grade'], data['className'])})', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11)),
+                  if (_isAdmin && widget.visitType != 'جدول زياراتك الصفيه')
+                    Text(
+                        (data['isAnnounced'] ?? true) ? 'معلنة' : 'غير معلنة',
+                        style: TextStyle(
+                            fontFamily: 'Cairo',
+                            fontSize: 9,
+                            color: (data['isAnnounced'] ?? true) ? Colors.green : Colors.red,
+                            fontWeight: FontWeight.bold
+                        )
+                    ),
+                ],
+              )
+          ),
           DataCell(Text(data['visitorName'] ?? '', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
           DataCell(
             canEvaluate
@@ -4235,7 +4373,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
           final tId = teacher['id'] ?? '';
           final tName = teacher['name'] ?? 'معلم';
 
-          // حسابات الزيارات
           final teacherVisits = _currentVisits.where((v) {
             final d = v.data() as Map<String, dynamic>;
             return d['teacherId'] == tId && _isWeekIncluded(d['weekNumber'] ?? 1);
@@ -4258,7 +4395,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
           double avgVisitScore = evaluatedCount > 0 ? (totalVisitScore / evaluatedCount) : 0;
           String avgText = evaluatedCount > 0 ? avgVisitScore.toStringAsFixed(1) : '-';
 
-          // حسابات الخطط والمبادرات
           final teacherPlans = _operationalPlans.where((p) {
             final d = p.data() as Map<String, dynamic>;
             final executors = d['executorsIds'] as List<dynamic>? ?? [];
