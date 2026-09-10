@@ -1286,6 +1286,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       }
     }
   }
+
   Future<void> _handleBulkAction(bool isLike) async {
     if (_students.isEmpty) return;
 
@@ -1396,12 +1397,34 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
   Future<void> _saveGrade(String studentId, num grade, Map<String, dynamic>? evaluationData) async {
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      String teacherName = 'معلم المادة';
+      if (user != null) {
+        final teacherDoc = await _firestore.collection('users').doc(user.uid).get();
+        teacherName = teacherDoc.data()?['name'] ?? 'معلم المادة';
+      }
+
       final studentRef = _firestore.collection('students').doc(studentId);
+      final notificationRef = studentRef.collection('notifications').doc();
+
       Map<String, dynamic> updates = { widget.testFieldKey: grade };
       if (evaluationData != null) {
         updates['eval_${widget.testFieldKey}'] = evaluationData;
       }
-      await studentRef.set(updates, SetOptions(merge: true));
+
+      await _firestore.runTransaction((transaction) async {
+        transaction.set(studentRef, updates, SetOptions(merge: true));
+
+        if (grade != -1) {
+          transaction.set(notificationRef, {
+            'title': '📝 رصد درجة جديدة',
+            'message': 'قام أ. $teacherName برصد درجة لك في اختبار: ${widget.testName} لمادة ${widget.subject}.',
+            'type': 'grade',
+            'timestamp': FieldValue.serverTimestamp(),
+            'isRead': false,
+          });
+        }
+      });
 
       setState(() {
         _grades[studentId] = grade;
@@ -1413,14 +1436,16 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       if(mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة والتقييم بنجاح', style: const TextStyle(fontFamily: 'Cairo')),
+              content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة وإرسال إشعار للطالب بنجاح', style: const TextStyle(fontFamily: 'Cairo')),
               backgroundColor: grade == -1 ? Colors.blueGrey : Colors.green),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('فشل حفظ الدرجة: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('فشل حفظ الدرجة: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -2878,6 +2903,7 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
 
       final studentRef = _firestore.collection('students').doc(studentId);
       final reportRef = _firestore.collection('behavior_reports').doc();
+      final notificationRef = studentRef.collection('notifications').doc();
 
       final reportData = {
         'studentId': studentId,
@@ -2892,7 +2918,17 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
         if (type == 'dislike') 'teacherNote': teacherNote,
         if (type == 'dislike') 'studentReply': null,
         if (type == 'dislike') 'replyTimestamp': null,
-        if (type == 'dislike') 'status': 'pending_reply',
+        'status': type == 'dislike' ? 'pending_reply' : 'like_added',
+      };
+
+      final notificationData = {
+        'title': type == 'like' ? '🌟 نقاط تميز' : '⚠️ تنبيه وملاحظة سلوكية',
+        'message': type == 'like'
+            ? 'حصلت على إشارة تميز (Like) من أ. $teacherName في مادة ${widget.subject}.'
+            : 'تم تسجيل ملاحظة سلوكية (Dislike) عليك من أ. $teacherName في مادة ${widget.subject}.\nالسبب: $teacherNote',
+        'type': 'behavior',
+        'timestamp': FieldValue.serverTimestamp(),
+        'isRead': false,
       };
 
       await _firestore.runTransaction((transaction) async {
@@ -2900,6 +2936,7 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
           type == 'like' ? 'totalLikes' : 'totalDislikes': FieldValue.increment(1),
         });
         transaction.set(reportRef, reportData);
+        transaction.set(notificationRef, notificationData);
       });
 
       if (mounted) {
@@ -2911,7 +2948,7 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(type == 'like' ? 'تم تسجيل الإعجاب بنجاح' : 'تم تسجيل الملاحظة بنجاح', style: const TextStyle(fontFamily: 'Cairo')),
+          content: Text(type == 'like' ? 'تم تسجيل الإعجاب وإشعار الطالب بنجاح' : 'تم تسجيل الملاحظة وإشعار الطالب بنجاح', style: const TextStyle(fontFamily: 'Cairo')),
           backgroundColor: Colors.green,
         ));
       }

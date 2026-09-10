@@ -665,6 +665,15 @@ class _Add2PageState extends State<Add2Page> {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherScheduleFlowPage()));
                 },
               ),
+              // الزيارات الصفية
+              _AnimatedGridButton(
+                title: 'الزيارات الصفية',
+                icon: Icons.co_present_rounded,
+                color: Colors.teal.shade700,
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ClassroomVisitsHubPage()));
+                },
+              ),
               if (_isAdmin) ...[
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
@@ -1941,7 +1950,6 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
     } catch (_) {}
   }
 
-  // ✅ دالة الفلترة الذكية للمعامل حسب نوع المادة المسندة للحصة (معدلة لمنع المعامل للمواد الأخرى)
   List<String> _getFilteredLabsForSubject(String? subject) {
     if (subject == null || subject.isEmpty) return [];
 
@@ -1958,7 +1966,7 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
       keywords = ['روبوت', 'STEM', 'ستيم'];
     }
 
-    if (keywords.isEmpty) return []; // <-- المواد العادية كالرياضيات والعربي لن يكون لها معمل
+    if (keywords.isEmpty) return [];
 
     final filtered = _activeLabsList.where((lab) {
       return keywords.any((k) => lab.toLowerCase().contains(k.toLowerCase()));
@@ -2297,7 +2305,6 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
       );
     }
 
-    // المعامل المفلترة حسب مادة الحصة الحالية
     final List<String> availableSubjectLabs = _getFilteredLabsForSubject(slot['subject']);
 
     return Card(
@@ -2391,7 +2398,7 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
                   });
                 },
               ),
-              if (availableSubjectLabs.isNotEmpty) // 👈 إخفاء خيار المعمل إن لم يتوفر لهذه المادة
+              if (availableSubjectLabs.isNotEmpty)
                 Row(
                   children: [
                     Expanded(
@@ -2474,6 +2481,7 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
     );
   }
 }
+
 class AdminScheduleApprovalsPage extends StatelessWidget {
   const AdminScheduleApprovalsPage({super.key});
 
@@ -2925,6 +2933,1568 @@ class ScheduleViewer extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// =========================================================================
+// الزيارات الصفية، الربط بالخطة التشغيلية، حجب/إظهار النتيجة، والجدول العرضي
+// والتقييم الشامل للمعلم (Master Summary)
+// =========================================================================
+
+const List<String> visitEvaluationQuestions = [
+  "تنفذ المدرسة برامج وأنشطة؛ لتعزيز القيم الإسلامية والهوية الوطنية لدى المتعلمين.",
+  "تنفذ المدرسة إجراءات تضمن مناخًا آمنا للتعلم والنمو نفسيا واجتماعيا.",
+  "يتوافر في بيئة التعلم مصادر وأنشطة متنوعة للتعلم تلبي احتياجات المتعلمين، ومنهم ذوو الإعاقة والموهوبون.",
+  "يدار الوقت في بيئة التعلم بفاعلية؛ لدعم التعلم وتلبية احتياجات المتعلمين.",
+  "يتاح للمتعلمين فرص متكافئة في الأنشطة والمناقشة الصفية، واستخدام مصادر التعلم.",
+  "توفر المدرسة مصادر تعلم متنوعة تدعم تنفيذ المناهج لتحقيق نواتج التعلم المستهدفة.",
+  "ينفذ المعلم أنشطة وإستراتيجيات تدريس تستوفي نواتج التعلم المستهدفة في المنهج، وتتسق معها بوضوح.",
+  "تتنوع إستراتيجيات التدريس وفقًا لقدرات المتعلمين، وتراعي الفروق الفردية بينهم.",
+  "يستخدم المعلم مصادر تعلم رقمية تلبي احتياجات المتعلمين بمختلف فئاتهم.",
+  "تنفذ المدرسة أنشطة تعليم وتعلم تركز على تطبيقات عملية ترتبط بحياة المتعلمين.",
+  "تشجع بيئة التعلم داخل الصف على تنمية مهارات القراءة والكتابة لدى المتعلمين.",
+  "تشجع بيئة التعلم داخل الصف على تنمية المهارات العددية (الحساب) لدى المتعلمين.",
+  "تشجع الممارسات التدريسية على تنمية مهارات التفكير والبحث والابتكار لدى المتعلمين.",
+  "تشجع بيئة التعلم تنمية المهارات العاطفية والاجتماعية لدى المتعلمين.",
+  "يستخدم المعلم أساليب تحفيز تعزز الدافعية لدى المتعلمين.",
+  "يشارك المتعلمون في أنشطة التعلم بفاعلية، ويستمتعون بها.",
+  "يستخدم المعلمون أساليب وأدوات تقويم متنوعة تشخيصية وبنائية وختامية للكشف عن الفروق الفردية.",
+  "يطبق المعلم أساليب وأدوات تقويم متنوعة لقياس مستوى تحقق نواتج التعلم المستهدفة في المنهج.",
+  "يقدم المعلم تغذية راجعة متنوعة للمتعلمين حسب الموقف التعليمي تركز على تحسين أدائهم.",
+  "يظهر المتعلمون الاعتزاز بالقيم والهوية الوطنية.",
+  "يظهر المتعلمون الاتجاهات الإيجابية نحو ذواتهم والآخرين.",
+  "يظهر المتعلمون التزاما بالممارسات الصحية السليمة.",
+  "يلتزم المتعلمون بقواعد السلوك والانضباط.",
+  "يظهر المتعلمون الاستقلالية، والقدرة على التعلم الذاتي.",
+  "يظهر المتعلمون الاعتزاز بثقافتهم واحترام التنوع الثقافي في المجتمع."
+];
+
+class ClassroomVisitsHubPage extends StatelessWidget {
+  const ClassroomVisitsHubPage({super.key});
+
+  Widget _buildMiniVisitButton(BuildContext context, String title, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+          elevation: 2,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+        icon: Icon(icon, size: 18),
+        label: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => VisitSchedulePage(visitType: title)));
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('الزيارات الصفية', style: TextStyle(fontFamily: 'Cairo')),
+        backgroundColor: Colors.teal.shade800,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            color: Colors.white,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildMiniVisitButton(context, 'زيارات مدير المدرسة', Icons.admin_panel_settings, Colors.blue.shade800),
+                  _buildMiniVisitButton(context, 'زيارات وكيل المدرسة', Icons.manage_accounts, Colors.orange.shade800),
+                  _buildMiniVisitButton(context, 'زيارات تبادلية', Icons.sync_alt, Colors.green.shade700),
+                  _buildMiniVisitButton(context, 'زيارات احتياطية', Icons.event_available, Colors.purple.shade700),
+                ],
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          const Expanded(
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Text(
+                  'اختر نوع الزيارة من الشريط العلوي لعرض الجدول وتعيين ومتابعة الزيارات.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 14, fontFamily: 'Cairo'),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class VisitSchedulePage extends StatefulWidget {
+  final String visitType;
+  const VisitSchedulePage({super.key, required this.visitType});
+
+  @override
+  State<VisitSchedulePage> createState() => _VisitSchedulePageState();
+}
+
+class _VisitSchedulePageState extends State<VisitSchedulePage> {
+  // فلاتر الأسابيع (محدد / الكل / نطاق)
+  String _weekFilterMode = 'single'; // 'single', 'all', 'range'
+  int _selectedWeek = 1;
+  int _startRangeWeek = 1;
+  int _endRangeWeek = 4;
+
+  // فلاتر المعلمين (محدد / مجموعة / الكل)
+  String _teacherFilterMode = 'single'; // 'single', 'multiple', 'all'
+  String? _selectedTeacherId;
+  String? _selectedTeacherName;
+  List<String> _selectedTeacherIds = [];
+
+  List<Map<String, dynamic>> _teachersList = [];
+  bool _isLoading = true;
+  bool _isAdmin = false;
+
+  Map<String, Map<String, dynamic>> _allTeachersSchedules = {};
+  List<DocumentSnapshot> _currentVisits = [];
+  List<DocumentSnapshot> _operationalPlans = []; // مضافة لجلب الخطط التشغيلية والمبادرات
+
+  final List<String> _daysOrder = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+  final Map<String, int> _dayIndexMap = {'الأحد': 0, 'الإثنين': 1, 'الثلاثاء': 2, 'الأربعاء': 3, 'الخميس': 4};
+  final DateTime _firstWeekStart = DateTime(2026, 8, 30);
+
+  // إدارة الـ PIN لكل واجهة
+  bool _isPinVerified = false;
+  String _savedPin = '';
+  bool _isCheckingPin = true;
+
+  String get _pinDocFieldKey {
+    if (widget.visitType == 'زيارات مدير المدرسة') return 'principal_visits_pin';
+    if (widget.visitType == 'زيارات وكيل المدرسة') return 'vice_principal_visits_pin';
+    return 'other_visits_pin';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _determineCurrentWeek();
+    _checkInterfacePin();
+  }
+
+  Future<void> _checkInterfacePin() async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('settings').doc('page_pins').get();
+      _savedPin = doc.data()?[_pinDocFieldKey]?.toString().trim() ?? '';
+      if (_savedPin.isEmpty) {
+        setState(() => _isPinVerified = true);
+      }
+    } catch (_) {
+      setState(() => _isPinVerified = true);
+    } finally {
+      setState(() => _isCheckingPin = false);
+      if (_isPinVerified) {
+        _checkRoleAndLoad();
+      }
+    }
+  }
+
+  Future<void> _changeInterfacePinDialog() async {
+    final currentPinCtrl = TextEditingController();
+    final newPinCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.pin, color: Colors.teal),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'تخصيص PIN لـ (${widget.visitType})',
+                style: const TextStyle(fontFamily: 'Cairo', fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'الافتراضي فارغ، يمكنك إضافة رقم سري أو تغييره أو إلغائه بجعله فارغاً تماماً.',
+              style: TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: currentPinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'الرمز الحالي (اتركه فارغاً إن لم يكن هناك رمز)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: newPinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'الرمز الجديد (اتركه فارغاً لإلغاء القفل)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo', color: Colors.blueGrey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+            onPressed: () async {
+              final doc = await FirebaseFirestore.instance.collection('settings').doc('page_pins').get();
+              final actualPin = doc.data()?[_pinDocFieldKey]?.toString().trim() ?? '';
+
+              if (currentPinCtrl.text.trim() == actualPin || _isAdmin) {
+                await FirebaseFirestore.instance.collection('settings').doc('page_pins').set({
+                  _pinDocFieldKey: newPinCtrl.text.trim(),
+                }, SetOptions(merge: true));
+
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _savedPin = newPinCtrl.text.trim();
+                    _isPinVerified = true;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('تم حفظ وتحديث رمز الـ PIN للواجهة بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+                  );
+                }
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('الرمز الحالي غير صحيح!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text('حفظ الإعدادات', style: TextStyle(fontFamily: 'Cairo')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _determineCurrentWeek() {
+    final now = DateTime.now();
+    if (now.isAfter(_firstWeekStart)) {
+      int diffDays = now.difference(_firstWeekStart).inDays;
+      int currentW = (diffDays / 7).floor() + 1;
+      if (currentW >= 1 && currentW <= 52) {
+        _selectedWeek = currentW;
+        _startRangeWeek = currentW;
+        _endRangeWeek = (currentW + 3 <= 52) ? currentW + 3 : 52;
+      }
+    }
+  }
+
+  Future<void> _checkRoleAndLoad() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final userData = userDoc.data() ?? {};
+      _isAdmin = (userData['profession'] == 'admin');
+
+      if (_isAdmin) {
+        final snap = await FirebaseFirestore.instance.collection('users').where('profession', isNotEqualTo: 'admin').get();
+        List<Map<String, dynamic>> list = [];
+        for (var doc in snap.docs) {
+          list.add({'id': doc.id, 'name': doc.data()['name'] ?? 'معلم'});
+        }
+        if (mounted) {
+          setState(() {
+            _teachersList = list;
+            if (list.isNotEmpty) {
+              _selectedTeacherId = list.first['id'];
+              _selectedTeacherName = list.first['name'];
+              _selectedTeacherIds = [list.first['id']];
+            }
+          });
+        }
+      } else {
+        _selectedTeacherId = user.uid;
+        _selectedTeacherName = userData['name'] ?? 'معلم';
+        _selectedTeacherIds = [user.uid];
+      }
+
+      await _fetchScheduleAndVisits();
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  bool _isWeekIncluded(int week) {
+    if (_weekFilterMode == 'all') return true;
+    if (_weekFilterMode == 'single') return week == _selectedWeek;
+    if (_weekFilterMode == 'range') {
+      return week >= _startRangeWeek && week <= _endRangeWeek;
+    }
+    return true;
+  }
+
+  Future<void> _fetchScheduleAndVisits() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final schedSnap = await FirebaseFirestore.instance.collection('teacher_schedules').where('status', isEqualTo: 'approved').get();
+      Map<String, Map<String, dynamic>> tempSchedules = {};
+      for (var doc in schedSnap.docs) {
+        tempSchedules[doc.id] = doc.data()['phase2Data'] ?? {};
+      }
+      _allTeachersSchedules = tempSchedules;
+
+      Query visitsQuery = FirebaseFirestore.instance.collection('classroom_visits_schedule');
+      if (widget.visitType.isNotEmpty) {
+        visitsQuery = visitsQuery.where('visitType', isEqualTo: widget.visitType);
+      }
+      final visitsSnap = await visitsQuery.get();
+
+      // إحضار الخطط التشغيلية الخاصة بالمعلمين المحددين للتقييم
+      final plansSnap = await FirebaseFirestore.instance.collection('school_operational_plan_1448').get();
+
+      if (mounted) {
+        setState(() {
+          _currentVisits = visitsSnap.docs;
+          _operationalPlans = plansSnap.docs;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _formatShortClassDisplay(String? grade, String? cls) {
+    if (grade == null || cls == null) return '';
+    String gNum = '';
+    if (grade.contains('الأول')) gNum = '1';
+    else if (grade.contains('الثاني')) gNum = '2';
+    else if (grade.contains('الثالث')) gNum = '3';
+    else if (grade.contains('الرابع')) gNum = '4';
+    else if (grade.contains('الخامس')) gNum = '5';
+    else if (grade.contains('السادس')) gNum = '6';
+
+    String cNum = cls.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cNum.isEmpty) cNum = cls;
+
+    return gNum.isNotEmpty ? '$gNum/$cNum' : '$cls';
+  }
+
+  Future<void> _scheduleVisit(int periodIndex, String dayName, Map<String, dynamic> slotData, String tId, String tName) async {
+    if (!_isAdmin) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('عفواً، حجز وتسكين الزيارات متاح لإدارة المدرسة فقط.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.orange));
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final targetWeek = _weekFilterMode == 'single' ? _selectedWeek : _startRangeWeek;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد حجز الزيارة', style: TextStyle(fontFamily: 'Cairo')),
+        content: Text('حجز الحصة للمعلم $tName يوم $dayName الحصة ${periodIndex + 1} كـ (${widget.visitType}) للأسبوع $targetWeek؟', style: const TextStyle(fontFamily: 'Cairo')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تأكيد الحجز', style: TextStyle(fontFamily: 'Cairo'))),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirm) return;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final visitorName = userDoc.data()?['name'] ?? 'زائر';
+
+      final visitDocRef = await FirebaseFirestore.instance.collection('classroom_visits_schedule').add({
+        'visitorId': user.uid,
+        'visitorName': visitorName,
+        'visitType': widget.visitType,
+        'teacherId': tId,
+        'teacherName': tName,
+        'weekNumber': targetWeek,
+        'dayName': dayName,
+        'periodIndex': periodIndex,
+        'subject': slotData['subject'],
+        'grade': slotData['grade'],
+        'className': slotData['class'],
+        'status': 'scheduled',
+        'score': null,
+        'isResultVisible': false,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      if (widget.visitType == 'زيارات مدير المدرسة') {
+        DateTime lessonDate = _firstWeekStart.add(Duration(days: ((targetWeek - 1) * 7) + (_dayIndexMap[dayName] ?? 0)));
+
+        final planDocRef = await FirebaseFirestore.instance.collection('school_operational_plan_1448').add({
+          'title': 'زيارة صفية: ${slotData['subject']} - أ. $tName',
+          'category': 'إجراء مدرسي يومي',
+          'stage': slotData['stage'] ?? 'المرحلة الابتدائية',
+          'targetGrades': [slotData['grade'] ?? ''],
+          'startDate': lessonDate.toIso8601String(),
+          'endDate': lessonDate.toIso8601String(),
+          'isContinuousUntilYearEnd': false,
+          'startWeek': targetWeek,
+          'endWeek': targetWeek,
+          'executionWeek': targetWeek,
+          'executionDay': dayName,
+          'executionDays': [dayName],
+          'executionPeriods': [periodIndex + 1],
+          'executorsIds': [tId],
+          'collaboratorApprovals': {},
+          'dateSelectionMode': 'weeks',
+          'executors': [{
+            'id': tId,
+            'name': tName,
+            'isCustom': false,
+            'hasApproved': true
+          }],
+          'followUpCommittee': [],
+          'status': 'تحت الإجراء',
+          'notes': 'زيارة صفية لمدير المدرسة مجدولة آلياً.',
+          'isCustomNotes': true,
+          'isTeacherInitiated': false,
+          'isApprovedByAdmin': true,
+          'adminFollowUpDate': lessonDate.toIso8601String(),
+          'visitsLog': [],
+          'linkedVisitId': visitDocRef.id,
+          'isResultVisible': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        await visitDocRef.update({'operationalPlanId': planDocRef.id});
+      }
+
+      _fetchScheduleAndVisits();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حجز الزيارة بنجاح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
+    }
+  }
+
+  // حذف زيارة صفية بشرط أن يكون أدمن وهو من قام بوضعها
+  Future<void> _deleteVisit(DocumentSnapshot doc) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final data = doc.data() as Map<String, dynamic>;
+    final String visitorId = data['visitorId'] ?? '';
+
+    if (!_isAdmin || visitorId != user.uid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('عفواً، لا يمكن حذف الزيارة إلا بواسطة الأدمن الذي قام بوضعها فقط!', style: TextStyle(fontFamily: 'Cairo')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final bool confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever, color: Colors.red),
+            SizedBox(width: 8),
+            Text('تأكيد حذف الزيارة الصفية', style: TextStyle(fontFamily: 'Cairo')),
+          ],
+        ),
+        content: const Text('هل أنت متأكد من حذف هذه الزيارة الصفية وإلغاء جدولتها نهائياً؟', style: TextStyle(fontFamily: 'Cairo')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('تراجع', style: TextStyle(fontFamily: 'Cairo'))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('نعم، احذف الزيارة', style: TextStyle(fontFamily: 'Cairo')),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirm) return;
+
+    try {
+      final String? planId = data['operationalPlanId'];
+      final batch = FirebaseFirestore.instance.batch();
+
+      batch.delete(doc.reference);
+
+      if (planId != null && planId.isNotEmpty) {
+        batch.delete(FirebaseFirestore.instance.collection('school_operational_plan_1448').doc(planId));
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم حذف الزيارة الصفية بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+        );
+        _fetchScheduleAndVisits();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ أثناء الحذف: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleResultVisibility(DocumentSnapshot doc, bool currentVisibility) async {
+    try {
+      final newVisibility = !currentVisibility;
+      final data = doc.data() as Map<String, dynamic>;
+      final String? planId = data['operationalPlanId'];
+
+      final batch = FirebaseFirestore.instance.batch();
+      batch.update(doc.reference, {'isResultVisible': newVisibility});
+
+      if (planId != null) {
+        batch.update(FirebaseFirestore.instance.collection('school_operational_plan_1448').doc(planId), {'isResultVisible': newVisibility});
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(newVisibility ? 'تمت إتاحة النتيجة ليراها المعلم بنجاح.' : 'تم حجب النتيجة عن المعلم.', style: const TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: newVisibility ? Colors.green : Colors.orange,
+          ),
+        );
+      }
+      _fetchScheduleAndVisits();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
+    }
+  }
+
+  List<Map<String, dynamic>> _getTargetTeachers() {
+    if (!_isAdmin) {
+      return [{'id': _selectedTeacherId ?? '', 'name': _selectedTeacherName ?? 'معلم'}];
+    }
+    if (_teacherFilterMode == 'all') {
+      return _teachersList;
+    }
+    if (_teacherFilterMode == 'multiple') {
+      return _teachersList.where((t) => _selectedTeacherIds.contains(t['id'])).toList();
+    }
+    return _teachersList.where((t) => t['id'] == _selectedTeacherId).toList();
+  }
+
+  void _openMultiTeacherSelectDialog() {
+    List<String> tempSelected = List.from(_selectedTeacherIds);
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('اختر مجموعة من المعلمين', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 16)),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 350,
+            child: ListView.builder(
+              itemCount: _teachersList.length,
+              itemBuilder: (context, idx) {
+                final t = _teachersList[idx];
+                final isChecked = tempSelected.contains(t['id']);
+                return CheckboxListTile(
+                  title: Text(t['name'], style: const TextStyle(fontFamily: 'Cairo', fontSize: 13)),
+                  value: isChecked,
+                  activeColor: Colors.teal,
+                  onChanged: (val) {
+                    setDlgState(() {
+                      if (val == true) {
+                        tempSelected.add(t['id']);
+                      } else {
+                        tempSelected.remove(t['id']);
+                      }
+                    });
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+              onPressed: () {
+                setState(() {
+                  _selectedTeacherIds = tempSelected;
+                  if (tempSelected.isNotEmpty) {
+                    _selectedTeacherId = tempSelected.first;
+                  }
+                });
+                Navigator.pop(ctx);
+              },
+              child: const Text('تأكيد الاختيار', style: TextStyle(fontFamily: 'Cairo')),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  // حساب النقاط المكتسبة من الخطط التشغيلية لكل معلم
+  int _calculatePlanPoints(Map<String, dynamic> planData) {
+    if (planData['status'] != 'مكتمل') return 0;
+
+    int startW = planData['startWeek'] ?? 1;
+    int endW = planData['endWeek'] ?? startW;
+    int weeks = (endW - startW) + 1;
+    if (weeks <= 0) weeks = 1;
+
+    List daysList = planData['executionDays'] ?? [];
+    if (daysList.isEmpty && planData['executionDay'] != null) {
+      daysList = [planData['executionDay']];
+    }
+    int daysPerWeek = daysList.isEmpty ? 1 : daysList.length;
+
+    int totalDays = weeks * daysPerWeek;
+    return totalDays * 4; // المعلم يأخذ 4 نقاط عن كل يوم للمبادرة المكتملة
+  }
+
+  void _showComprehensiveEvaluationDialog(String teacherId, String teacherName) {
+    final teacherVisits = _currentVisits.where((v) {
+      final d = v.data() as Map<String, dynamic>;
+      return d['teacherId'] == teacherId && d['status'] == 'evaluated' && _isWeekIncluded(d['weekNumber'] ?? 1);
+    }).toList();
+
+    int totalVisitScore = 0;
+    for (var v in teacherVisits) {
+      totalVisitScore += ((v.data() as Map)['score'] ?? 0) as int;
+    }
+    double avgVisitScore = teacherVisits.isEmpty ? 0 : totalVisitScore / teacherVisits.length;
+
+    final teacherPlans = _operationalPlans.where((p) {
+      final d = p.data() as Map<String, dynamic>;
+      final executors = d['executorsIds'] as List<dynamic>? ?? [];
+      bool isIncludedInWeek = true;
+      if (_weekFilterMode == 'single') {
+        int sw = d['startWeek'] ?? 1;
+        int ew = d['endWeek'] ?? sw;
+        isIncludedInWeek = (_selectedWeek >= sw && _selectedWeek <= ew);
+      } else if (_weekFilterMode == 'range') {
+        int sw = d['startWeek'] ?? 1;
+        int ew = d['endWeek'] ?? sw;
+        isIncludedInWeek = !(ew < _startRangeWeek || sw > _endRangeWeek);
+      }
+      return executors.contains(teacherId) && isIncludedInWeek && d['category'] != 'إجراء مدرسي يومي';
+    }).toList();
+
+    int completedPlansCount = 0;
+    int totalPlanPoints = 0;
+    List<Widget> plansWidgets = [];
+
+    for (var p in teacherPlans) {
+      final d = p.data() as Map<String, dynamic>;
+      final status = d['status'] ?? 'تحت الإجراء';
+      final title = d['title'] ?? 'مبادرة';
+
+      int points = 0;
+      String calcDetails = '';
+
+      if (status == 'مكتمل') {
+        completedPlansCount++;
+        int startW = d['startWeek'] ?? 1;
+        int endW = d['endWeek'] ?? startW;
+        int weeks = (endW - startW) + 1;
+        if (weeks <= 0) weeks = 1;
+
+        List daysList = d['executionDays'] ?? [];
+        if (daysList.isEmpty && d['executionDay'] != null) daysList = [d['executionDay']];
+        int daysPerWeek = daysList.isEmpty ? 1 : daysList.length;
+
+        int totalDays = weeks * daysPerWeek;
+        points = totalDays * 4;
+        totalPlanPoints += points;
+        calcDetails = '($weeks أسبوع × $daysPerWeek يوم) = $totalDays أيام × 4 نقاط = $points نقطة';
+      }
+
+      plansWidgets.add(
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(status == 'مكتمل' ? Icons.check_circle : Icons.hourglass_empty, color: status == 'مكتمل' ? Colors.green : Colors.orange),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
+          subtitle: Text(status == 'مكتمل' ? calcDetails : 'قيد التنفيذ / لم تكتمل', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11)),
+          trailing: Text(status == 'مكتمل' ? '+$points' : '0', style: TextStyle(fontWeight: FontWeight.bold, color: status == 'مكتمل' ? Colors.green : Colors.grey)),
+        ),
+      );
+    }
+
+    double finalGrandTotal = avgVisitScore + totalPlanPoints;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.analytics, color: Colors.blue),
+            const SizedBox(width: 8),
+            Expanded(child: Text('التقييم الشامل: $teacherName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Cairo'))),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // الزيارات الصفية
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('متوسط الزيارات الصفية', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontFamily: 'Cairo')),
+                          Text('من أصل 100 نقطة', style: TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo')),
+                        ],
+                      ),
+                      Text(avgVisitScore.toStringAsFixed(1), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blue, fontFamily: 'Cairo')),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // الخطط التشغيلية والمبادرات
+                const Text('الخطط التشغيلية والمبادرات:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                Text('إجمالي المبادرات المقدمة: ${teacherPlans.length} | المنجزة: $completedPlansCount', style: const TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo')),
+                const SizedBox(height: 8),
+                if (plansWidgets.isEmpty)
+                  const Text('لا توجد مبادرات مسجلة ضمن هذه الفترة.', style: TextStyle(fontFamily: 'Cairo', fontSize: 12))
+                else
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+                    child: Column(children: plansWidgets),
+                  ),
+
+                const SizedBox(height: 16),
+                const Divider(),
+                // المجموع الكلي
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade200)),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('المجموع الكلي (الإجمالي):', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 14, fontFamily: 'Cairo')),
+                      Text(finalGrandTotal.toStringAsFixed(1), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green, fontFamily: 'Cairo')),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق', style: TextStyle(fontFamily: 'Cairo'))),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isCheckingPin && !_isPinVerified) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.visitType, style: const TextStyle(fontFamily: 'Cairo')),
+          backgroundColor: Colors.teal.shade800,
+          foregroundColor: Colors.white,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_rounded, size: 64, color: Colors.teal),
+                const SizedBox(height: 16),
+                const Text('هذه الواجهة محمية برمز PIN مخصص', style: TextStyle(fontFamily: 'Cairo', fontSize: 16, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text('يرجى إدخال الرمز السري الخاص بالواجهة للمتابعة', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: 200,
+                  child: TextField(
+                    obscureText: true,
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'PIN'),
+                    onSubmitted: (val) {
+                      if (val.trim() == _savedPin) {
+                        setState(() => _isPinVerified = true);
+                        _checkRoleAndLoad();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز غير صحيح!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
+                      }
+                    },
+                  ),
+                )
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_isCheckingPin) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final targetTeachers = _getTargetTeachers();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.visitType, style: const TextStyle(fontFamily: 'Cairo')),
+        backgroundColor: Colors.teal.shade700,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.pin),
+            tooltip: 'تخصيص رمز PIN لهذه الواجهة',
+            onPressed: _changeInterfacePinDialog,
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // لوحة تخصيص الفترات والأسابيع والمعلمين
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.teal.shade200)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('تخصيص الفترات والأسابيع:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo', color: Colors.teal)),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('أسبوع محدد', style: TextStyle(fontFamily: 'Cairo', fontSize: 11)),
+                        selected: _weekFilterMode == 'single',
+                        onSelected: (val) => setState(() => _weekFilterMode = 'single'),
+                      ),
+                      ChoiceChip(
+                        label: const Text('جميع الأسابيع (52 أسبوع)', style: TextStyle(fontFamily: 'Cairo', fontSize: 11)),
+                        selected: _weekFilterMode == 'all',
+                        onSelected: (val) => setState(() => _weekFilterMode = 'all'),
+                      ),
+                      ChoiceChip(
+                        label: const Text('نطاق أسابيع (من - إلى)', style: TextStyle(fontFamily: 'Cairo', fontSize: 11)),
+                        selected: _weekFilterMode == 'range',
+                        onSelected: (val) => setState(() => _weekFilterMode = 'range'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  if (_weekFilterMode == 'single')
+                    DropdownButtonFormField<int>(
+                      value: _selectedWeek,
+                      decoration: const InputDecoration(labelText: 'اختر الأسبوع', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                      items: List.generate(52, (index) => DropdownMenuItem(value: index + 1, child: Text('الأسبوع ${index + 1}', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo')))),
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() => _selectedWeek = val);
+                          _fetchScheduleAndVisits();
+                        }
+                      },
+                    ),
+
+                  if (_weekFilterMode == 'range')
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: _startRangeWeek,
+                            decoration: const InputDecoration(labelText: 'من الأسبوع', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                            items: List.generate(52, (index) => DropdownMenuItem(value: index + 1, child: Text('الأسبوع ${index + 1}', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo')))),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _startRangeWeek = val;
+                                  if (_endRangeWeek < _startRangeWeek) _endRangeWeek = _startRangeWeek;
+                                });
+                                _fetchScheduleAndVisits();
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: _endRangeWeek,
+                            decoration: const InputDecoration(labelText: 'إلى الأسبوع', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                            items: List.generate(52, (index) => DropdownMenuItem(value: index + 1, child: Text('الأسبوع ${index + 1}', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo')))),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() => _endRangeWeek = val);
+                                _fetchScheduleAndVisits();
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+
+                  if (_isAdmin) ...[
+                    const Divider(height: 20),
+                    const Text('تحديد المعلمين:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo', color: Colors.teal)),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('معلم محدد', style: TextStyle(fontFamily: 'Cairo', fontSize: 11)),
+                          selected: _teacherFilterMode == 'single',
+                          onSelected: (val) => setState(() => _teacherFilterMode = 'single'),
+                        ),
+                        ChoiceChip(
+                          label: Text('مجموعة معلمين (${_selectedTeacherIds.length})', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11)),
+                          selected: _teacherFilterMode == 'multiple',
+                          onSelected: (val) {
+                            setState(() => _teacherFilterMode = 'multiple');
+                            _openMultiTeacherSelectDialog();
+                          },
+                        ),
+                        ChoiceChip(
+                          label: const Text('جميع المعلمين', style: TextStyle(fontFamily: 'Cairo', fontSize: 11)),
+                          selected: _teacherFilterMode == 'all',
+                          onSelected: (val) => setState(() => _teacherFilterMode = 'all'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (_teacherFilterMode == 'single')
+                      DropdownButtonFormField<String>(
+                        value: _selectedTeacherId,
+                        decoration: const InputDecoration(labelText: 'اختر المعلم', border: OutlineInputBorder(), isDense: true, fillColor: Colors.white, filled: true),
+                        items: _teachersList.map((t) => DropdownMenuItem<String>(value: t['id'], child: Text(t['name'], style: const TextStyle(fontSize: 12, fontFamily: 'Cairo')))).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _selectedTeacherId = val;
+                              _selectedTeacherName = _teachersList.firstWhere((e) => e['id'] == val)['name'];
+                              _selectedTeacherIds = [val];
+                            });
+                          }
+                        },
+                      ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // عرض جداول المعلمين المحددين مع الفواصل
+            ...targetTeachers.map((teacher) {
+              return _buildSingleTeacherSection(teacher);
+            }).toList(),
+
+            const SizedBox(height: 10),
+            if (targetTeachers.isNotEmpty) ...[
+              const Divider(thickness: 2),
+              const SizedBox(height: 16),
+              const Row(
+                children: [
+                  Icon(Icons.analytics, color: Colors.teal, size: 24),
+                  SizedBox(width: 8),
+                  Text('الجدول المجمع لنتائج البحث والتطوير الشامل:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildMasterSummaryTable(targetTeachers),
+              const SizedBox(height: 40),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSingleTeacherSection(Map<String, dynamic> teacher) {
+    final tId = teacher['id'] ?? '';
+    final tName = teacher['name'] ?? 'معلم';
+    final schedule = _allTeachersSchedules[tId] ?? {};
+
+    final teacherVisits = _currentVisits.where((v) {
+      final d = v.data() as Map<String, dynamic>;
+      return d['teacherId'] == tId && _isWeekIncluded(d['weekNumber'] ?? 1);
+    }).toList();
+
+    final scheduledVisits = teacherVisits.where((v) => (v.data() as Map)['status'] == 'scheduled').toList();
+    final evaluatedVisits = teacherVisits.where((v) => (v.data() as Map)['status'] == 'evaluated').toList();
+
+    Map<int, List<int>> weeklyScores = {};
+    for (var v in evaluatedVisits) {
+      final d = v.data() as Map<String, dynamic>;
+      int w = d['weekNumber'] ?? 1;
+      int score = d['score'] ?? 0;
+      weeklyScores.putIfAbsent(w, () => []).add(score);
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 30),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.teal.shade200, width: 1.5),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.teal.shade800,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.person, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text('جدول وتقييم المعلم: $tName', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('الجدول الأسبوعي الأساسي:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo', color: Colors.teal)),
+                const SizedBox(height: 8),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: _buildTeacherScheduleTable(tId, tName, schedule),
+                ),
+
+                if (scheduledVisits.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const Text('الزيارات المجدولة (بانتظار التقييم):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo', color: Colors.orange)),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: _buildTeacherScheduledVisitsTable(scheduledVisits),
+                  ),
+                ],
+
+                if (evaluatedVisits.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const Text('الزيارات المنفذة (نتائج التقييم):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo', color: Colors.green)),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: _buildTeacherEvaluatedVisitsTable(evaluatedVisits),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('متوسط درجات الزيارات الصفية للمعلم:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo', color: Colors.green)),
+                        const SizedBox(height: 6),
+                        ...weeklyScores.entries.map((e) {
+                          double avg = e.value.reduce((a, b) => a + b) / e.value.length;
+                          return Text('• الأسبوع ${e.key}: ${avg.toStringAsFixed(1)} / 100', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo', fontWeight: FontWeight.bold));
+                        }).toList(),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeacherScheduleTable(String tId, String tName, Map<String, dynamic> schedule) {
+    return DataTable(
+      headingRowColor: MaterialStateProperty.all(Colors.teal.shade600),
+      headingTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 11),
+      border: TableBorder.all(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(8)),
+      columnSpacing: 10,
+      horizontalMargin: 8,
+      columns: [
+        const DataColumn(label: Text('اليوم')),
+        ...List.generate(7, (i) => DataColumn(label: Text('ح ${i + 1}'))),
+      ],
+      rows: _daysOrder.map((dayName) {
+        List periods = schedule[dayName] ?? [];
+        return DataRow(
+          cells: [
+            DataCell(Text(dayName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, fontFamily: 'Cairo'))),
+            ...List.generate(7, (pIndex) {
+              if (pIndex >= periods.length) return const DataCell(Text('-'));
+              var slot = periods[pIndex];
+              bool isClass = slot['type'] == 'حصة';
+              if (!isClass) return const DataCell(Text('فارغ', style: TextStyle(color: Colors.grey, fontSize: 10)));
+
+              String shortClass = _formatShortClassDisplay(slot['grade'], slot['class']);
+              String subj = slot['subject'] ?? '';
+
+              var res = _currentVisits.where((v) {
+                var d = v.data() as Map<String, dynamic>;
+                return d['teacherId'] == tId &&
+                    d['dayName'] == dayName &&
+                    d['periodIndex'] == pIndex &&
+                    _isWeekIncluded(d['weekNumber'] ?? 1);
+              }).toList();
+
+              return DataCell(
+                InkWell(
+                  onTap: _isAdmin ? () => _scheduleVisit(pIndex, dayName, slot, tId, tName) : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: res.isNotEmpty ? Colors.amber.shade100 : Colors.teal.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: res.isNotEmpty ? Colors.orange : Colors.teal.shade200),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(subj, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10, fontFamily: 'Cairo')),
+                        Text(shortClass, style: TextStyle(color: Colors.blueGrey.shade700, fontSize: 9, fontFamily: 'Cairo')),
+                        if (res.isNotEmpty)
+                          Text('محجوزة (${res.length})', style: const TextStyle(color: Colors.red, fontSize: 8, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildTeacherScheduledVisitsTable(List<DocumentSnapshot> visits) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    return DataTable(
+      headingRowColor: MaterialStateProperty.all(Colors.orange.shade700),
+      headingTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 11),
+      border: TableBorder.all(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(8)),
+      columns: const [
+        DataColumn(label: Text('الأسبوع')),
+        DataColumn(label: Text('اليوم والحصة')),
+        DataColumn(label: Text('المادة/الفصل')),
+        DataColumn(label: Text('الزائر')),
+        DataColumn(label: Text('التقييم')),
+        DataColumn(label: Text('حذف الزيارة')),
+      ],
+      rows: visits.map((doc) {
+        var data = doc.data() as Map<String, dynamic>;
+        bool canEvaluate = _isAdmin && data['visitorId'] == currentUserId && data['status'] == 'scheduled';
+        bool canDelete = _isAdmin && data['visitorId'] == currentUserId;
+
+        return DataRow(cells: [
+          DataCell(Text('الأسبوع ${data['weekNumber'] ?? 1}', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
+          DataCell(Text('${data['dayName']} - ح ${data['periodIndex'] + 1}', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
+          DataCell(Text('${data['subject']} (${_formatShortClassDisplay(data['grade'], data['className'])})', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
+          DataCell(Text(data['visitorName'] ?? '', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
+          DataCell(
+            canEvaluate
+                ? ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => VisitEvaluationFormPage(visitDocId: doc.id))).then((_) => _fetchScheduleAndVisits());
+              },
+              child: const Text('تقييم', style: TextStyle(fontSize: 10, fontFamily: 'Cairo')),
+            )
+                : const Text('-', style: TextStyle(color: Colors.grey)),
+          ),
+          DataCell(
+            canDelete
+                ? IconButton(
+              icon: const Icon(Icons.delete_forever, color: Colors.red, size: 20),
+              tooltip: 'حذف هذه الزيارة الصفية (أدمن فقط ومحرر الزيارة)',
+              onPressed: () => _deleteVisit(doc),
+            )
+                : const Text('-', style: TextStyle(color: Colors.grey)),
+          ),
+        ]);
+      }).toList(),
+    );
+  }
+
+  Widget _buildTeacherEvaluatedVisitsTable(List<DocumentSnapshot> visits) {
+    return DataTable(
+      headingRowColor: MaterialStateProperty.all(Colors.green.shade700),
+      headingTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 11),
+      border: TableBorder.all(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(8)),
+      columns: const [
+        DataColumn(label: Text('الأسبوع')),
+        DataColumn(label: Text('المقيم (الزائر)')),
+        DataColumn(label: Text('نوع الزيارة')),
+        DataColumn(label: Text('المادة')),
+        DataColumn(label: Text('الدرجة من 100')),
+        DataColumn(label: Text('عرض النتيجة')),
+      ],
+      rows: visits.map((doc) {
+        var data = doc.data() as Map<String, dynamic>;
+        bool isVisible = data['isResultVisible'] ?? false;
+        int score = data['score'] ?? 0;
+
+        String scoreDisplay = (_isAdmin || isVisible) ? '$score / 100' : 'محجوبة من الإدارة';
+
+        return DataRow(cells: [
+          DataCell(Text('الأسبوع ${data['weekNumber'] ?? 1}', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
+          DataCell(Text(data['visitorName'] ?? '', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
+          DataCell(Text(data['visitType'] ?? '', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
+          DataCell(Text(data['subject'] ?? '', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
+          DataCell(Text(scoreDisplay, style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.bold, color: (_isAdmin || isVisible) ? Colors.green.shade800 : Colors.red))),
+          DataCell(
+            _isAdmin
+                ? Row(
+              children: [
+                Text(isVisible ? 'متاحة' : 'محجوبة', style: TextStyle(fontSize: 10, color: isVisible ? Colors.green : Colors.red, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                Switch(
+                  value: isVisible,
+                  activeColor: Colors.green,
+                  onChanged: (val) => _toggleResultVisibility(doc, isVisible),
+                ),
+              ],
+            )
+                : Text(isVisible ? 'متاحة للرؤية' : 'محجوبة', style: TextStyle(fontSize: 10, color: isVisible ? Colors.green : Colors.grey, fontFamily: 'Cairo')),
+          ),
+        ]);
+      }).toList(),
+    );
+  }
+
+  Widget _buildMasterSummaryTable(List<Map<String, dynamic>> targetTeachers) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: MaterialStateProperty.all(Colors.teal.shade700),
+        headingTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 11),
+        border: TableBorder.all(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(8)),
+        columns: const [
+          DataColumn(label: Text('المعلم')),
+          DataColumn(label: Text('زيارات (مجدولة)')),
+          DataColumn(label: Text('متوسط درجات الزيارات')),
+          DataColumn(label: Text('مبادرات (مكتملة / مقدمة)')),
+          DataColumn(label: Text('نقاط المبادرات المنجزة')),
+          DataColumn(label: Text('التقييم الشامل (الإجمالي)')),
+          DataColumn(label: Text('التفاصيل')),
+        ],
+        rows: targetTeachers.map((teacher) {
+          final tId = teacher['id'] ?? '';
+          final tName = teacher['name'] ?? 'معلم';
+
+          // حسابات الزيارات
+          final teacherVisits = _currentVisits.where((v) {
+            final d = v.data() as Map<String, dynamic>;
+            return d['teacherId'] == tId && _isWeekIncluded(d['weekNumber'] ?? 1);
+          }).toList();
+
+          int scheduledCount = 0;
+          int evaluatedCount = 0;
+          int totalVisitScore = 0;
+
+          for (var v in teacherVisits) {
+            final d = v.data() as Map<String, dynamic>;
+            if (d['status'] == 'scheduled') {
+              scheduledCount++;
+            } else if (d['status'] == 'evaluated') {
+              evaluatedCount++;
+              totalVisitScore += (d['score'] as int? ?? 0);
+            }
+          }
+
+          double avgVisitScore = evaluatedCount > 0 ? (totalVisitScore / evaluatedCount) : 0;
+          String avgText = evaluatedCount > 0 ? avgVisitScore.toStringAsFixed(1) : '-';
+
+          // حسابات الخطط والمبادرات
+          final teacherPlans = _operationalPlans.where((p) {
+            final d = p.data() as Map<String, dynamic>;
+            final executors = d['executorsIds'] as List<dynamic>? ?? [];
+            bool isIncludedInWeek = true;
+            if (_weekFilterMode == 'single') {
+              int sw = d['startWeek'] ?? 1;
+              int ew = d['endWeek'] ?? sw;
+              isIncludedInWeek = (_selectedWeek >= sw && _selectedWeek <= ew);
+            } else if (_weekFilterMode == 'range') {
+              int sw = d['startWeek'] ?? 1;
+              int ew = d['endWeek'] ?? sw;
+              isIncludedInWeek = !(ew < _startRangeWeek || sw > _endRangeWeek);
+            }
+            return executors.contains(tId) && isIncludedInWeek && d['category'] != 'إجراء مدرسي يومي';
+          }).toList();
+
+          int totalPlansCount = teacherPlans.length;
+          int completedPlansCount = 0;
+          int totalPlanPoints = 0;
+
+          for(var p in teacherPlans) {
+            final d = p.data() as Map<String, dynamic>;
+            if(d['status'] == 'مكتمل') {
+              completedPlansCount++;
+              totalPlanPoints += _calculatePlanPoints(d);
+            }
+          }
+
+          double grandTotal = avgVisitScore + totalPlanPoints;
+
+          return DataRow(cells: [
+            DataCell(Text(tName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, fontFamily: 'Cairo'))),
+            DataCell(Text('منفذة $evaluatedCount | مجدولة $scheduledCount', style: const TextStyle(fontSize: 11, fontFamily: 'Cairo'))),
+            DataCell(Text(avgText, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: evaluatedCount > 0 ? Colors.green.shade700 : Colors.grey, fontFamily: 'Cairo'))),
+            DataCell(Text('مكتملة $completedPlansCount / إجمالي $totalPlansCount', style: const TextStyle(fontSize: 11, fontFamily: 'Cairo'))),
+            DataCell(Text('+$totalPlanPoints', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: totalPlanPoints > 0 ? Colors.green.shade700 : Colors.grey, fontFamily: 'Cairo'))),
+            DataCell(Text(grandTotal.toStringAsFixed(1), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue, fontFamily: 'Cairo'))),
+            DataCell(
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade50, foregroundColor: Colors.blue.shade900, elevation: 0, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4)),
+                icon: const Icon(Icons.analytics_outlined, size: 14),
+                label: const Text('تقرير', style: TextStyle(fontFamily: 'Cairo', fontSize: 10)),
+                onPressed: () => _showComprehensiveEvaluationDialog(tId, tName),
+              ),
+            ),
+          ]);
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class VisitEvaluationFormPage extends StatefulWidget {
+  final String visitDocId;
+  const VisitEvaluationFormPage({super.key, required this.visitDocId});
+
+  @override
+  State<VisitEvaluationFormPage> createState() => _VisitEvaluationFormPageState();
+}
+
+class _VisitEvaluationFormPageState extends State<VisitEvaluationFormPage> {
+  final Map<int, int> _answers = {};
+  bool _isSubmitting = false;
+
+  void _submitEvaluation() async {
+    if (_answers.length < visitEvaluationQuestions.length) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء الإجابة على جميع المعايير الـ 25 قبل الاعتماد.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    int totalScore = 0;
+    _answers.forEach((key, value) {
+      totalScore += value;
+    });
+
+    try {
+      final visitDoc = await FirebaseFirestore.instance.collection('classroom_visits_schedule').doc(widget.visitDocId).get();
+      final visitData = visitDoc.data() as Map<String, dynamic>? ?? {};
+      final String? operationalPlanId = visitData['operationalPlanId'];
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      batch.update(FirebaseFirestore.instance.collection('classroom_visits_schedule').doc(widget.visitDocId), {
+        'status': 'evaluated',
+        'score': totalScore,
+        'evaluationData': _answers.map((key, value) => MapEntry(key.toString(), value)),
+        'evaluatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (operationalPlanId != null) {
+        final now = DateTime.now();
+        final formattedTime = intl.DateFormat('yyyy/MM/dd - hh:mm a', 'ar').format(now);
+        final user = FirebaseAuth.instance.currentUser;
+
+        final newVisitLog = {
+          'type': 'تقييم زيارة صفية',
+          'notes': 'تم تنفيذ الزيارة وتقييم المعلم بنسبة $totalScore / 100',
+          'timestamp': formattedTime,
+          'visitorUid': user?.uid ?? '',
+          'visitorName': 'مدير المدرسة',
+          'dateTimeIso': now.toIso8601String(),
+        };
+
+        batch.update(FirebaseFirestore.instance.collection('school_operational_plan_1448').doc(operationalPlanId), {
+          'status': 'مكتمل',
+          'updatedAt': FieldValue.serverTimestamp(),
+          'visitsLog': FieldValue.arrayUnion([newVisitLog]),
+        });
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ التقييم واعتماد الزيارة في الخطة بنجاح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('استمارة تقييم الزيارة الصفية', style: TextStyle(fontFamily: 'Cairo')),
+        backgroundColor: Colors.teal.shade800,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: Colors.amber.shade50,
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, color: Colors.orange),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                      'قم بتقييم المعايير التالية باختيار المستوى المناسب من 1 (منخفضة) إلى 4 (مرتفعة جداً). المجموع النهائي من 100.',
+                      style: TextStyle(fontSize: 12, color: Colors.orange.shade900, fontWeight: FontWeight.bold, fontFamily: 'Cairo')
+                  ),
+                )
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: visitEvaluationQuestions.length,
+              itemBuilder: (context, index) {
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${index + 1}- ${visitEvaluationQuestions[index]}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            _buildRadioOption(index, 1, 'منخفضة (1)'),
+                            _buildRadioOption(index, 2, 'متوسطة (2)'),
+                            _buildRadioOption(index, 3, 'مرتفعة (3)'),
+                            _buildRadioOption(index, 4, 'مرتفعة جداً (4)'),
+                          ],
+                        )
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('المجموع الكلي:', style: TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo')),
+                      Text('${_answers.values.fold(0, (a, b) => a + b)} / 100', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal, fontFamily: 'Cairo')),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitEvaluation,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade800, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
+                  child: _isSubmitting ? const CircularProgressIndicator(color: Colors.white) : const Text('اعتماد وحفظ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                )
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRadioOption(int questionIndex, int value, String label) {
+    bool isSelected = _answers[questionIndex] == value;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _answers[questionIndex] = value;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.teal.shade50 : Colors.white,
+          border: Border.all(color: isSelected ? Colors.teal : Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: isSelected ? Colors.teal : Colors.grey, size: 16),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(color: isSelected ? Colors.teal.shade900 : Colors.black87, fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontFamily: 'Cairo')),
+          ],
+        ),
+      ),
     );
   }
 }

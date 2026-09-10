@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart' as intl;
+import 'package:percent_indicator/percent_indicator.dart';
 import 'lesson_prep_data.dart';
 
 // ===========================================================================
@@ -65,7 +67,11 @@ class OperationalPlanEntry {
   final String? teacherName;
   final bool isApprovedByAdmin;
   final DateTime? adminFollowUpDate;
-  final List<Map<String, dynamic>> visitsLog;
+  final List<Map<String, dynamic>> visitsLog; // الزيارات الصفية
+
+  // -- الحقول الجديدة الخاصة بالتحليل والتقييم --
+  final int evaluationScore; // تقييم المبادرة (مثال: 4 نقاط)
+  final bool isHighlighted;  // لتحديد ما إذا كان هذا العنصر سيتم تلوينه بالأصفر في شاشة التحليل
 
   OperationalPlanEntry({
     this.id,
@@ -97,6 +103,8 @@ class OperationalPlanEntry {
     this.isApprovedByAdmin = true,
     this.adminFollowUpDate,
     this.visitsLog = const [],
+    this.evaluationScore = 0, // القيمة الافتراضية
+    this.isHighlighted = false,
   });
 
   Map<String, dynamic> toMap() => {
@@ -128,6 +136,8 @@ class OperationalPlanEntry {
     'isApprovedByAdmin': isApprovedByAdmin,
     'adminFollowUpDate': adminFollowUpDate?.toIso8601String(),
     'visitsLog': visitsLog,
+    'evaluationScore': evaluationScore,
+    'isHighlighted': isHighlighted,
   };
 
   factory OperationalPlanEntry.fromMap(String docId, Map<String, dynamic> map) {
@@ -165,12 +175,14 @@ class OperationalPlanEntry {
       isApprovedByAdmin: map['isApprovedByAdmin'] ?? true,
       adminFollowUpDate: map['adminFollowUpDate'] != null ? DateTime.tryParse(map['adminFollowUpDate']) : null,
       visitsLog: List<Map<String, dynamic>>.from(map['visitsLog'] ?? []),
+      evaluationScore: map['evaluationScore'] ?? 0,
+      isHighlighted: map['isHighlighted'] ?? false,
     );
   }
 }
 
 // ===========================================================================
-// 2. واجهة الخطة التشغيلية للمدير
+// 2. واجهة الخطة التشغيلية للمدير مع مركز التحليل الاستراتيجي
 // ===========================================================================
 
 class AdminOperationalPlanPage extends StatefulWidget {
@@ -197,6 +209,15 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
   int _selectedFilterWeek = 1;
   String _selectedFilterDay = 'الكل';
 
+  // إدارة الـ PIN للخطة التشغيلية بنفس نمط الزيارات
+  bool _isPinVerified = false;
+  String _savedPin = '';
+  bool _isCheckingPin = true;
+
+  // نظام التلوين الانتقالي (Highlighting System)
+  String? _highlightedDocId;
+  Timer? _highlightTimer;
+
   final List<String> _statusList = [
     'تحت الإجراء',
     'مكتمل',
@@ -208,9 +229,111 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
   @override
   void initState() {
     super.initState();
+    _checkPin();
     _determineCurrentWeek();
     _loadTeachersFromFirestore();
     _loadCategories();
+  }
+
+  @override
+  void dispose() {
+    _highlightTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkPin() async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('settings').doc('page_pins').get();
+      _savedPin = doc.data()?['operational_plan_pin']?.toString().trim() ?? '';
+      if (_savedPin.isEmpty) {
+        setState(() => _isPinVerified = true);
+      }
+    } catch (e) {
+      setState(() => _isPinVerified = true);
+    } finally {
+      setState(() => _isCheckingPin = false);
+    }
+  }
+
+  Future<void> _changeAdminPinDialog() async {
+    final currentPinCtrl = TextEditingController();
+    final newPinCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.pin, color: Color(0xFF1565C0)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: const Text('تخصيص PIN (الخطة التشغيلية)', style: TextStyle(fontFamily: 'Cairo', fontSize: 15, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'الافتراضي فارغ، يمكنك إضافة رقم سري أو تغييره أو إلغائه بجعله فارغاً تماماً.',
+              style: TextStyle(fontSize: 12, color: Colors.grey, fontFamily: 'Cairo'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: currentPinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'الرمز الحالي (اتركه فارغاً إن لم يكن هناك رمز)', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: newPinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'الرمز الجديد (اتركه فارغاً لإلغاء القفل)', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo', color: Colors.blueGrey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white),
+            onPressed: () async {
+              final doc = await FirebaseFirestore.instance.collection('settings').doc('page_pins').get();
+              final actualPin = doc.data()?['operational_plan_pin']?.toString().trim() ?? '';
+
+              if (currentPinCtrl.text.trim() == actualPin) {
+                await FirebaseFirestore.instance.collection('settings').doc('page_pins').set({
+                  'operational_plan_pin': newPinCtrl.text.trim(),
+                }, SetOptions(merge: true));
+
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _savedPin = newPinCtrl.text.trim();
+                    _isPinVerified = true;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('تم حفظ وتحديث رمز الـ PIN للواجهة بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+                  );
+                }
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('الرمز الحالي غير صحيح!', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            },
+            child: const Text('حفظ الإعدادات', style: TextStyle(fontFamily: 'Cairo')),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadCategories() async {
@@ -277,61 +400,30 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
     }
   }
 
-  Future<void> _changeAdminPinDialog() async {
-    final currentPinCtrl = TextEditingController();
-    final newPinCtrl = TextEditingController();
-    showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.password, color: Color(0xFF1565C0)),
-              SizedBox(width: 8),
-              Text('تغيير الرمز السري للإدارة', style: TextStyle(fontFamily: 'Cairo', fontSize: 16)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: currentPinCtrl,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'الرمز الحالي', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: newPinCtrl,
-                obscureText: true,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'الرمز الجديد', border: OutlineInputBorder()),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo', color: Colors.blueGrey))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white),
-              onPressed: () async {
-                final doc = await FirebaseFirestore.instance.collection('settings').doc('guest_access').get();
-                final actualPin = doc.data()?['admin_pin']?.toString() ?? '010';
-                if (currentPinCtrl.text.trim() == actualPin && newPinCtrl.text.trim().isNotEmpty) {
-                  await FirebaseFirestore.instance.collection('settings').doc('guest_access').set({
-                    'admin_pin': newPinCtrl.text.trim()
-                  }, SetOptions(merge: true));
-                  if(mounted) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تغيير الرمز السري بنجاح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
-                  }
-                } else {
-                  if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز الحالي غير صحيح أو الحقل الجديد فارغ', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
-                }
-              },
-              child: const Text('تغيير وحفظ', style: TextStyle(fontFamily: 'Cairo')),
-            )
-          ],
-        )
+  // فتح وإدارة لوحة القيادة الاستراتيجية
+  void _openStrategicDashboard() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _DashboardSheet(
+        onNavigateToWeakness: (String docId, int week) {
+          Navigator.pop(ctx);
+          setState(() {
+            _selectedFilterWeek = week;
+            _selectedFilterDay = 'الكل';
+            _highlightedDocId = docId;
+          });
+          _highlightTimer?.cancel();
+          _highlightTimer = Timer(const Duration(seconds: 5), () {
+            if (mounted) {
+              setState(() {
+                _highlightedDocId = null;
+              });
+            }
+          });
+        },
+      ),
     );
   }
 
@@ -1293,6 +1385,94 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
     return false;
   }
 
+  // --- لوحة التحكم (الداشبورد) الاستراتيجية للعمليات ---
+  Widget _buildMasterDashboard(List<QueryDocumentSnapshot> allDocs) {
+    int total = allDocs.length;
+    int completed = 0;
+    int underProcess = 0;
+    int late = 0;
+    Set<String> uniqueTeachers = {};
+    int totalVisits = 0;
+    final now = DateTime.now();
+
+    for (var doc in allDocs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final status = data['status'] ?? 'تحت الإجراء';
+      if (status == 'مكتمل') completed++;
+      else if (status == 'تحت الإجراء') underProcess++;
+
+      if (status != 'مكتمل' && data['endDate'] != null && data['isContinuousUntilYearEnd'] != true) {
+        final end = DateTime.tryParse(data['endDate']);
+        if (end != null && end.isBefore(now)) late++;
+      }
+
+      final executors = data['executorsIds'] as List<dynamic>? ?? [];
+      for (var e in executors) {
+        uniqueTeachers.add(e.toString());
+      }
+
+      final visitsLog = data['visitsLog'] as List<dynamic>? ?? [];
+      totalVisits += visitsLog.length;
+    }
+
+    double completionRate = total == 0 ? 0.0 : completed / total;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [Color(0xFF1565C0), Color(0xFF0D47A1)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))]
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.analytics_rounded, color: Color(0xFFC5A059), size: 26),
+              SizedBox(width: 8),
+              Text('مركز القيادة والتحليل الاستراتيجي', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cairo')),
+            ],
+          ),
+          const Divider(color: Colors.white24, height: 24),
+          Row(
+            children: [
+              _buildDashStat('إجمالي البرامج', total.toString(), Icons.assignment, color: Colors.blue.shade100),
+              _buildDashStat('مكتملة', completed.toString(), Icons.check_circle, color: Colors.greenAccent),
+              _buildDashStat('متأخرة', late.toString(), Icons.warning_amber_rounded, color: Colors.redAccent),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildDashStat('المعلمون المشاركون', uniqueTeachers.length.toString(), Icons.people_alt, color: Colors.blue.shade100),
+              _buildDashStat('متابعات وزيارات', totalVisits.toString(), Icons.remove_red_eye, color: Colors.blue.shade100),
+              _buildDashStat('الكفاءة التشغيلية', '${(completionRate * 100).toStringAsFixed(1)}%', Icons.trending_up, color: const Color(0xFFC5A059)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDashStat(String label, String value, IconData icon, {Color? color}) {
+    return Expanded(
+      child: Column(
+        children: [
+          Icon(icon, color: color ?? Colors.white, size: 24),
+          const SizedBox(height: 4),
+          Text(value, style: TextStyle(color: color ?? Colors.white, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10, fontFamily: 'Cairo'), textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDaySection(String title, List<QueryDocumentSnapshot> dayDocs, Color color) {
     if (dayDocs.isEmpty) return const SizedBox.shrink();
 
@@ -1317,7 +1497,7 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
                 dataRowMinHeight: 40,
                 dataRowMaxHeight: 55,
                 columnSpacing: 16,
-                headingRowColor: MaterialStateProperty.all(Colors.grey.shade50),
+                headingRowColor: MaterialStateProperty.resolveWith((states) => Colors.grey.shade50),
                 border: TableBorder.all(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8)),
                 columns: const [
                   DataColumn(label: Text('النوع', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 12, color: Colors.blueGrey))),
@@ -1361,7 +1541,14 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
     String daysStr = entry.executionDays.isNotEmpty ? entry.executionDays.join('، ') : 'غير محدد';
     String periodsStr = entry.executionPeriods.isNotEmpty ? 'الحصص: ${entry.executionPeriods.join('، ')}' : 'غير محدد';
 
+    // التلوين الانتقالي (Highlighting)
+    Color? rowColor;
+    if (_highlightedDocId == doc.id) {
+      rowColor = Colors.yellowAccent.withOpacity(0.5);
+    }
+
     return DataRow(
+      color: MaterialStateProperty.resolveWith<Color?>((Set<MaterialState> states) => rowColor),
       cells: [
         DataCell(Text(entry.category, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11))),
         DataCell(
@@ -1469,7 +1656,7 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade50, foregroundColor: Colors.green.shade800, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), elevation: 0),
                   icon: const Icon(Icons.check, size: 14),
                   label: const Text('تسكين', style: TextStyle(fontSize: 10, fontFamily: 'Cairo')),
-                  onPressed: () {}, // _openApproveTeacherInitiativeDialog(doc), // Removed undefined call
+                  onPressed: () {},
                 ),
               IconButton(
                 icon: const Icon(Icons.edit, color: Color(0xFF1565C0), size: 16),
@@ -1484,6 +1671,46 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_isCheckingPin && !_isPinVerified) {
+      return Scaffold(
+          appBar: AppBar(
+            title: const Text('الخطة التشغيلية لمدير المدرسة 1448هـ', style: TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: const Color(0xFF1565C0),
+          ),
+          body: Center(
+              child: Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.lock, size: 64, color: Colors.grey),
+                        const SizedBox(height: 16),
+                        const Text('الرجاء إدخال الرمز السري للوصول لهذه الواجهة', style: TextStyle(fontFamily: 'Cairo', fontSize: 16)),
+                        const SizedBox(height: 16),
+                        TextField(
+                          obscureText: true,
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          decoration: const InputDecoration(border: OutlineInputBorder(), hintText: 'PIN'),
+                          onSubmitted: (val) {
+                            if (val == _savedPin) {
+                              setState(() => _isPinVerified = true);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرمز السري غير صحيح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
+                            }
+                          },
+                        )
+                      ]
+                  )
+              )
+          )
+      );
+    }
+
+    if (_isCheckingPin) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     DateTime selectedWeekStart = _getWeekStartDate(_selectedFilterWeek > 0 ? _selectedFilterWeek : 1);
     DateTime selectedWeekEnd = _getWeekEndDate(_selectedFilterWeek > 0 ? _selectedFilterWeek : 1);
     String selectedWeekRangeStr = '${intl.DateFormat('yyyy/MM/dd').format(selectedWeekStart)} - ${intl.DateFormat('yyyy/MM/dd').format(selectedWeekEnd)}';
@@ -1495,8 +1722,13 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.password),
-            tooltip: 'تغيير الرقم السري للإدارة',
+            icon: const Icon(Icons.analytics),
+            tooltip: 'لوحة القيادة والتحليل',
+            onPressed: _openStrategicDashboard,
+          ),
+          IconButton(
+            icon: const Icon(Icons.pin),
+            tooltip: 'تخصيص الرقم السري للخطة',
             onPressed: _changeAdminPinDialog,
           ),
           StreamBuilder<QuerySnapshot>(
@@ -1550,184 +1782,164 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
         label: const Text('إضافة برنامج', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 12)),
         onPressed: () => _openAddOrEditItemDialog(),
       ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.blue.shade50,
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.chevron_right, color: Color(0xFF1565C0)),
-                  tooltip: 'الأسبوع السابق',
-                  onPressed: _selectedFilterWeek > 1
-                      ? () => setState(() => _selectedFilterWeek--)
-                      : null,
-                ),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    value: _selectedFilterWeek,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: const Icon(Icons.calendar_month, color: Color(0xFF1565C0), size: 18),
-                      isDense: true,
-                    ),
-                    items: [
-                      const DropdownMenuItem<int>(
-                        value: 0,
-                        child: Text('🌟 عرض جميع المبادرات (كامل السنة)', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 12)),
-                      ),
-                      ...List.generate(52, (index) {
-                        int w = index + 1;
-                        DateTime sDate = _getWeekStartDate(w);
-                        DateTime eDate = _getWeekEndDate(w);
-                        String sStr = intl.DateFormat('MM/dd').format(sDate);
-                        String eStr = intl.DateFormat('MM/dd').format(eDate);
-                        return DropdownMenuItem<int>(
-                          value: w,
-                          child: Text('الأسبوع $w ($sStr إلى $eStr)', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo')),
-                        );
-                      }),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setState(() => _selectedFilterWeek = val);
-                    },
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.chevron_left, color: Color(0xFF1565C0)),
-                  tooltip: 'الأسبوع التالي',
-                  onPressed: _selectedFilterWeek < 52
-                      ? () => setState(() => _selectedFilterWeek++)
-                      : null,
-                ),
-                TextButton(
-                  onPressed: () => setState(() => _determineCurrentWeek()),
-                  child: const Text('الأسبوع الحالي', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 11)),
-                )
-              ],
-            ),
-          ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _collectionRef.orderBy('updatedAt', descending: true).snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData) return const SizedBox.shrink();
 
-          if (_selectedFilterWeek > 0)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              color: Colors.white,
-              child: Row(
-                children: [
-                  ActionChip(
-                    label: Text('الكل', style: TextStyle(color: _selectedFilterDay == 'الكل' ? Colors.white : Colors.black87, fontSize: 11, fontFamily: 'Cairo')),
-                    backgroundColor: _selectedFilterDay == 'الكل' ? Colors.blueGrey.shade700 : Colors.grey.shade200,
-                    onPressed: () => setState(() => _selectedFilterDay = 'الكل'),
-                  ),
-                  const SizedBox(width: 8),
-                  ActionChip(
-                      avatar: Icon(Icons.today, size: 14, color: _selectedFilterDay != 'الكل' ? Colors.white : Colors.black87),
-                      label: Text('اليوم الحالي', style: TextStyle(color: _selectedFilterDay != 'الكل' ? Colors.white : Colors.black87, fontSize: 11, fontFamily: 'Cairo')),
-                      backgroundColor: _selectedFilterDay != 'الكل' ? Colors.blueGrey.shade700 : Colors.grey.shade200,
-                      onPressed: () {
-                        String todayName = intl.DateFormat('EEEE', 'ar').format(DateTime.now());
-                        if (PlanStaticData.daysOfWeek.contains(todayName)) {
-                          setState(() => _selectedFilterDay = todayName);
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اليوم إجازة', style: TextStyle(fontFamily: 'Cairo'))));
-                        }
-                      }
-                  ),
-                  const Spacer(),
-                  Text(
-                    'مبادرات الأسبوع $_selectedFilterWeek | $selectedWeekRangeStr',
-                    style: TextStyle(color: Colors.blueGrey.shade900, fontWeight: FontWeight.bold, fontSize: 10, fontFamily: 'Cairo'),
-                  ),
-                ],
-              ),
-            ),
+          final allDocs = snapshot.data!.docs;
 
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _collectionRef.orderBy('updatedAt', descending: true).snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+          final filteredDocs = allDocs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            return _matchesSelectedWeek(data);
+          }).toList();
+
+          Map<String, List<QueryDocumentSnapshot>> groupedPlans = {
+            'مستمر / طوال الأسبوع': [],
+            'الأحد': [],
+            'الإثنين': [],
+            'الثلاثاء': [],
+            'الأربعاء': [],
+            'الخميس': [],
+          };
+
+          for (var doc in filteredDocs) {
+            final data = doc.data() as Map<String, dynamic>;
+            bool isContinuous = data['isContinuousUntilYearEnd'] == true;
+            List<String> execDays = List<String>.from(data['executionDays'] ?? (data['executionDay'] != null ? [data['executionDay']] : []));
+
+            if (isContinuous || execDays.isEmpty) {
+              groupedPlans['مستمر / طوال الأسبوع']!.add(doc);
+            } else {
+              for (String day in execDays) {
+                if (groupedPlans.containsKey(day)) {
+                  groupedPlans[day]!.add(doc);
+                } else {
+                  groupedPlans['مستمر / طوال الأسبوع']!.add(doc);
                 }
+              }
+            }
+          }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.post_add, size: 70, color: Colors.grey.shade300),
-                        const SizedBox(height: 12),
-                        const Text('لم يتم تسجيل أي برامج في الخطة حتى الآن', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                        const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          onPressed: () => _openAddOrEditItemDialog(),
-                          icon: const Icon(Icons.add, size: 16),
-                          label: const Text('إضافة أول برنامج الآن', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1565C0), foregroundColor: Colors.white, elevation: 0),
-                        )
-                      ],
+          return Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Colors.blue.shade50,
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right, color: Color(0xFF1565C0)),
+                      tooltip: 'الأسبوع السابق',
+                      onPressed: _selectedFilterWeek > 1
+                          ? () => setState(() => _selectedFilterWeek--)
+                          : null,
                     ),
-                  );
-                }
-
-                final allDocs = snapshot.data!.docs;
-                final filteredDocs = allDocs.where((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return _matchesSelectedWeek(data);
-                }).toList();
-
-                if (filteredDocs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.event_busy, size: 60, color: Colors.grey.shade300),
-                        const SizedBox(height: 12),
-                        Text('لا توجد مبادرات مسجلة في الأسبوع $_selectedFilterWeek', style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                        const SizedBox(height: 10),
-                        ElevatedButton(
-                          onPressed: () => setState(() => _selectedFilterWeek = 0),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade50, foregroundColor: Colors.blue.shade900, elevation: 0),
-                          child: const Text('عرض جميع الأسابيع', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: _selectedFilterWeek,
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                          filled: true,
+                          fillColor: Colors.white,
+                          prefixIcon: const Icon(Icons.calendar_month, color: Color(0xFF1565C0), size: 18),
+                          isDense: true,
                         ),
-                      ],
+                        items: [
+                          const DropdownMenuItem<int>(
+                            value: 0,
+                            child: Text('🌟 عرض جميع المبادرات (كامل السنة)', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 12)),
+                          ),
+                          ...List.generate(52, (index) {
+                            int w = index + 1;
+                            DateTime sDate = _getWeekStartDate(w);
+                            DateTime eDate = _getWeekEndDate(w);
+                            String sStr = intl.DateFormat('MM/dd').format(sDate);
+                            String eStr = intl.DateFormat('MM/dd').format(eDate);
+                            return DropdownMenuItem<int>(
+                              value: w,
+                              child: Text('الأسبوع $w ($sStr إلى $eStr)', style: const TextStyle(fontSize: 12, fontFamily: 'Cairo')),
+                            );
+                          }),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedFilterWeek = val);
+                        },
+                      ),
                     ),
-                  );
-                }
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left, color: Color(0xFF1565C0)),
+                      tooltip: 'الأسبوع التالي',
+                      onPressed: _selectedFilterWeek < 52
+                          ? () => setState(() => _selectedFilterWeek++)
+                          : null,
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _determineCurrentWeek()),
+                      child: const Text('الأسبوع الحالي', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 11)),
+                    )
+                  ],
+                ),
+              ),
 
-                Map<String, List<QueryDocumentSnapshot>> groupedPlans = {
-                  'مستمر / طوال الأسبوع': [],
-                  'الأحد': [],
-                  'الإثنين': [],
-                  'الثلاثاء': [],
-                  'الأربعاء': [],
-                  'الخميس': [],
-                };
+              if (_selectedFilterWeek > 0)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  color: Colors.white,
+                  child: Row(
+                    children: [
+                      ActionChip(
+                        label: Text('الكل', style: TextStyle(color: _selectedFilterDay == 'الكل' ? Colors.white : Colors.black87, fontSize: 11, fontFamily: 'Cairo')),
+                        backgroundColor: _selectedFilterDay == 'الكل' ? Colors.blueGrey.shade700 : Colors.grey.shade200,
+                        onPressed: () => setState(() => _selectedFilterDay = 'الكل'),
+                      ),
+                      const SizedBox(width: 8),
+                      ActionChip(
+                          avatar: Icon(Icons.today, size: 14, color: _selectedFilterDay != 'الكل' ? Colors.white : Colors.black87),
+                          label: Text('اليوم الحالي', style: TextStyle(color: _selectedFilterDay != 'الكل' ? Colors.white : Colors.black87, fontSize: 11, fontFamily: 'Cairo')),
+                          backgroundColor: _selectedFilterDay != 'الكل' ? Colors.blueGrey.shade700 : Colors.grey.shade200,
+                          onPressed: () {
+                            String todayName = intl.DateFormat('EEEE', 'ar').format(DateTime.now());
+                            if (PlanStaticData.daysOfWeek.contains(todayName)) {
+                              setState(() => _selectedFilterDay = todayName);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اليوم إجازة', style: TextStyle(fontFamily: 'Cairo'))));
+                            }
+                          }
+                      ),
+                      const Spacer(),
+                      Text(
+                        'مبادرات الأسبوع $_selectedFilterWeek | $selectedWeekRangeStr',
+                        style: TextStyle(color: Colors.blueGrey.shade900, fontWeight: FontWeight.bold, fontSize: 10, fontFamily: 'Cairo'),
+                      ),
+                    ],
+                  ),
+                ),
 
-                for (var doc in filteredDocs) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  bool isContinuous = data['isContinuousUntilYearEnd'] == true;
-                  List<String> execDays = List<String>.from(data['executionDays'] ?? (data['executionDay'] != null ? [data['executionDay']] : []));
-
-                  if (isContinuous || execDays.isEmpty) {
-                    groupedPlans['مستمر / طوال الأسبوع']!.add(doc);
-                  } else {
-                    for (String day in execDays) {
-                      if (groupedPlans.containsKey(day)) {
-                        groupedPlans[day]!.add(doc);
-                      } else {
-                        groupedPlans['مستمر / طوال الأسبوع']!.add(doc);
-                      }
-                    }
-                  }
-                }
-
-                return SingleChildScrollView(
+              Expanded(
+                child: filteredDocs.isEmpty
+                    ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.event_busy, size: 60, color: Colors.grey.shade300),
+                      const SizedBox(height: 12),
+                      Text('لا توجد مبادرات مسجلة في الأسبوع $_selectedFilterWeek', style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                      const SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: () => setState(() => _selectedFilterWeek = 0),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade50, foregroundColor: Colors.blue.shade900, elevation: 0),
+                        child: const Text('عرض جميع الأسابيع', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                )
+                    : SingleChildScrollView(
                   padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1753,8 +1965,335 @@ class _AdminOperationalPlanPageState extends State<AdminOperationalPlanPage> {
                       const SizedBox(height: 80),
                     ],
                   ),
-                );
-              },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ===========================================================================
+// مكون (Widget) مركز القيادة والتحليل الاستراتيجي كصفحة منسدلة (BottomSheet)
+// ===========================================================================
+
+class _DashboardSheet extends StatefulWidget {
+  final Function(String docId, int week) onNavigateToWeakness;
+  const _DashboardSheet({required this.onNavigateToWeakness});
+
+  @override
+  State<_DashboardSheet> createState() => _DashboardSheetState();
+}
+
+class _DashboardSheetState extends State<_DashboardSheet> {
+  bool _isLoading = true;
+  List<QueryDocumentSnapshot> _allDocs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    try {
+      final snap = await FirebaseFirestore.instance.collection('school_operational_plan_1448').get();
+      if (mounted) {
+        setState(() {
+          _allDocs = snap.docs;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showQuickExplanation(BuildContext context, String title, String description) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1E293B), fontFamily: 'Cairo')),
+            const SizedBox(height: 12),
+            Text(description, style: const TextStyle(fontSize: 14, height: 1.6, color: Color(0xFF475569), fontFamily: 'Cairo')),
+            const SizedBox(height: 20),
+            Center(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('حسناً، فهمت', style: TextStyle(fontFamily: 'Cairo')),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
+    if (_isLoading) {
+      return Container(
+        height: size.height * 0.9,
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F172A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: const Center(child: CircularProgressIndicator(color: Colors.cyanAccent)),
+      );
+    }
+
+    int total = _allDocs.length;
+    int completed = 0;
+    int underProcess = 0;
+    List<QueryDocumentSnapshot> latePrograms = [];
+    Set<String> uniqueTeachers = {};
+    int totalVisits = 0;
+    final now = DateTime.now();
+
+    for (var doc in _allDocs) {
+      final data = doc.data() as Map<String, dynamic>;
+      final status = data['status'] ?? 'تحت الإجراء';
+
+      if (status == 'مكتمل') completed++;
+      else if (status == 'تحت الإجراء') underProcess++;
+
+      if (status != 'مكتمل' && data['endDate'] != null && data['isContinuousUntilYearEnd'] != true) {
+        final end = DateTime.tryParse(data['endDate']);
+        if (end != null && end.isBefore(now)) latePrograms.add(doc);
+      }
+
+      final executors = data['executorsIds'] as List<dynamic>? ?? [];
+      for (var e in executors) {
+        uniqueTeachers.add(e.toString());
+      }
+
+      final visitsLog = data['visitsLog'] as List<dynamic>? ?? [];
+      totalVisits += visitsLog.length;
+    }
+
+    double completionRate = total == 0 ? 0.0 : completed / total;
+    double targetRate = 0.85; // الافتراض الاستراتيجي لنسبة الإنجاز المطلوبة
+    double shortfall = targetRate - completionRate;
+
+    return Container(
+      height: size.height * 0.9,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0F172A), // خلفية داكنة (Slate-900)
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        children: [
+          // رأس اللوحة المنسدلة
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Color(0xFF1E293B))),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.analytics_rounded, color: Colors.cyanAccent, size: 28),
+                    SizedBox(width: 10),
+                    Text('مركز القيادة والتحليل الاستراتيجي', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18, fontFamily: 'Cairo')),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white70),
+                  onPressed: () => Navigator.pop(context),
+                )
+              ],
+            ),
+          ),
+
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1. الملخص الاستراتيجي للعمليات
+                  Row(
+                    children: [
+                      const Text('الملخص الاستراتيجي للعمليات', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _showQuickExplanation(context, 'الملخص الاستراتيجي', 'يُظهر هذا القسم الكفاءة التشغيلية الحالية للمدرسة بناءً على مقارنة المبادرات المنجزة فعلياً بإجمالي المبادرات المجدولة. المستهدف الاستراتيجي هو 85%.'),
+                        child: const Icon(Icons.info_outline, color: Colors.cyanAccent, size: 18),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      CircularPercentIndicator(
+                        radius: 50.0,
+                        lineWidth: 10.0,
+                        animation: true,
+                        percent: completionRate,
+                        center: Text(
+                          "${(completionRate * 100).toStringAsFixed(1)}%",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16.0, color: Colors.white, fontFamily: 'Cairo'),
+                        ),
+                        circularStrokeCap: CircularStrokeCap.round,
+                        progressColor: completionRate >= targetRate ? Colors.greenAccent : Colors.amberAccent,
+                        backgroundColor: const Color(0xFF1E293B),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('إجمالي البرامج: $total', style: const TextStyle(color: Colors.white70, fontSize: 14, fontFamily: 'Cairo')),
+                          const SizedBox(height: 4),
+                          Text('المكتملة: $completed', style: const TextStyle(color: Colors.greenAccent, fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                          const SizedBox(height: 4),
+                          Text('قيد الإجراء: $underProcess', style: const TextStyle(color: Colors.amberAccent, fontSize: 14, fontFamily: 'Cairo')),
+                        ],
+                      ),
+                    ],
+                  ),
+
+                  if (shortfall > 0) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.trending_down, color: Colors.redAccent),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'نسبة الإنجاز أقل من المستهدف الاستراتيجي (85%) بفارق ${(shortfall * 100).toStringAsFixed(1)}%. يرجى مراجعة البرامج المتأخرة بالأسفل.',
+                              style: const TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'Cairo', height: 1.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 32),
+
+                  // 2. تحليل الكوادر والمتابعة
+                  Row(
+                    children: [
+                      const Text('تحليل قوة العمل والمتابعة الإدارية', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _showQuickExplanation(context, 'تحليل قوة العمل', 'يوضح هذا المؤشر عدد الكوادر التعليمية الفعّالة المشاركة في تنفيذ الخطة التشغيلية، وحجم المتابعات الميدانية (الزيارات الصفية) التي قامت بها الإدارة لضمان الجودة.'),
+                        child: const Icon(Icons.info_outline, color: Colors.cyanAccent, size: 18),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(16)),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.groups_rounded, color: Colors.cyanAccent, size: 32),
+                              const SizedBox(height: 8),
+                              Text('${uniqueTeachers.length}', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                              const Text('معلماً مشاركاً', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Cairo')),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(16)),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.remove_red_eye_rounded, color: Colors.pinkAccent, size: 32),
+                              const SizedBox(height: 8),
+                              Text('$totalVisits', style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                              const Text('متابعة ميدانية موثقة', style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Cairo')),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // 3. نقاط الضعف والمخاطر التشغيلية
+                  Row(
+                    children: [
+                      const Icon(Icons.warning_rounded, color: Colors.redAccent),
+                      const SizedBox(width: 8),
+                      const Text('نقاط الضعف والمخاطر التشغيلية', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _showQuickExplanation(context, 'المخاطر التشغيلية', 'هذه القائمة تستعرض البرامج التي تجاوزت المدى الزمني المخطط لها ولم تُغلق بالنظام. الضغط على أي برنامج سيوجهك إليه مباشرة ويقوم بتظليله باللون الأصفر لاتخاذ الإجراء المناسب.'),
+                        child: const Icon(Icons.info_outline, color: Colors.cyanAccent, size: 18),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (latePrograms.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.greenAccent.withOpacity(0.3))),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.greenAccent),
+                          SizedBox(width: 12),
+                          Expanded(child: Text('ممتاز! لا توجد برامج متأخرة أو مخاطر تشغيلية حالياً.', style: TextStyle(color: Colors.white, fontFamily: 'Cairo'))),
+                        ],
+                      ),
+                    )
+                  else
+                    ...latePrograms.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final endDate = DateTime.parse(data['endDate']);
+                      final int week = data['startWeek'] ?? 1;
+
+                      return Card(
+                        color: const Color(0xFF1E293B),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.redAccent.withOpacity(0.5))),
+                        child: ListTile(
+                          leading: const CircleAvatar(
+                            backgroundColor: Colors.redAccent,
+                            child: Icon(Icons.timer_off, color: Colors.white),
+                          ),
+                          title: Text(data['title'] ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                          subtitle: Text(
+                            'الموعد المنقضي: ${intl.DateFormat('yyyy/MM/dd').format(endDate)}',
+                            style: const TextStyle(color: Colors.white54, fontSize: 12, fontFamily: 'Cairo'),
+                          ),
+                          trailing: const Icon(Icons.arrow_forward_ios, color: Colors.cyanAccent, size: 16),
+                          onTap: () {
+                            widget.onNavigateToWeakness(doc.id, week);
+                          },
+                        ),
+                      );
+                    }).toList(),
+                ],
+              ),
             ),
           ),
         ],

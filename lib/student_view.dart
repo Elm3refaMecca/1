@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:async';
+import 'dart:math';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
@@ -45,6 +46,7 @@ class _DashboardButtonData {
   final String? badgeText;
   final bool isWorking;
   final bool isFeatured;
+  final String? featuredLabel;
 
   _DashboardButtonData({
     required this.title,
@@ -55,6 +57,7 @@ class _DashboardButtonData {
     this.badgeText,
     this.isWorking = true,
     this.isFeatured = false,
+    this.featuredLabel,
   });
 }
 
@@ -363,6 +366,97 @@ class _StudentViewPageState extends State<StudentViewPage>
     );
   }
 
+  Future<void> _showUpdateParentPhoneDialog() async {
+    if (_studentDocId == null) return;
+    final phoneCtrl = TextEditingController(
+      text: _studentData?['guardian_phone'] != '-' ? (_studentData?['guardian_phone'] ?? '') : '',
+    );
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.phone_android_rounded, color: Color(0xFF1A237E)),
+            SizedBox(width: 8),
+            Text('رقم جوال ولي الأمر', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'الرجاء إدخال رقم الجوال المعتمد للتواصل والإشعارات (يبدأ بـ 05 ويتكون من 10 أرقام):',
+                style: TextStyle(fontSize: 12, height: 1.5, color: Colors.black87, fontFamily: 'Cairo'),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: phoneCtrl,
+                keyboardType: TextInputType.phone,
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.center,
+                maxLength: 10,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  hintText: '05xxxxxxxx',
+                  labelText: 'رقم الجوال',
+                  prefixIcon: Icon(Icons.phone),
+                  border: OutlineInputBorder(),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) return 'الرجاء إدخال رقم الجوال';
+                  final trimmed = val.trim();
+                  if (!trimmed.startsWith('05')) return 'يجب أن يبدأ الرقم بـ 05';
+                  if (trimmed.length != 10) return 'يجب أن يتكون الرقم من 10 أرقام';
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1A237E),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                final phone = phoneCtrl.text.trim();
+                await FirebaseFirestore.instance.collection('students').doc(_studentDocId).update({
+                  'guardian_phone': phone,
+                  'parentPhone': phone,
+                });
+                if (mounted) {
+                  setState(() {
+                    if (_studentData != null) {
+                      _studentData!['guardian_phone'] = phone;
+                      _studentData!['parentPhone'] = phone;
+                    }
+                  });
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('تم حفظ رقم الجوال بنجاح وسيتم استخدامه لاحقاً ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+                  );
+                }
+              }
+            },
+            child: const Text('حفظ واعتـماد', style: TextStyle(fontFamily: 'Cairo')),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickAndUploadProfileImage() async {
     if (_studentDocId == null) return;
     try {
@@ -435,145 +529,6 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
-  Future<void> _promptForParentPassword() async {
-    if (_studentDocId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('حدث خطأ. الرجاء إعادة تسجيل الدخول.')),
-      );
-      return;
-    }
-
-    final passwordController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    final bool? passwordCorrect = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        bool isChecking = false;
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.0)),
-              contentPadding: const EdgeInsets.all(24.0),
-              content: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.lock_person_outlined,
-                      size: 50,
-                      color: Color(0xFF1A237E),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'مطلوب إذن ولي الأمر',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontSize: 22, color: const Color(0xFF1A237E)),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'لعرض سجل الملاحظات، الرجاء إدخال كلمة مرور ولي الأمر.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 15),
-                    ),
-                    const SizedBox(height: 24),
-                    TextFormField(
-                      controller: passwordController,
-                      obscureText: true,
-                      readOnly: isChecking,
-                      autofocus: true,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 18),
-                      decoration: InputDecoration(
-                        labelText: 'كلمة المرور',
-                        prefixIcon: const Icon(Icons.key_rounded, color: Color(0xFF1A237E)),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF1A237E), width: 2)),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'الرجاء إدخال كلمة المرور';
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-              actionsAlignment: MainAxisAlignment.spaceBetween,
-              actions: <Widget>[
-                TextButton(
-                  onPressed: isChecking ? null : () {
-                    Navigator.of(context).pop(false);
-                  },
-                  child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
-                ),
-                ElevatedButton.icon(
-                  icon: isChecking
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.login_rounded),
-                  label: Text(isChecking ? 'جاري التحقق...' : 'دخول'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1A237E),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: isChecking ? null : () async {
-                    if (formKey.currentState!.validate()) {
-                      setDialogState(() => isChecking = true);
-
-                      try {
-                        final docSnapshot = await FirebaseFirestore.instance
-                            .collection('students')
-                            .doc(_studentDocId!)
-                            .get();
-
-                        final studentData = docSnapshot.data();
-                        final String? correctPassword = studentData?['pp']?.toString();
-
-                        final enteredPassword = passwordController.text;
-
-                        if (correctPassword != null && correctPassword == enteredPassword) {
-                          if (!context.mounted) return;
-                          Navigator.of(context).pop(true);
-                          _safeSetState(() { _currentView = StudentView.teacherComplaints; });
-                        } else {
-                          if (!context.mounted) return;
-                          Navigator.of(context).pop(false);
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        Navigator.of(context).pop(false);
-                      }
-                    }
-                  },
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (passwordCorrect == true) {
-      setState(() => _currentView = StudentView.teacherComplaints);
-    } else {
-      if(passwordController.text.isNotEmpty){
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('كلمة المرور غير صحيحة.'),
-              backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
   void _safeSetState(VoidCallback fn) {
     if (mounted) {
       setState(fn);
@@ -625,7 +580,7 @@ class _StudentViewPageState extends State<StudentViewPage>
 
     switch (_currentView) {
       case StudentView.results:
-        baseTitle = 'النتائج والتحليل الدراسي';
+        baseTitle = 'النتائج والتحليل الأكاديمي';
         break;
       case StudentView.noble:
         baseTitle = 'قاعة الشرف وسجل الانضباط';
@@ -706,7 +661,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                 ),
               ),
               RotateAnimatedText(
-                'نصنع المستقبل بإبداع اليوم',
+                'مطور المنصة معلم التقنية الرقمية: مصطفي سعيد',
                 textAlign: TextAlign.center,
                 textStyle: const TextStyle(
                   fontSize: 13.0,
@@ -792,7 +747,6 @@ class _StudentViewPageState extends State<StudentViewPage>
       'الطالب المنضبط': 'assets/a1.png',
       'الملاحظات السلوكية': 'assets/a9.png',
       'الشهادات': 'assets/a2.png',
-      'الكتاب المدرسي': 'assets/a3.png',
       'ملف الإنجاز': 'assets/a5.png',
       'استديو الطالب': 'assets/a11.png',
       'التوكاتسو ': 'assets/a4.png',
@@ -807,6 +761,16 @@ class _StudentViewPageState extends State<StudentViewPage>
         color: const Color(0xFFD84315),
         onTap: _pickAndUploadProfileImage,
         isFeatured: true,
+        featuredLabel: "مهم",
+        isWorking: true,
+      ),
+      _DashboardButtonData(
+        title: 'رقم الجوال',
+        icon: Icons.phone_iphone_rounded,
+        color: const Color(0xFF00897B),
+        onTap: _showUpdateParentPhoneDialog,
+        isFeatured: true,
+        featuredLabel: "مهم",
         isWorking: true,
       ),
       _DashboardButtonData(
@@ -815,6 +779,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         color: const Color(0xFF00ACC1),
         onTap: _navigateToDismissalPage,
         isFeatured: true,
+        featuredLabel: "مهم",
         isWorking: true,
       ),
       _DashboardButtonData(
@@ -823,6 +788,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         color: const Color(0xFF0D47A1),
         onTap: _navigateToAttendancePage,
         isFeatured: true,
+        featuredLabel: "مهم",
         isWorking: true,
       ),
       _DashboardButtonData(
@@ -848,21 +814,7 @@ class _StudentViewPageState extends State<StudentViewPage>
         assetPath: imageMap['الملاحظات السلوكية'],
         color: const Color(0xFFC62828),
         badgeText: totalDislikes > 0 ? '$totalDislikes' : null,
-        onTap: _promptForParentPassword,
-        isWorking: true,
-      ),
-      _DashboardButtonData(
-        title: 'الكتاب المدرسي',
-        icon: Icons.menu_book,
-        assetPath: imageMap['الكتاب المدرسي'],
-        color: const Color(0xFFC5A059),
-        onTap: () {
-          final String grade = _studentData?['grades'] ?? '';
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => SchoolBooksPage(grade: grade)),
-          );
-        },
+        onTap: () => _safeSetState(() { _currentView = StudentView.teacherComplaints; }),
         isWorking: true,
       ),
       _DashboardButtonData(
@@ -898,6 +850,8 @@ class _StudentViewPageState extends State<StudentViewPage>
         icon: Icons.folder_shared_rounded,
         assetPath: imageMap['ملف الإنجاز'],
         color: const Color(0xFF00695C),
+        isFeatured: true,
+        featuredLabel: "المعرفه تتابعك",
         onTap: () {
           if (_studentDocId != null) {
             Navigator.push(
@@ -1067,6 +1021,7 @@ class _StudentViewPageState extends State<StudentViewPage>
                                 badgeText: data.badgeText,
                                 isWorking: data.isWorking,
                                 isFeatured: data.isFeatured,
+                                featuredLabel: data.featuredLabel,
                               ),
                             ),
                           ),
@@ -1107,6 +1062,7 @@ class _StudentViewPageState extends State<StudentViewPage>
     String? badgeText,
     required bool isWorking,
     bool isFeatured = false,
+    String? featuredLabel,
   }) {
     final bool isNobleButton = icon == Icons.thumb_up;
     final String? nobleCount = isNobleButton && badgeText != null ? badgeText : null;
@@ -1191,19 +1147,19 @@ class _StudentViewPageState extends State<StudentViewPage>
               top: -8,
               right: -5,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD50000),
+                  color: const Color(0xFFD32F2F),
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                   border: Border.all(color: Colors.white, width: 1),
                 ),
-                child: const Text(
-                  "مهم",
-                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                child: Text(
+                  featuredLabel ?? "مهم",
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                 ),
               ).animate(onPlay: (controller) => controller.repeat(reverse: true))
-                  .scaleXY(begin: 1.0, end: 1.1, duration: 800.ms),
+                  .scaleXY(begin: 1.0, end: 1.08, duration: 800.ms),
             ),
 
           if (badgeText != null && !isNobleButton)
@@ -1279,9 +1235,14 @@ class _StudentViewPageState extends State<StudentViewPage>
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-
+// استبدل هذا الجزء داخل البيلدر الخاص بـ StreamBuilder
         final docs = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
+
+          // التعديل الحاسم: الشكوى لا تظهر لولي الأمر إلا إذا كانت موجهة له صراحة (وليس للإدارة أو الموجه أو غير محددة)
+          final targetRole = data['targetRole']?.toString().trim();
+          if (targetRole != 'ولي الأمر') return false;
+
           return data['type'] == 'dislike' || data.containsKey('teacherNote');
         }).toList();
 
@@ -1633,7 +1594,7 @@ class StudentAttendanceGridPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FA),
       appBar: AppBar(
-        title: const Text('سجل الحضور والدروس الفائتة', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 17)),
+        title: const Text('سجل الحضور والدروس الفائتة', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 16)),
         backgroundColor: const Color(0xFF1A237E),
         foregroundColor: Colors.white,
         centerTitle: true,
@@ -1658,16 +1619,54 @@ class StudentAttendanceGridPage extends StatelessWidget {
             recordsBySubject.putIfAbsent(subj, () => []).add(data);
           }
 
+          int grandTotal = records.length;
+          int grandAttended = records.where((r) {
+            final s = ((r.data() as Map)['status'] ?? '').toString().toLowerCase();
+            return s == 'present' || s == 'حاضر';
+          }).length;
+          int grandAbsent = records.where((r) {
+            final s = ((r.data() as Map)['status'] ?? '').toString().toLowerCase();
+            return s == 'absent' || s == 'غائب';
+          }).length;
+          int grandLate = records.where((r) {
+            final s = ((r.data() as Map)['status'] ?? '').toString().toLowerCase();
+            return s == 'late' || s == 'متأخر';
+          }).length;
+          int grandEarly = records.where((r) {
+            final s = ((r.data() as Map)['status'] ?? '').toString().toLowerCase();
+            return s == 'early_dismissal' || s == 'انصراف مبكر';
+          }).length;
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildAttendanceHeader(studentData['name'] ?? 'الطالب'),
+                const SizedBox(height: 16),
+
+                // ملخص إحصائي شامل وبسيط
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      _buildMetricMiniBox('حضور', grandAttended.toString(), Colors.green),
+                      _buildMetricMiniBox('غياب', grandAbsent.toString(), Colors.red.shade700),
+                      _buildMetricMiniBox('تأخر', grandLate.toString(), Colors.orange.shade800),
+                      _buildMetricMiniBox('انصراف', grandEarly.toString(), Colors.blueGrey),
+                    ],
+                  ),
+                ),
+
                 const SizedBox(height: 20),
                 const Text(
-                  'المواد المسجلة ومؤشرات الالتزام:',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
+                  'المواد الدراسية ومعدل الحضور:',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
                 ),
                 const SizedBox(height: 12),
                 GridView.builder(
@@ -1675,31 +1674,31 @@ class StudentAttendanceGridPage extends StatelessWidget {
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: subjects.length,
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 200,
-                    crossAxisSpacing: 14,
-                    mainAxisSpacing: 14,
-                    childAspectRatio: 0.95,
+                    maxCrossAxisExtent: 180,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.92,
                   ),
                   itemBuilder: (context, index) {
                     final subj = subjects[index];
                     final subjRecords = recordsBySubject[subj.name] ?? [];
-                    final color = subjectColors[subj.name] ?? const Color(0xFF1A237E);
+                    final color = const Color(0xFF1A237E);
 
                     int totalSessions = subjRecords.length;
                     int attendedSessions = subjRecords.where((r) => r['status'] == 'present' || r['status'] == 'حاضر').length;
-                    int absentSessions = subjRecords.where((r) => r['status'] == 'absent' || r['status'] == 'غائب' || r['status'] == 'early_dismissal' || r['status'] == 'انصراف مبكر').length;
+                    int absentSessions = subjRecords.where((r) => r['status'] == 'absent' || r['status'] == 'غائب').length;
                     int lateSessions = subjRecords.where((r) => r['status'] == 'late' || r['status'] == 'متأخر').length;
 
                     double percent = totalSessions > 0 ? (attendedSessions / totalSessions) * 100 : 100.0;
 
-                    Color badgeColor = Colors.green;
-                    String badgeText = "ملتزم مميز";
-                    if (percent < 75) {
-                      badgeColor = Colors.red;
-                      badgeText = "خطر الغياب";
-                    } else if (percent < 90) {
-                      badgeColor = Colors.orange;
+                    Color badgeColor = Colors.green.shade700;
+                    String badgeText = "منتظم";
+                    if (percent < 80) {
+                      badgeColor = Colors.red.shade700;
                       badgeText = "تنبيه غياب";
+                    } else if (percent < 90) {
+                      badgeColor = Colors.orange.shade800;
+                      badgeText = "متابعة";
                     }
 
                     return InkWell(
@@ -1718,35 +1717,32 @@ class StudentAttendanceGridPage extends StatelessWidget {
                           ),
                         );
                       },
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(12),
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: Colors.grey.shade200),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 3)),
-                          ],
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             CircleAvatar(
-                              backgroundColor: color.withOpacity(0.1),
-                              radius: 24,
-                              child: Icon(subj.icon, color: color, size: 24),
+                              backgroundColor: Colors.grey.shade100,
+                              radius: 20,
+                              child: Icon(subj.icon, color: const Color(0xFF1A237E), size: 20),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               subj.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo', color: Color(0xFF1A237E)),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo', color: Color(0xFF1A237E)),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 6),
                             LinearPercentIndicator(
-                              lineHeight: 6.0,
+                              lineHeight: 5.0,
                               percent: (percent / 100).clamp(0.0, 1.0),
                               progressColor: badgeColor,
                               backgroundColor: Colors.grey.shade200,
@@ -1757,11 +1753,7 @@ class StudentAttendanceGridPage extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text('${percent.toStringAsFixed(0)}%', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: badgeColor, fontFamily: 'Cairo')),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(color: badgeColor.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
-                                  child: Text(badgeText, style: TextStyle(color: badgeColor, fontSize: 9, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                                )
+                                Text(badgeText, style: TextStyle(color: badgeColor, fontSize: 10, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
                               ],
                             ),
                             if (absentSessions > 0 || lateSessions > 0)
@@ -1783,31 +1775,36 @@ class StudentAttendanceGridPage extends StatelessWidget {
     );
   }
 
+  Widget _buildMetricMiniBox(String label, String value, Color color) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color, fontFamily: 'Cairo')),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo')),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAttendanceHeader(String name) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1A237E), Color(0xFF283593)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFF1A237E).withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
+        color: const Color(0xFF1A237E),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          const Icon(Icons.co_present_rounded, color: Color(0xFFC5A059), size: 40),
-          const SizedBox(width: 14),
+          const Icon(Icons.co_present_rounded, color: Color(0xFFC5A059), size: 34),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('المتابعة الأكاديمية للحضور والغياب', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Cairo')),
-                const SizedBox(height: 4),
-                Text('يتم رصد الحصص والدروس آلياً من السبورة الذكية داخل الفصول لتمكين ولي الأمر من متابعة الفاقد التعليمي بدقة.', style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 11, height: 1.4, fontFamily: 'Cairo')),
+                const Text('المتابعة الأكاديمية للحضور والغياب', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                const SizedBox(height: 2),
+                Text('رصد آلي من السبورة الذكية داخل الفصول لتعويض الفاقد التعليمي بدقة.', style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 11, height: 1.4, fontFamily: 'Cairo')),
               ],
             ),
           ),
@@ -1891,7 +1888,7 @@ class SubjectAttendanceDetailsPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text('سجل غياب وحصص: $subjectName', style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Text('سجل الحصص والغياب: $subjectName', style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold, fontSize: 16)),
         backgroundColor: const Color(0xFF1A237E),
         foregroundColor: Colors.white,
       ),
@@ -1905,27 +1902,27 @@ class SubjectAttendanceDetailsPage extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFDBA74)),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.orange.shade300),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFEA580C), size: 28),
+                    Icon(Icons.info_outline, color: Colors.orange.shade800, size: 22),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'تنبيه تحليلي لولي الأمر:',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF9A3412), fontSize: 13, fontFamily: 'Cairo'),
+                            'ملاحظة تحليلية:',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 13, fontFamily: 'Cairo'),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '⚠️ يرتبط تراجع مستوى الطالب في تقييم (${(correlation['lowScoreTests'] as List).join('، ')}) ونقاط القصور المحددة (${(correlation['weaknessesFound'] as List).take(2).join('، ')}) بتكرار غيابه/تأخره عن الحصص والشروحات الصفية. نوصي بالاطلاع على الدروس والروابط المرفقة أدناه لتعويض الفاقد التعليمي.',
-                            style: const TextStyle(fontSize: 11.5, color: Color(0xFF7C2D12), height: 1.5, fontFamily: 'Cairo'),
+                            'يلاحظ وجود أثر مباشر لتكرار الغياب أو التأخر على استيعاب نقاط (${(correlation['weaknessesFound'] as List).take(2).join('، ')}) ونتائج تقييم (${(correlation['lowScoreTests'] as List).join('، ')}). نوصي بمراجعة محتوى الحصص المرفقة أدناه.',
+                            style: const TextStyle(fontSize: 12, color: Colors.black87, height: 1.5, fontFamily: 'Cairo'),
                           ),
                         ],
                       ),
@@ -1941,18 +1938,18 @@ class SubjectAttendanceDetailsPage extends StatelessWidget {
                 alignment: Alignment.center,
                 child: Column(
                   children: [
-                    const Icon(Icons.verified_user_rounded, color: Colors.green, size: 70),
+                    const Icon(Icons.check_circle_outline_rounded, color: Colors.green, size: 60),
                     const SizedBox(height: 12),
-                    const Text('ما شاء الله! لا يوجد أي غياب أو تأخر مسجل في هذه المادة.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                    const Text('حضور الطالب منتظم ومكتمل 100%', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
                     const SizedBox(height: 4),
-                    Text('حضور الطالب منتظم ومكتمل 100%', style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontFamily: 'Cairo')),
+                    Text('لم يتم رصد أي غياب أو تأخر مسجل في هذه المادة.', style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontFamily: 'Cairo')),
                   ],
                 ),
               )
             else ...[
               Text(
-                'قائمة الحصص الفائتة وتفاصيل ما تم شرحه (${missedSessions.length}):',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
+                'الحصص المسجلة (غياب أو تأخر): ${missedSessions.length}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
               ),
               const SizedBox(height: 10),
               ...missedSessions.map((record) => _MissedLessonCard(
@@ -2040,47 +2037,49 @@ class _MissedLessonCard extends StatelessWidget {
     final String status = (record['status'] ?? 'absent').toString().toLowerCase();
     final int weekNumber = record['weekNumber'] is int ? record['weekNumber'] : int.tryParse(record['weekNumber']?.toString() ?? '1') ?? 1;
 
-    String statusTitle = "غياب كامل";
-    Color statusColor = Colors.red;
+    String statusTitle = "غياب";
+    Color statusColor = Colors.red.shade700;
     if (status == 'late' || status == 'متأخر') {
-      statusTitle = "تأخر عن الحصة";
-      statusColor = Colors.orange;
+      statusTitle = "تأخر";
+      statusColor = Colors.orange.shade800;
     } else if (status == 'early_dismissal' || status == 'انصراف مبكر') {
       statusTitle = "انصراف مبكر";
-      statusColor = Colors.amber.shade800;
+      statusColor = Colors.blueGrey;
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 6, offset: const Offset(0, 2)),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.08),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              border: Border(bottom: BorderSide(color: statusColor.withOpacity(0.2))),
+              color: Colors.grey.shade50,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
                   children: [
-                    Icon(status == 'late' ? Icons.alarm_on : (status == 'early_dismissal' ? Icons.time_to_leave : Icons.event_busy), color: statusColor, size: 18),
-                    const SizedBox(width: 8),
-                    Text('$statusTitle - الحصة $periodIndex', style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 13, fontFamily: 'Cairo')),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text('$statusTitle - الحصة $periodIndex', style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 12, fontFamily: 'Cairo')),
+                    ),
                   ],
                 ),
-                Text('$dayName | $dateStr', style: const TextStyle(fontSize: 11, color: Colors.blueGrey, fontFamily: 'Cairo')),
+                Text('$dayName | $dateStr', style: const TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo')),
               ],
             ),
           ),
@@ -2091,8 +2090,8 @@ class _MissedLessonCard extends StatelessWidget {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                    padding: EdgeInsets.all(6.0),
+                    child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))),
                   );
                 }
 
@@ -2103,7 +2102,7 @@ class _MissedLessonCard extends StatelessWidget {
 
                 if (prepData == null) {
                   return const Text(
-                    'لم يتم إدراج بيانات تحضير محددة لهذه الحصة من المعلم عبر المنصة حتى الآن.',
+                    'لم يتم إدراج بيانات تحضير محددة لهذه الحصة من المعلم عبر المنصة.',
                     style: TextStyle(color: Colors.grey, fontSize: 11, fontFamily: 'Cairo'),
                   );
                 }
@@ -2119,23 +2118,18 @@ class _MissedLessonCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.menu_book_rounded, color: Color(0xFF1A237E), size: 16),
+                        const Icon(Icons.book_outlined, color: Color(0xFF1A237E), size: 16),
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'الدرس المشروح: $lessonTitle',
+                            'الدرس: $lessonTitle (أ. $teacherName)',
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text('المعلم: أ. $teacherName', style: const TextStyle(color: Colors.blueGrey, fontSize: 11, fontFamily: 'Cairo')),
-                    const Divider(height: 14),
-
                     if (outcomes.isNotEmpty) ...[
-                      const Text('🎯 نواتج التعلم المستهدفة في الحصة:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, fontFamily: 'Cairo')),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       ...outcomes.take(2).map((item) {
                         String txt = item is Map ? (item['text'] ?? '') : item.toString();
                         return Padding(
@@ -2143,39 +2137,31 @@ class _MissedLessonCard extends StatelessWidget {
                           child: Text('• $txt', style: const TextStyle(fontSize: 11, color: Colors.black87, fontFamily: 'Cairo')),
                         );
                       }),
-                      const SizedBox(height: 6),
                     ],
-
                     if (homework['title'] != null && homework['title'].toString().isNotEmpty) ...[
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.assignment_outlined, size: 16, color: Color(0xFF1A237E)),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                'الواجب/المهمة المطلوبة: ${homework['title']} ${homework['page'] != null && homework['page'] != '' ? "(ص ${homework['page']})" : ""}',
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1A237E), fontFamily: 'Cairo'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                       const SizedBox(height: 6),
+                      Text(
+                        'الواجب: ${homework['title']} ${homework['page'] != null && homework['page'] != '' ? "(ص ${homework['page']})" : ""}',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, fontFamily: 'Cairo'),
+                      ),
                     ],
-
                     if (domainLinks.isNotEmpty) ...[
+                      const SizedBox(height: 6),
                       Wrap(
-                        spacing: 8,
+                        spacing: 6,
                         children: domainLinks.values.expand((element) => element as List).map<Widget>((linkItem) {
                           if (linkItem is Map && linkItem['url'] != null && linkItem['url'].toString().isNotEmpty) {
-                            return ActionChip(
-                              avatar: const Icon(Icons.link, size: 14, color: Color(0xFF0F766E)),
-                              label: Text(linkItem['title'] ?? 'مصدر رقمي للشرح', style: const TextStyle(fontSize: 10.5, fontFamily: 'Cairo')),
-                              backgroundColor: const Color(0xFFF0FDFA),
-                              onPressed: () => _launchURL(linkItem['url']),
+                            return InkWell(
+                              onTap: () => _launchURL(linkItem['url']),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: Text(linkItem['title'] ?? 'مادة إثرائية للدرس', style: const TextStyle(fontSize: 10.5, color: Color(0xFF1A237E), fontFamily: 'Cairo')),
+                              ),
                             );
                           }
                           return const SizedBox.shrink();
@@ -2754,295 +2740,6 @@ class _TokkatsuViewPageState extends State<TokkatsuViewPage> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class SchoolBooksPage extends StatelessWidget {
-  final String grade;
-
-  const SchoolBooksPage({super.key, required this.grade});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('الكتب والمقررات الدراسية', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF1A237E),
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [const Color(0xFF1A237E).withOpacity(0.05), Colors.white],
-          ),
-        ),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildSectionHeader(context, "المقررات الأساسية", Icons.menu_book),
-            _buildDigitalSkillsCard(context),
-            const SizedBox(height: 24),
-            _buildSectionHeader(context, "برامج إثرائية عالمية", Icons.science),
-            _buildStemBookCard(context),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12.0, right: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF1A237E), size: 28),
-          const SizedBox(width: 12),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDigitalSkillsCard(BuildContext context) {
-    String title = "المهارات الرقمية";
-    Widget content;
-    Color cardColor = Colors.blue.shade50;
-
-    if (['الصف الأول', 'الصف الثاني', 'الصف الثالث'].contains(grade)) {
-      content = _buildInfoContent(
-        icon: Icons.local_library_rounded,
-        title: "نسخة ورقية",
-        text: "عزيزي الطالب، يتم تسليم النسخة الورقية من كتاب المهارات الرقمية لك مباشرة في المدرسة.",
-        color: const Color(0xFF1A237E),
-      );
-    }
-    else if (grade == 'الصف الرابع') {
-      content = _buildLinkContent(
-        context,
-        url: "https://ktby.net/10767/",
-        desc: "كتاب المهارات الرقمية - الصف الرابع (نسخة إلكترونية)",
-        btnText: "تصفح الكتاب الآن",
-      );
-      cardColor = const Color(0xFF1A237E).withOpacity(0.05);
-    }
-    else if (grade == 'الصف الخامس') {
-      content = _buildLinkContent(
-        context,
-        url: "https://ktby.net/10769/",
-        desc: "كتاب المهارات الرقمية - الصف الخامس (نسخة إلكترونية)",
-        btnText: "تصفح الكتاب الآن",
-      );
-      cardColor = const Color(0xFF1A237E).withOpacity(0.05);
-    }
-    else if (grade == 'الصف السادس') {
-      content = _buildLinkContent(
-        context,
-        url: "https://ktby.net/10770/",
-        desc: "كتاب المهارات الرقمية - الصف السادس (نسخة إلكترونية)",
-        btnText: "تصفح الكتاب الآن",
-      );
-      cardColor = const Color(0xFF1A237E).withOpacity(0.05);
-    }
-    else {
-      content = _buildInfoContent(
-        icon: Icons.info_outline_rounded,
-        title: "تنبيه",
-        text: "يرجى مراجعة إدارة المدرسة لاستلام الكتب المقررة لصفك.",
-        color: Colors.grey.shade700,
-      );
-    }
-
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      color: Colors.white,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cardColor.withOpacity(0.5)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                    child: const Icon(Icons.laptop_mac, color: Color(0xFF1A237E)),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A237E))),
-                ],
-              ),
-            ),
-            Padding(padding: const EdgeInsets.all(20), child: content),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStemBookCard(BuildContext context) {
-    return Card(
-      elevation: 6,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF1A237E), Color(0xFF3949AB)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.precision_manufacturing, color: Colors.white, size: 32),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("مقرر الروبوت (STEM العالمي)",
-                          style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text("بوابة المستقبل والاختراع",
-                          style: TextStyle(color: Colors.white70, fontSize: 14)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildBulletPoint("يُعنى هذا المقرر بتنمية مهارات الاختراع والابتكار لدى الطالب."),
-                _buildBulletPoint("يساعد الطلاب بشكل مباشر على اكتشاف مواهبهم التقنية والهندسية."),
-                _buildBulletPoint("منهج عالمي معتمد يفتح آفاقاً واسعة للمستقبل."),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
-                    border: Border.all(color: Colors.amber.shade200),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info, color: Colors.amber.shade800),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          "ملاحظة: يتم تسليم الطالب الكتاب في جميع صفوف المرحلة الابتدائية بطلب مباشر من حضراتكم.",
-                          style: TextStyle(fontSize: 13, height: 1.4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.chat),
-                    label: const Text("طلب الكتاب عبر واتساب (أ. يحيي)"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green.shade600,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () async {
-                      final Uri url = Uri.parse('https://wa.me/966502649649');
-                      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('لا يمكن فتح الواتساب')));
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBulletPoint(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.check_circle_outline, color: Color(0xFFC5A059), size: 20),
-          const SizedBox(width: 10),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 15, height: 1.4))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoContent({required IconData icon, required String title, required String text, required Color color}) {
-    return Column(
-      children: [
-        Icon(icon, size: 48, color: color.withOpacity(0.5)),
-        const SizedBox(height: 16),
-        Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
-        const SizedBox(height: 8),
-        Text(text, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
-      ],
-    );
-  }
-
-  Widget _buildLinkContent(BuildContext context, {required String url, required String desc, required String btnText}) {
-    return Column(
-      children: [
-        Text(desc, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF1A237E))),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.open_in_new),
-            label: Text(btnText),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1A237E),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () async {
-              final Uri uri = Uri.parse(url);
-              if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('لا يمكن فتح الرابط')));
-              }
-            },
-          ),
-        ),
-      ],
     );
   }
 }
