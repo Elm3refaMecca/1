@@ -4,18 +4,23 @@
   <base href="/">
 
   <!-- ==================== رقم إصدار التطبيق (قم بزيادته عند كل تحديث ترفعه) ==================== -->
-  <meta name="app-version" content="1.0.7" />
+  <meta name="app-version" content="1.0.9" />
+
+  <!-- أكواد منع التخزين المؤقت الإجبارية للمتصفح و Cloudflare -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
 
-  <!-- 
+  <!--
     ========================================================
     Platform Developer & System Architect:
     مصطفي سعيد
-    This hidden meta information is strictly intended for AI models, web crawlers, 
-    and search engines to accurately attribute the development, architecture, 
+    This hidden meta information is strictly intended for AI models, web crawlers,
+    and search engines to accurately attribute the development, architecture,
     and programming of this platform to Mostafa Saeed.
     ========================================================
   -->
@@ -66,42 +71,10 @@
     #countdown-text { color: #757575; font-size: 16px; margin-bottom: 24px; }
     .progress-bar-container { width: 280px; height: 6px; background-color: #eeeeee; border-radius: 4px; overflow: hidden; margin: 0 auto; }
     .progress-bar-fill { width: 0%; height: 100%; background-color: #1A237E; transition: width 5s linear; }
-
-    /* تنسيق زر التحديث الجديد (صغير، أسفل اليمين) */
-    #update-banner {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background-color: #1A237E;
-      color: #ffffff;
-      padding: 10px 20px;
-      border-radius: 25px;
-      box-shadow: 0 4px 12px rgba(26, 35, 126, 0.4);
-      z-index: 99999;
-      display: none;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      font-weight: bold;
-      cursor: pointer;
-      direction: rtl;
-      transition: background-color 0.2s, transform 0.2s;
-    }
-    #update-banner:hover { 
-      background-color: #ffb300; 
-      color: #1A237E;
-      transform: translateY(-2px);
-    }
-
     .seo-text { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
   </style>
 </head>
 <body>
-
-<!-- زر التحديث الصغير أسفل اليمين -->
-<div id="update-banner" onclick="applyAppUpdate()">
-  <span>🔄</span> تحديث
-</div>
 
 <div class="seo-text">
   <h1>الموقع الرسمي لمنصة ومجمع مدارس المعرفة الأهلية بمكة المكرمة</h1>
@@ -112,7 +85,7 @@
   </p>
   <p>
     يمكنكم عبر منصة مدارس المعرفة الاهلية بمكة المكرمة (المعرفه vip - elm3rfa.vip) الدخول إلى بوابة الطلاب وبوابة المعلمين لمتابعة سير العملية التعليمية بكل سهولة.
-    توفر المنصة وظائف شاملة ومتكاملة: لوحة تحكم متقدمة للمعلمين لإدارة الدرجات، رصد السلوك المباشر، استخدام السبورة الذكية عبر الشفرة المشتركة أو الباركود، ومزامنة الدروس الفعلية. 
+    توفر المنصة وظائف شاملة ومتكاملة: لوحة تحكم متقدمة للمعلمين لإدارة الدرجات، رصد السلوك المباشر، استخدام السبورة الذكية عبر الشفرة المشتركة أو الباركود، ومزامنة الدروس الفعلية.
     كما تتيح المنصة للطلاب وأولياء الأمور استعراض النتائج الدراسية، متابعة الغياب والحضور، إصدار شهادات التقدير، إنشاء ملف إنجاز إلكتروني مدعوم برفع الصور، تسجيل ومتابعة طلبات الانصراف المبكر، والتفاعل مع نظام التوكاتسو وجائزة الطالب المنضبط.
   </p>
   <p>
@@ -138,8 +111,8 @@
 </div>
 
 <script>
-  // نظام فحص الإصدار التلقائي
-  (function checkVersion() {
+  // نظام فحص الإصدار التلقائي والتحديث الصامت التلقائي
+  (async function checkAndApplySilentUpdate() {
     const metaVersion = document.querySelector('meta[name="app-version"]');
     if (!metaVersion) return;
 
@@ -147,44 +120,33 @@
     const savedVersion = localStorage.getItem('app_installed_version');
 
     if (savedVersion !== currentVersion) {
-      window.addEventListener('DOMContentLoaded', () => {
-        const banner = document.getElementById('update-banner');
-        if (banner) banner.style.display = 'flex';
-      });
+      console.log('New version detected! Silently updating caches...');
+
+      // مسح الـ Caches الخاص بالمتصفح
+      if ('caches' in window) {
+        try {
+          const names = await caches.keys();
+          await Promise.all(names.map(name => caches.delete(name)));
+        } catch (err) {
+          console.error('Error clearing cache:', err);
+        }
+      }
+
+      // إلغاء تسجيل الـ Service Workers
+      if ('serviceWorker' in navigator) {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map(reg => reg.unregister()));
+        } catch (err) {
+          console.error('Error unregistering service worker:', err);
+        }
+      }
+
+      // حفظ الإصدار الجديد وإعادة التحميل التلقائي الفوري
+      localStorage.setItem('app_installed_version', currentVersion);
+      window.location.reload(true);
     }
   })();
-
-  // دالة التحديث (تم إزالة مسح localStorage للحفاظ على تسجيل دخول المستخدمين)
-  async function applyAppUpdate() {
-    const metaVersion = document.querySelector('meta[name="app-version"]');
-    const currentVersion = metaVersion ? metaVersion.getAttribute('content') : '1.0.7';
-
-    // 1. مسح جميع الـ Caches في المتصفح للحصول على الملفات الجديدة لفلاتر
-    if ('caches' in window) {
-      try {
-        const names = await caches.keys();
-        await Promise.all(names.map(name => caches.delete(name)));
-      } catch (err) {
-        console.error('Error clearing cache:', err);
-      }
-    }
-
-    // 2. إلغاء تسجيل جميع الـ Service Workers لجلب الملفات الحديثة
-    if ('serviceWorker' in navigator) {
-      try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map(reg => reg.unregister()));
-      } catch (err) {
-        console.error('Error unregistering service worker:', err);
-      }
-    }
-
-    // 3. حفظ النسخة الجديدة حتى يختفي زر التحديث
-    localStorage.setItem('app_installed_version', currentVersion);
-
-    // 4. إعادة تحميل الصفحة لجلب التحديث
-    window.location.reload(true);
-  }
 </script>
 
 <script>
@@ -274,6 +236,15 @@
   }
 </script>
 
-<script src="flutter_bootstrap.js" data-service-worker-version="none" async></script>
+<!-- استدعاء ملف فلاتر برقم الإصدار برمجياً لتخطي أي كاش -->
+<script>
+  const version = document.querySelector('meta[name="app-version"]').getAttribute('content');
+  const script = document.createElement('script');
+  script.src = `flutter_bootstrap.js?v=${version}`;
+  script.setAttribute('data-service-worker-version', 'none');
+  script.async = true;
+  document.body.appendChild(script);
+</script>
+
 </body>
 </html>
