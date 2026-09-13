@@ -827,6 +827,10 @@ class __TestTileState extends State<_TestTile> {
   }
 }
 
+// ===========================================================================
+// نظام الرصد المحمي ومصحح المفاتيح التلقائي (Auto-Recovery Grade Entry)
+// ===========================================================================
+
 class GradeEntryPage extends StatefulWidget {
   final String stage;
   final String grade;
@@ -848,7 +852,7 @@ class GradeEntryPage extends StatefulWidget {
   });
 
   @override
-  _GradeEntryPageState createState() => _GradeEntryPageState();
+  State<GradeEntryPage> createState() => _GradeEntryPageState();
 }
 
 class _GradeEntryPageState extends State<GradeEntryPage> {
@@ -857,7 +861,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   List<DocumentSnapshot> _students = [];
   Map<String, dynamic> _grades = {};
   Map<String, dynamic> _evaluations = {};
-
   final Map<String, int> _likes = {};
   final Map<String, int> _dislikes = {};
 
@@ -935,24 +938,62 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     _fetchStudentsAndGrades();
   }
 
+  /// دالة استخراج مفتاح الاختبار (مثل e1, e2, e14)
+  String _extractTestPrefix(String key) {
+    final match = RegExp(r'^(t2_)?e\d+').firstMatch(key);
+    return match != null ? match.group(0)! : '';
+  }
+
+  /// فحص ذكي للبحث عن الدرجات المحفوظة بمفاتيح قديمة واستعادتها
+  dynamic _resolveGradeWithFallback(Map<String, dynamic>? data, String targetKey) {
+    if (data == null) return null;
+
+    // 1. إذا كانت الدرجة موجودة في المفتاح المعتمد
+    if (data.containsKey(targetKey) && data[targetKey] != null) {
+      return data[targetKey];
+    }
+
+    // 2. إذا لم توجد، نبحث في المفاتيح المحتملة القديمة (e1profession1 ... e1profession22)
+    final prefix = _extractTestPrefix(targetKey);
+    if (prefix.isNotEmpty && !targetKey.contains('nafes')) {
+      for (int i = 1; i <= 22; i++) {
+        final legacyKey = '${prefix}profession$i';
+        if (data.containsKey(legacyKey) && data[legacyKey] != null) {
+          // وجدنا الدرجة في حقل قديم للمعلم! نعيدها ونعتمدها
+          return data[legacyKey];
+        }
+      }
+    }
+    return null;
+  }
+
   Future<void> _fetchStudentsAndGrades() async {
     setState(() => _isLoading = true);
     try {
-      final querySnapshot = await _firestore
-          .collection('students')
-          .where('stages', isEqualTo: widget.stage)
-          .where('grades', isEqualTo: widget.grade)
-          .where('classes', isEqualTo: widget.className)
-          .get();
+      // إجبار الجلب من السيرفر مباشرة لكسر الـ Cache القديم في المتصفح
+      QuerySnapshot querySnapshot;
+      try {
+        querySnapshot = await _firestore
+            .collection('students')
+            .where('stages', isEqualTo: widget.stage)
+            .where('grades', isEqualTo: widget.grade)
+            .where('classes', isEqualTo: widget.className)
+            .get(const GetOptions(source: Source.server));
+      } catch (_) {
+        // في حال انقطاع الشبكة يتم الجلب من الكاش كخطة بديلة
+        querySnapshot = await _firestore
+            .collection('students')
+            .where('stages', isEqualTo: widget.stage)
+            .where('grades', isEqualTo: widget.grade)
+            .where('classes', isEqualTo: widget.className)
+            .get();
+      }
 
       var students = querySnapshot.docs;
-
       students.sort((a, b) {
         final aData = a.data() as Map<String, dynamic>? ?? {};
         final bData = b.data() as Map<String, dynamic>? ?? {};
-        final String aName = aData['name'] ?? '';
-        final String bName = bData['name'] ?? '';
-        return aName.compareTo(bName);
+        return (aData['name'] ?? '').compareTo(bData['name'] ?? '');
       });
 
       final grades = <String, dynamic>{};
@@ -963,7 +1004,9 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       for (var studentDoc in students) {
         final data = studentDoc.data() as Map<String, dynamic>?;
         final studentId = studentDoc.id;
-        grades[studentId] = data?[widget.testFieldKey];
+
+        // تطبيق الاستعادة الذكية للدرجة
+        grades[studentId] = _resolveGradeWithFallback(data, widget.testFieldKey);
 
         if (data != null && data.containsKey('eval_${widget.testFieldKey}')) {
           evaluations[studentId] = data['eval_${widget.testFieldKey}'];
@@ -1395,28 +1438,45 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  Future<void> _saveGrade(String studentId, num grade, Map<String, dynamic>? evaluationData) async {
+  Future<void> _saveGrade(String studentId, num grade, Map<String, dynamic>? evalData) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       String teacherName = 'معلم المادة';
       if (user != null) {
-        final teacherDoc = await _firestore.collection('users').doc(user.uid).get();
-        teacherName = teacherDoc.data()?['name'] ?? 'معلم المادة';
+        final tDoc = await _firestore.collection('users').doc(user.uid).get();
+        teacherName = tDoc.data()?['name'] ?? 'معلم المادة';
       }
 
       final studentRef = _firestore.collection('students').doc(studentId);
-      final notificationRef = studentRef.collection('notifications').doc();
+      final notifRef = studentRef.collection('notifications').doc();
 
-      Map<String, dynamic> updates = { widget.testFieldKey: grade };
-      if (evaluationData != null) {
-        updates['eval_${widget.testFieldKey}'] = evaluationData;
+      // إعداد البيانات المراد حفظها في المفتاح القياسي الجديد
+      Map<String, dynamic> updates = {
+        widget.testFieldKey: grade,
+        'lastGradeUpdate': FieldValue.serverTimestamp(),
+      };
+      if (evalData != null) {
+        updates['eval_${widget.testFieldKey}'] = evalData;
       }
 
+      // 🔥 الحل الجذري: حلقة تنظيف تمسح أي مفاتيح قديمة لنفس الاختبار لمنع الدرجات الوهمية
+      final prefix = _extractTestPrefix(widget.testFieldKey);
+      if (prefix.isNotEmpty && !widget.testFieldKey.contains('nafes')) {
+        for (int i = 1; i <= 22; i++) {
+          final legacyKey = '${prefix}profession$i';
+          if (legacyKey != widget.testFieldKey) {
+            updates[legacyKey] = FieldValue.delete();
+            updates['eval_$legacyKey'] = FieldValue.delete();
+          }
+        }
+      }
+
+      // تنفيذ عملية الحفظ والتنظيف ككتلة واحدة (Transaction)
       await _firestore.runTransaction((transaction) async {
         transaction.set(studentRef, updates, SetOptions(merge: true));
 
         if (grade != -1) {
-          transaction.set(notificationRef, {
+          transaction.set(notifRef, {
             'title': '📝 رصد درجة جديدة',
             'message': 'قام أ. $teacherName برصد درجة لك في اختبار: ${widget.testName} لمادة ${widget.subject}.',
             'type': 'grade',
@@ -1428,16 +1488,16 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
       setState(() {
         _grades[studentId] = grade;
-        if (evaluationData != null) {
-          _evaluations[studentId] = evaluationData;
-        }
+        if (evalData != null) _evaluations[studentId] = evalData;
       });
 
-      if(mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة وإرسال إشعار للطالب بنجاح', style: const TextStyle(fontFamily: 'Cairo')),
-              backgroundColor: grade == -1 ? Colors.blueGrey : Colors.green),
+            content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة وتصحيح مسارها بنجاح ✅', style: const TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: grade == -1 ? Colors.blueGrey : Colors.green,
+            duration: const Duration(seconds: 1),
+          ),
         );
       }
     } catch (e) {
@@ -1448,14 +1508,23 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       }
     }
   }
-
   Future<void> _deleteGrade(String studentId) async {
     try {
-      final studentRef = _firestore.collection('students').doc(studentId);
-      await studentRef.update({
+      final prefix = _extractTestPrefix(widget.testFieldKey);
+      Map<String, dynamic> deletes = {
         widget.testFieldKey: FieldValue.delete(),
         'eval_${widget.testFieldKey}': FieldValue.delete(),
-      });
+      };
+
+      // تنظيف أي مفاتيح فرعية قديمة لنفس الاختبار لضمان عدم عودتها
+      if (prefix.isNotEmpty && !widget.testFieldKey.contains('nafes')) {
+        for (int i = 1; i <= 22; i++) {
+          deletes['${prefix}profession$i'] = FieldValue.delete();
+        }
+      }
+
+      final studentRef = _firestore.collection('students').doc(studentId);
+      await studentRef.update(deletes);
 
       if (mounted) {
         setState(() {
@@ -1463,30 +1532,22 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           _evaluations[studentId] = null;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('تم الحذف بنجاح', style: TextStyle(fontFamily: 'Cairo')),
-              backgroundColor: Colors.blueAccent),
+          const SnackBar(content: Text('تم حذف الدرجة نهائياً', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.blueAccent),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('فشل حذف الدرجة: $e', style: const TextStyle(fontFamily: 'Cairo')),
-              backgroundColor: Colors.red),
+          SnackBar(content: Text('فشل الحذف: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  Widget _buildGradeChip({
-    required dynamic currentGrade,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildGradeChip({required dynamic currentGrade, required VoidCallback onTap}) {
     String text;
     Color backgroundColor;
     Color textColor;
-    FontWeight fontWeight = FontWeight.normal;
     Color borderColor;
 
     if (currentGrade == -1) {
@@ -1494,13 +1555,11 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       backgroundColor = Colors.grey.shade200;
       textColor = Colors.grey.shade700;
       borderColor = Colors.grey.shade400;
-      fontWeight = FontWeight.bold;
     } else if (currentGrade != null) {
       text = currentGrade.toString();
       backgroundColor = Colors.green.shade50;
       textColor = Colors.green.shade800;
       borderColor = Colors.green.shade300;
-      fontWeight = FontWeight.bold;
     } else {
       text = 'رصد';
       backgroundColor = Colors.orange.shade50;
@@ -1520,28 +1579,20 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           border: Border.all(color: borderColor),
         ),
         child: Center(
-          child: Text(
-            text,
-            style: TextStyle(
-                color: textColor,
-                fontWeight: fontWeight,
-                fontSize: 13,
-                fontFamily: 'Cairo'
-            ),
-          ),
+          child: Text(text, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
         ),
       ),
     );
   }
 
-  Future<void> _showGradeEntryDialog({
+  void _showGradeEntryDialog({
     required String studentId,
     required String studentName,
     required dynamic currentGrade,
     required double maxGrade,
     required double passingGrade,
   }) {
-    return showDialog(
+    showDialog(
       context: context,
       barrierDismissible: true,
       builder: (context) {

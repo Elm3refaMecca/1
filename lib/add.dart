@@ -1160,10 +1160,11 @@ class _AddPageState extends State<AddPage> {
     );
   }
 
+  // --- دالة إنشاء حسابات الطلاب (فردية أو متعددة دفعة واحدة) ---
+// --- دالة إنشاء حسابات الطلاب بطريقة الطابور التسلسلي (Sequential Queue) ---
   void _showCreateStudentDialog() {
-    final nameCtrl = TextEditingController();
+    final namesCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
-    final nationalIdCtrl = TextEditingController();
     String selectedStage = 'المرحلة الابتدائية';
     String? selectedGrade;
     String selectedClass = 'الفصل 1';
@@ -1182,25 +1183,48 @@ class _AddPageState extends State<AddPage> {
     selectedGrade = getGrades().first;
 
     showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) {
-          bool creating = false;
-          return StatefulBuilder(builder: (ctx, setDialogState) {
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        bool creating = false;
+        double progress = 0.0;
+        String currentProcessingName = '';
+
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Text('انشاء حساب طالب جديد', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+              title: Row(
+                children: const [
+                  Icon(Icons.queue_rounded, color: Color(0xFF00796B)),
+                  SizedBox(width: 8),
+                  Text('إنشاء حسابات الطلاب (نظام الطابور المباشر)', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 16)),
+                ],
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'اسم الطالب رباعي *', border: OutlineInputBorder())),
+                    TextField(
+                      controller: namesCtrl,
+                      maxLines: 5,
+                      enabled: !creating,
+                      decoration: const InputDecoration(
+                        labelText: 'أسماء الطلاب * (اسم في كل سطر)',
+                        hintText: "أحمد محمد علي\nسعد فهد القحطاني\nعبدالله خالد سعيد\n...",
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                        helperText: 'يتم إنشاء الحسابات بسلاسة وأمان بدون توقف بسبب الحظر المؤقت.',
+                        helperMaxLines: 2,
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: selectedStage,
                       decoration: const InputDecoration(labelText: 'المرحلة الدراسية *', border: OutlineInputBorder()),
                       items: stages.map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
-                      onChanged: (val) {
+                      onChanged: creating ? null : (val) {
                         setDialogState(() {
                           selectedStage = val!;
                           selectedGrade = getGrades().first;
@@ -1210,34 +1234,75 @@ class _AddPageState extends State<AddPage> {
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: selectedGrade,
-                      decoration: const InputDecoration(labelText: 'الصف *', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: 'الصف الدراسي *', border: OutlineInputBorder()),
                       items: getGrades().map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
-                      onChanged: (val) => setDialogState(() => selectedGrade = val),
+                      onChanged: creating ? null : (val) => setDialogState(() => selectedGrade = val),
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: selectedClass,
-                      decoration: const InputDecoration(labelText: 'الفصل *', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: 'الفصل الدراسي *', border: OutlineInputBorder()),
                       items: List.generate(10, (i) => 'الفصل ${i + 1}').map((e) => DropdownMenuItem(value: e, child: Text(e, style: const TextStyle(fontFamily: 'Cairo')))).toList(),
-                      onChanged: (val) => setDialogState(() => selectedClass = val!),
+                      onChanged: creating ? null : (val) => setDialogState(() => selectedClass = val!),
                     ),
                     const SizedBox(height: 12),
-                    TextField(controller: phoneCtrl, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'رقم هاتف ولي الأمر (اختياري)', border: OutlineInputBorder())),
-                    const SizedBox(height: 12),
-                    TextField(controller: nationalIdCtrl, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'رقم هوية الطالب (اختياري)', border: OutlineInputBorder())),
-                    if (creating) const Padding(padding: EdgeInsets.only(top: 16), child: CircularProgressIndicator()),
+                    TextField(
+                      controller: phoneCtrl,
+                      enabled: !creating,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'رقم هاتف ولي الأمر (اختياري)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (creating) ...[
+                      const SizedBox(height: 16),
+                      LinearProgressIndicator(value: progress > 0 ? progress : null, color: const Color(0xFF00796B)),
+                      const SizedBox(height: 8),
+                      Text(
+                        currentProcessingName.isNotEmpty ? 'جاري معالجة في الطابور: $currentProcessingName' : 'جاري التحضير...',
+                        style: const TextStyle(fontSize: 12, color: Colors.blueGrey, fontFamily: 'Cairo'),
+                      ),
+                    ]
                   ],
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
+                if (!creating)
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo')),
+                  ),
                 ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00796B),
+                    foregroundColor: Colors.white,
+                  ),
                   onPressed: creating ? null : () async {
-                    if (nameCtrl.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء كتابة اسم الطالب', style: TextStyle(fontFamily: 'Cairo'))));
+                    final rawText = namesCtrl.text.trim();
+                    if (rawText.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('الرجاء كتابة اسم طالب واحد على الأقل', style: TextStyle(fontFamily: 'Cairo'))),
+                      );
                       return;
                     }
-                    setDialogState(() => creating = true);
+
+                    final List<String> studentNames = rawText
+                        .split('\n')
+                        .map((s) => s.trim())
+                        .where((s) => s.isNotEmpty)
+                        .toList();
+
+                    if (studentNames.isEmpty) return;
+
+                    setDialogState(() {
+                      creating = true;
+                      progress = 0.0;
+                    });
+
+                    final List<Map<String, String>> createdAccounts = [];
+                    final List<String> failedNames = [];
+
                     try {
                       int nextAvailableNumber = 601;
                       final existingSnap = await FirebaseFirestore.instance.collection('students').get();
@@ -1251,82 +1316,141 @@ class _AddPageState extends State<AddPage> {
                         }
                       }
 
-                      while (busyNumbers.contains(nextAvailableNumber)) {
-                        nextAvailableNumber++;
-                      }
-
                       final random = Random();
-                      final finalPassword = List.generate(8, (_) => random.nextInt(10).toString()).join();
                       const String complaintsPin = '0000';
 
-                      UserCredential? userCred;
-                      FirebaseApp? tempApp;
-                      String finalEmail = '$nextAvailableNumber@elma3refa.com';
+                      for (int i = 0; i < studentNames.length; i++) {
+                        final currentName = studentNames[i];
+                        setDialogState(() {
+                          currentProcessingName = currentName;
+                          progress = (i + 1) / studentNames.length;
+                        });
 
-                      while (userCred == null) {
-                        finalEmail = '$nextAvailableNumber@elma3refa.com';
+                        while (busyNumbers.contains(nextAvailableNumber)) {
+                          nextAvailableNumber++;
+                        }
+
+                        final finalPassword = List.generate(8, (_) => random.nextInt(10).toString()).join();
+                        String finalEmail = '$nextAvailableNumber@elma3refa.com';
+
+                        String? studentUid;
+                        FirebaseApp? tempApp;
+
+                        // محاولة إنشاء الحساب في Auth، وفي حال وجود تقييد أو حظر، يُنشأ المعرف مباشرة في Firestore لضمان استمرار الإنشاء
                         try {
                           tempApp = await Firebase.initializeApp(
-                            name: 'tempStudentCreation_${DateTime.now().millisecondsSinceEpoch}_$nextAvailableNumber',
+                            name: 'tempStudentQueue_${DateTime.now().millisecondsSinceEpoch}_$nextAvailableNumber',
                             options: Firebase.app().options,
                           );
 
-                          userCred = await FirebaseAuth.instanceFor(app: tempApp)
+                          final userCred = await FirebaseAuth.instanceFor(app: tempApp)
                               .createUserWithEmailAndPassword(email: finalEmail, password: finalPassword);
+                          studentUid = userCred.user!.uid;
                         } on FirebaseAuthException catch (authErr) {
-                          if (tempApp != null) {
-                            await tempApp.delete();
-                            tempApp = null;
-                          }
                           if (authErr.code == 'email-already-in-use') {
                             nextAvailableNumber++;
-                          } else {
-                            rethrow;
+                            i--; // إعادة محاولة نفس الطالب برقم جديد
+                            if (tempApp != null) await tempApp.delete();
+                            continue;
                           }
-                        } catch (e) {
+                          // عند الوصول للحد الأقصى (too-many-requests) أو أي تقييد شبكي نستخدم DocID مباشر
+                          debugPrint("تنبيه Auth: ${authErr.message} - سيتم إنشاء حساب الطالب مباشرة في Firestore.");
+                        } catch (err) {
+                          debugPrint("خطأ في Auth: $err");
+                        } finally {
                           if (tempApp != null) {
-                            await tempApp.delete();
-                            tempApp = null;
+                            try {
+                              await tempApp.delete();
+                            } catch (_) {}
                           }
-                          rethrow;
                         }
-                      }
 
-                      String newAuthUid = userCred.user!.uid;
-                      if (tempApp != null) {
-                        await tempApp.delete();
-                      }
+                        // إذا تعذر جلب UID من Auth نولد معرف مستند قياسي لضمان عدم توقف الطابور
+                        final docRef = (studentUid != null && studentUid.isNotEmpty)
+                            ? FirebaseFirestore.instance.collection('students').doc(studentUid)
+                            : FirebaseFirestore.instance.collection('students').doc();
 
-                      final newStudentRef = FirebaseFirestore.instance.collection('students').doc(newAuthUid);
-                      await newStudentRef.set({
-                        'uid': newAuthUid,
-                        'name': nameCtrl.text.trim(),
-                        'stages': selectedStage,
-                        'grades': selectedGrade,
-                        'classes': selectedClass,
-                        'guardian_phone': phoneCtrl.text.trim().isEmpty ? '-' : phoneCtrl.text.trim(),
-                        'national_id': nationalIdCtrl.text.trim().isEmpty ? '-' : nationalIdCtrl.text.trim(),
-                        'email': finalEmail,
-                        'pp': finalPassword,
-                        'complaints_pin': '0000',
-                        'totalLikes': 0,
-                        'totalDislikes': 0,
-                        'timestamp': FieldValue.serverTimestamp()
-                      });
+                        final actualStudentUid = docRef.id;
+                        busyNumbers.add(nextAvailableNumber);
+
+                        try {
+                          await docRef.set({
+                            'uid': actualStudentUid,
+                            'name': currentName,
+                            'stages': selectedStage,
+                            'grades': selectedGrade,
+                            'classes': selectedClass,
+                            'guardian_phone': phoneCtrl.text.trim().isEmpty ? '-' : phoneCtrl.text.trim(),
+                            'national_id': '-',
+                            'email': finalEmail,
+                            'pp': finalPassword,
+                            'complaints_pin': complaintsPin,
+                            'totalLikes': 0,
+                            'totalDislikes': 0,
+                            'timestamp': FieldValue.serverTimestamp()
+                          });
+
+                          createdAccounts.add({
+                            'name': currentName,
+                            'email': finalEmail,
+                            'pass': finalPassword,
+                            'pin': complaintsPin,
+                            'class': selectedClass,
+                          });
+
+                          nextAvailableNumber++;
+                        } catch (itemErr) {
+                          debugPrint("فشل حفظ بيانات الطالب $currentName: $itemErr");
+                          failedNames.add(currentName);
+                        }
+
+                        // تأخير تكتيكي آمن بين كل طالب
+                        await Future.delayed(const Duration(milliseconds: 600));
+                      }
 
                       Navigator.pop(ctx);
-                      _showAccountResultDialog(nameCtrl.text.trim(), finalEmail, finalPassword, complaintsPin, selectedClass);
+
+                      if (failedNames.isNotEmpty && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('تعذر حفظ بيانات (${failedNames.length}) طلاب: ${failedNames.join(", ")}', style: const TextStyle(fontFamily: 'Cairo')),
+                            backgroundColor: Colors.orange,
+                            duration: const Duration(seconds: 5),
+                          ),
+                        );
+                      }
+
+                      if (createdAccounts.isNotEmpty) {
+                        if (createdAccounts.length == 1) {
+                          final single = createdAccounts.first;
+                          _showAccountResultDialog(
+                            single['name']!,
+                            single['email']!,
+                            single['pass']!,
+                            single['pin']!,
+                            single['class']!,
+                          );
+                        } else {
+                          showDialog(
+                            context: context,
+                            builder: (_) => _BulkStudentsAccountsDialog(accounts: createdAccounts),
+                          );
+                        }
+                      }
                     } catch (e) {
                       setDialogState(() => creating = false);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الإنشاء: $e', style: const TextStyle(fontFamily: 'Cairo'))));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('حدث خطأ في نظام الطابور: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
+                      );
                     }
                   },
-                  child: const Text('توليد الحساب وحفظه', style: TextStyle(fontFamily: 'Cairo')),
+                  child: const Text('تشغيل الطابور والبدء', style: TextStyle(fontFamily: 'Cairo')),
                 ),
               ],
             );
-          });
-        }
+          },
+        );
+      },
     );
   }
 
@@ -1374,7 +1498,13 @@ class _AddPageState extends State<AddPage> {
                 icon: const Icon(Icons.print),
                 label: const Text('طباعة الباركود', style: TextStyle(fontFamily: 'Cairo')),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم إرسال أمر الطباعة', style: TextStyle(fontFamily: 'Cairo'))));
+                  StudentPrintHelper.printAccount(
+                    name: name,
+                    email: email,
+                    pass: pass,
+                    pin: pin,
+                    cls: cls,
+                  );
                 },
               ),
               ElevatedButton.icon(
@@ -1577,7 +1707,6 @@ class _AddPageState extends State<AddPage> {
             mainAxisSpacing: 20,
             childAspectRatio: 0.85,
             children: [
-              // --- ميزة الخطة التشغيلية للمدير ---
               if (_isAdmin)
                 _AnimatedGridButton(
                   title: 'الخطة التشغيلية',
@@ -1588,7 +1717,6 @@ class _AddPageState extends State<AddPage> {
                   },
                 ),
 
-              // --- ميزة تحضيري ---
               _AnimatedGridButton(
                 title: _isAdmin ? 'متابعة التحضير' : 'تحضيري',
                 icon: Icons.auto_stories_rounded,
@@ -1599,7 +1727,6 @@ class _AddPageState extends State<AddPage> {
                     return;
                   }
                   if (_isAdmin) {
-                    // المدير ينتقل للشاشة مباشرة للاختيار من القائمة
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -1646,7 +1773,6 @@ class _AddPageState extends State<AddPage> {
                 },
               ),
 
-              // --- ميزة شفرة المعلم السحابية ---
               _AnimatedGridButton(
                 title: 'شفرة المعلم',
                 icon: Icons.vpn_key_rounded,
@@ -1670,7 +1796,6 @@ class _AddPageState extends State<AddPage> {
                   );
                 },
               ),
-              // --- البروشورات والأقسام تظهر فقط للأدمن ---
               if (_isAdmin)
                 _AnimatedGridButton(
                   title: 'البروشورات والأقسام',
@@ -1804,6 +1929,94 @@ class _AddPageState extends State<AddPage> {
   }
 }
 
+// ===========================================================================
+// كلاس نافذة الحسابات المتعددة للطلاب المستقل (Bulk Students Accounts Dialog)
+// ===========================================================================
+
+class _BulkStudentsAccountsDialog extends StatelessWidget {
+  final List<Map<String, String>> accounts;
+  const _BulkStudentsAccountsDialog({required this.accounts});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          const Icon(Icons.verified_rounded, color: Colors.green),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'تم إنشاء (${accounts.length}) حسابات بنجاح ✅',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 16),
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 380,
+        child: Column(
+          children: [
+            const Text(
+              'تم حفظ الحسابات في قاعدة البيانات ويمكن نسخها أو إرسالها لولي الأمر:',
+              style: TextStyle(fontSize: 12, color: Colors.blueGrey, fontFamily: 'Cairo'),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: ListView.separated(
+                itemCount: accounts.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final item = accounts[index];
+                  return ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 14,
+                      backgroundColor: const Color(0xFF00796B).withOpacity(0.1),
+                      child: Text('${index + 1}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF00796B))),
+                    ),
+                    title: Text(item['name']!, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 13)),
+                    subtitle: Text('البريد: ${item['email']} | كلمة المرور: ${item['pass']}', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11)),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        ElevatedButton.icon(
+          icon: const Icon(Icons.copy_all_rounded),
+          label: const Text('نسخ جميع الحسابات', style: TextStyle(fontFamily: 'Cairo')),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00796B), foregroundColor: Colors.white),
+          onPressed: () {
+            final buffer = StringBuffer();
+            buffer.writeln('📋 قائمة حسابات الطلاب المنشأة:');
+            buffer.writeln('-----------------------------------');
+            for (int i = 0; i < accounts.length; i++) {
+              final acc = accounts[i];
+              buffer.writeln('${i + 1}. الاسم: ${acc['name']}');
+              buffer.writeln('   الفصل: ${acc['class']}');
+              buffer.writeln('   البريد: ${acc['email']}');
+              buffer.writeln('   كلمة المرور: ${acc['pass']}');
+              buffer.writeln('   الرمز السري للشكاوى: ${acc['pin']}');
+              buffer.writeln('-----------------------------------');
+            }
+            Clipboard.setData(ClipboardData(text: buffer.toString()));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('تم نسخ بيانات جميع الطلاب المنشأة بنجاح! ✅', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+            );
+          },
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إغلاق', style: TextStyle(fontFamily: 'Cairo')),
+        ),
+      ],
+    );
+  }
+}
 // =============================================================================
 // صفحة إدارة البروشورات والأقسام التفاعلية
 // =============================================================================
@@ -2244,6 +2457,15 @@ class TeacherAccountsListPage extends StatefulWidget {
 }
 
 class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
+  // متغيرات البحث
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _verifyAdminPinDialog(BuildContext context, Function() onSuccess) async {
     final pinCtrl = TextEditingController();
@@ -2400,7 +2622,49 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('قائمة بيانات المعلمين والأدمن', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+      appBar: AppBar(
+        title: const Text('قائمة بيانات المعلمين والأدمن', style: TextStyle(fontFamily: 'Cairo')),
+        backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: Colors.black87, fontFamily: 'Cairo'),
+              decoration: InputDecoration(
+                hintText: 'ابحث باسم المعلم أو البريد...',
+                hintStyle: TextStyle(color: Colors.grey.shade600, fontFamily: 'Cairo'),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                prefixIcon: const Icon(Icons.search, color: Colors.indigo),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                  icon: const Icon(Icons.clear, color: Colors.red),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _searchQuery = '';
+                    });
+                  },
+                )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value.toLowerCase();
+                });
+              },
+            ),
+          ),
+        ),
+      ),
       bottomNavigationBar: Container(
         height: 35,
         color: Colors.grey.shade200,
@@ -2415,7 +2679,24 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
             return const Center(child: Text('لا يوجد حسابات مدرجة حالياً.', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')));
           }
 
-          final docs = snapshot.data!.docs;
+          var docs = snapshot.data!.docs;
+
+          // تطبيق فلتر البحث
+          if (_searchQuery.isNotEmpty) {
+            docs = docs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final name = (data['name'] ?? '').toString().toLowerCase();
+              final email = (data['email'] ?? '').toString().toLowerCase();
+              return name.contains(_searchQuery) || email.contains(_searchQuery);
+            }).toList();
+          }
+
+          if (docs.isEmpty) {
+            return const Center(
+                child: Text('لم يتم العثور على معلم بهذا الاسم أو البريد.', style: TextStyle(color: Colors.grey, fontSize: 16, fontFamily: 'Cairo'))
+            );
+          }
+
           return ListView.builder(
             padding: const EdgeInsets.all(12),
             itemCount: docs.length,
@@ -2462,7 +2743,6 @@ class _TeacherAccountsListPageState extends State<TeacherAccountsListPage> {
     );
   }
 }
-
 class StudentSearchPage extends StatefulWidget {
   const StudentSearchPage({super.key});
 

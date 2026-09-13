@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'add1.dart';
 import 'main.dart'; // ✅ تم إضافة مكتبة عرض الـ SVG
 
 class ProfilePage extends StatefulWidget {
@@ -704,6 +705,10 @@ class _GoogleAccountLinkerPageState extends State<GoogleAccountLinkerPage> {
   }
 }
 
+// ===========================================================================
+// نظام الرصد المحمي ومصحح المفاتيح التلقائي (Auto-Recovery Grade Entry)
+// ===========================================================================
+
 class GradeEntryPage extends StatefulWidget {
   final String stage;
   final String grade;
@@ -725,7 +730,7 @@ class GradeEntryPage extends StatefulWidget {
   });
 
   @override
-  _GradeEntryPageState createState() => _GradeEntryPageState();
+  State<GradeEntryPage> createState() => _GradeEntryPageState();
 }
 
 class _GradeEntryPageState extends State<GradeEntryPage> {
@@ -742,15 +747,56 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     _fetchStudentsAndGrades();
   }
 
+  /// دالة استخراج مفتاح الاختبار (مثل e1, e2, e14)
+  String _extractTestPrefix(String key) {
+    final match = RegExp(r'^(t2_)?e\d+').firstMatch(key);
+    return match != null ? match.group(0)! : '';
+  }
+
+  /// فحص ذكي للبحث عن الدرجات المحفوظة بمفاتيح قديمة واستعادتها
+  dynamic _resolveGradeWithFallback(Map<String, dynamic>? data, String targetKey) {
+    if (data == null) return null;
+
+    // 1. إذا كانت الدرجة موجودة في المفتاح المعتمد
+    if (data.containsKey(targetKey) && data[targetKey] != null) {
+      return data[targetKey];
+    }
+
+    // 2. إذا لم توجد، نبحث في المفاتيح المحتملة القديمة (e1profession1 ... e1profession22)
+    final prefix = _extractTestPrefix(targetKey);
+    if (prefix.isNotEmpty && !targetKey.contains('nafes')) {
+      for (int i = 1; i <= 22; i++) {
+        final legacyKey = '${prefix}profession$i';
+        if (data.containsKey(legacyKey) && data[legacyKey] != null) {
+          // وجدنا الدرجة في حقل قديم للمعلم! نعيدها ونعتمدها
+          return data[legacyKey];
+        }
+      }
+    }
+    return null;
+  }
+
   Future<void> _fetchStudentsAndGrades() async {
     setState(() => _isLoading = true);
     try {
-      final querySnapshot = await _firestore
-          .collection('students')
-          .where('stages', isEqualTo: widget.stage)
-          .where('grades', isEqualTo: widget.grade)
-          .where('classes', isEqualTo: widget.className)
-          .get();
+      // إجبار الجلب من السيرفر مباشرة لكسر الـ Cache القديم في المتصفح
+      QuerySnapshot querySnapshot;
+      try {
+        querySnapshot = await _firestore
+            .collection('students')
+            .where('stages', isEqualTo: widget.stage)
+            .where('grades', isEqualTo: widget.grade)
+            .where('classes', isEqualTo: widget.className)
+            .get(const GetOptions(source: Source.server));
+      } catch (_) {
+        // في حال انقطاع الشبكة يتم الجلب من الكاش كخطة بديلة
+        querySnapshot = await _firestore
+            .collection('students')
+            .where('stages', isEqualTo: widget.stage)
+            .where('grades', isEqualTo: widget.grade)
+            .where('classes', isEqualTo: widget.className)
+            .get();
+      }
 
       var students = querySnapshot.docs;
 
@@ -769,7 +815,9 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       for (var studentDoc in students) {
         final data = studentDoc.data() as Map<String, dynamic>?;
         final studentId = studentDoc.id;
-        grades[studentId] = data?[widget.testFieldKey];
+
+        // تطبيق الاستعادة الذكية للدرجة
+        grades[studentId] = _resolveGradeWithFallback(data, widget.testFieldKey);
 
         likes[studentId] = data?['totalLikes'] ?? 0;
         dislikes[studentId] = data?['totalDislikes'] ?? 0;
@@ -911,12 +959,17 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   Future<void> _saveGrade(String studentId, num grade) async {
     try {
       final studentRef = _firestore.collection('students').doc(studentId);
-      await studentRef.update({ widget.testFieldKey: grade });
+      Map<String, dynamic> updates = {
+        widget.testFieldKey: grade,
+        'lastGradeUpdate': FieldValue.serverTimestamp(),
+      };
+      // Use set with merge to ensure it doesn't fail if document doesn't have the field yet or similar issues
+      await studentRef.set(updates, SetOptions(merge: true));
       setState(() => _grades[studentId] = grade);
       if(mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة بنجاح'),
+              content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة وضمان تثبيتها بنجاح ✅'),
               backgroundColor: grade == -1 ? Colors.blueGrey : Colors.green),
         );
       }
@@ -929,13 +982,25 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
   Future<void> _deleteGrade(String studentId) async {
     try {
+      final prefix = _extractTestPrefix(widget.testFieldKey);
+      Map<String, dynamic> deletes = {
+        widget.testFieldKey: FieldValue.delete()
+      };
+
+      if (prefix.isNotEmpty && !widget.testFieldKey.contains('nafes')) {
+        for (int i = 1; i <= 22; i++) {
+          deletes['${prefix}profession$i'] = FieldValue.delete();
+        }
+      }
+
       final studentRef = _firestore.collection('students').doc(studentId);
-      await studentRef.update({widget.testFieldKey: FieldValue.delete()});
+      await studentRef.update(deletes);
+
       if (mounted) {
         setState(() => _grades[studentId] = null);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('تم الحذف بنجاح'),
+              content: Text('تم حذف الدرجة نهائياً'),
               backgroundColor: Colors.blueAccent),
         );
       }
@@ -1644,24 +1709,14 @@ class TeacherProfileViewPage extends StatelessWidget {
   }
 }
 
-class TestItem {
-  final String testFieldKey;
-  final String name;
-  final String term;
-
-  TestItem({
-    required this.testFieldKey,
-    required this.name,
-    required this.term,
-  });
-}
-
 class TestSelectionPage extends StatelessWidget {
   final String stage;
   final String grade;
   final String className;
   final String subject;
   final String professionKey;
+  final String term;
+  final bool isTermLocked;
   final bool isBehaviorMode;
   final bool isAdmin;
 
@@ -1672,6 +1727,8 @@ class TestSelectionPage extends StatelessWidget {
     required this.className,
     required this.subject,
     required this.professionKey,
+    required this.term,
+    required this.isTermLocked,
     required this.isBehaviorMode,
     required this.isAdmin,
   });
@@ -1689,12 +1746,12 @@ class TestSelectionPage extends StatelessWidget {
 
     if (!isNafesSubject || professionKey != 'profession13') {
       allTests.addAll([
-        TestItem(testFieldKey: 'e1$professionKey', name: 'الاختبار الاول (دوري)', term: 'الترم الأول'),
-        TestItem(testFieldKey: 'e2$professionKey', name: 'الاختبار الثاني (دوري)', term: 'الترم الأول'),
-        TestItem(testFieldKey: 'e3$professionKey', name: 'الاختبار الثالث (دوري)', term: 'الترم الأول'),
-        TestItem(testFieldKey: 'e14$professionKey', name: 'اختبار قبلي', term: 'اختبارات إضافية'),
-        TestItem(testFieldKey: 'e15$professionKey', name: 'اختبار بعدي', term: 'اختبارات إضافية'),
-        TestItem(testFieldKey: 'e16$professionKey', name: 'اختبار احتياطي', term: 'اختبارات إضافية'),
+        TestItem(testFieldKey: 'e1$professionKey', name: 'الاختبار الاول (دوري)', subCategory: 'دوري'),
+        TestItem(testFieldKey: 'e2$professionKey', name: 'الاختبار الثاني (دوري)', subCategory: 'دوري'),
+        TestItem(testFieldKey: 'e3$professionKey', name: 'الاختبار الثالث (دوري)', subCategory: 'دوري'),
+        TestItem(testFieldKey: 'e14$professionKey', name: 'اختبار قبلي', subCategory: 'إضافية'),
+        TestItem(testFieldKey: 'e15$professionKey', name: 'اختبار بعدي', subCategory: 'إضافية'),
+        TestItem(testFieldKey: 'e16$professionKey', name: 'اختبار احتياطي', subCategory: 'إضافية'),
       ]);
     }
 
@@ -1707,14 +1764,14 @@ class TestSelectionPage extends StatelessWidget {
     if (currentSubjectShortcode.isNotEmpty && ((isGrade6 && isScienceMathsLughati) || (isGrade3 && isMathsLughati))) {
       const String nafesBaseKey = 'profession13';
       allTests.addAll([
-        TestItem(testFieldKey: 'e1${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الأول أساسي', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e2${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثاني أساسي', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e5${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثالث ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e6${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الرابع ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e7${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الخامس ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e8${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار السادس ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e9${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار التاسع ف نافس', term: 'اختبارات نافس'),
-        TestItem(testFieldKey: 'e10${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار العاشر ف نافس', term: 'اختبارات نافس'),
+        TestItem(testFieldKey: 'e1${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الأول أساسي', subCategory: 'نافس'),
+        TestItem(testFieldKey: 'e2${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثاني أساسي', subCategory: 'نافس'),
+        TestItem(testFieldKey: 'e5${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الثالث ف نافس', subCategory: 'نافس'),
+        TestItem(testFieldKey: 'e6${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الرابع ف نافس', subCategory: 'نافس'),
+        TestItem(testFieldKey: 'e7${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار الخامس ف نافس', subCategory: 'نافس'),
+        TestItem(testFieldKey: 'e8${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار السادس ف نافس', subCategory: 'نافس'),
+        TestItem(testFieldKey: 'e9${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار التاسع ف نافس', subCategory: 'نافس'),
+        TestItem(testFieldKey: 'e10${nafesBaseKey}_$currentSubjectShortcode', name: 'الاختبار العاشر ف نافس', subCategory: 'نافس'),
       ]);
     }
 
@@ -1737,9 +1794,9 @@ class TestSelectionPage extends StatelessWidget {
 
 
     final allTests = _getTestsForSubject();
-    final term1Tests = allTests.where((t) => t.term == 'الترم الأول').toList();
-    final additionalTests = allTests.where((t) => t.term == 'اختبارات إضافية').toList();
-    final nafsTests = allTests.where((t) => t.term == 'اختبارات نافس').toList();
+    final periodicTests = allTests.where((t) => t.subCategory == 'دوري').toList();
+    final additionalTests = allTests.where((t) => t.subCategory == 'إضافية').toList();
+    final nafsTests = allTests.where((t) => t.subCategory == 'نافس').toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -1748,27 +1805,27 @@ class TestSelectionPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          if (term1Tests.isNotEmpty)
-            _buildTermSection(context, 'الاختبارات الدورية', term1Tests),
+          if (periodicTests.isNotEmpty)
+            _buildTestSection(context, 'الاختبارات الدورية', periodicTests),
 
-          if (term1Tests.isNotEmpty && (additionalTests.isNotEmpty || nafsTests.isNotEmpty))
+          if (periodicTests.isNotEmpty && (additionalTests.isNotEmpty || nafsTests.isNotEmpty))
             const SizedBox(height: 24),
 
           if (additionalTests.isNotEmpty)
-            _buildTermSection(context, 'اختبارات إضافية', additionalTests),
+            _buildTestSection(context, 'اختبارات إضافية', additionalTests),
 
           if (additionalTests.isNotEmpty && nafsTests.isNotEmpty)
             const SizedBox(height: 24),
 
           if (nafsTests.isNotEmpty)
-            _buildTermSection(context, 'اختبارات نافس', nafsTests),
+            _buildTestSection(context, 'اختبارات نافس', nafsTests),
         ],
       ),
     );
   }
 
-  Widget _buildTermSection(BuildContext context, String title, List<TestItem> termTests) {
-    if (termTests.isEmpty) return const SizedBox.shrink();
+  Widget _buildTestSection(BuildContext context, String title, List<TestItem> sectionTests) {
+    if (sectionTests.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1782,12 +1839,13 @@ class TestSelectionPage extends StatelessWidget {
           ),
         ),
         const Divider(),
-        ...termTests.map((test) {
+        ...sectionTests.map((test) {
           return _TestTile(
             test: test,
             isAdmin: isAdmin,
-            onTap: (isLocked) {
-              if (isLocked && !isAdmin) {
+            isTermLocked: isTermLocked,
+            onTap: (isEffectivelyLocked) {
+              if (isEffectivelyLocked && !isAdmin) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('هذا الاختبار مغلق حالياً من قبل الإدارة.')),
                 );
@@ -1818,11 +1876,13 @@ class TestSelectionPage extends StatelessWidget {
 class _TestTile extends StatefulWidget {
   final TestItem test;
   final bool isAdmin;
+  final bool isTermLocked;
   final Function(bool isLocked) onTap;
 
   const _TestTile({
     required this.test,
     required this.isAdmin,
+    required this.isTermLocked,
     required this.onTap,
   });
 
@@ -1909,7 +1969,7 @@ class __TestTileState extends State<_TestTile> {
       );
     }
 
-    final bool isEffectivelyLocked = _isLocked!;
+    final bool isEffectivelyLocked = _isLocked! || widget.isTermLocked;
     final Color iconColor = isEffectivelyLocked ? Colors.grey : Theme.of(context).primaryColor;
     final Color textColor = isEffectivelyLocked ? Colors.grey : Colors.black;
     final bool canTap = !isEffectivelyLocked || widget.isAdmin;

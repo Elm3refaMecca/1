@@ -286,6 +286,9 @@ class QRSessionOverlay extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // الصفحة الرئيسية (Add2Page)
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// الصفحة الرئيسية (Add2Page)
+// ---------------------------------------------------------------------------
 class Add2Page extends StatefulWidget {
   const Add2Page({super.key});
 
@@ -294,6 +297,7 @@ class Add2Page extends StatefulWidget {
 }
 
 class _Add2PageState extends State<Add2Page> {
+
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
   bool _isAdmin = false;
@@ -675,6 +679,15 @@ class _Add2PageState extends State<Add2Page> {
                 },
               ),
               if (_isAdmin) ...[
+                // تم إدراج زر "جدول المدرسة" هنا في مقدمة صلاحيات الأدمن بشكل سليم
+                _AnimatedGridButton(
+                  title: 'جدول المدرسة',
+                  icon: Icons.calendar_view_week_rounded,
+                  color: Colors.blue.shade900,
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminSchoolSchedulePage()));
+                  },
+                ),
                 StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('teacher_schedules')
@@ -836,7 +849,6 @@ class _Add2PageState extends State<Add2Page> {
     );
   }
 }
-
 class _AnimatedGridButton extends StatefulWidget {
   final String title;
   final IconData? icon;
@@ -2747,141 +2759,940 @@ class _AdminReviewSchedulePageState extends State<AdminReviewSchedulePage> {
 class AdminApprovedSchedulesPage extends StatelessWidget {
   const AdminApprovedSchedulesPage({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('الجداول المعتمدة', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.cyan),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('teacher_schedules').where('status', isEqualTo: 'approved').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا توجد جداول معتمدة.', style: TextStyle(fontFamily: 'Cairo')));
+  Future<void> _syncSingleTeacher(BuildContext context, String teacherId, Map<String, dynamic> schedData) async {
+    try {
+      final phase2 = schedData['phase2Data'] as Map<String, dynamic>? ?? {};
+      final teacherName = schedData['teacherName'] ?? 'المعلم';
 
-          final docs = snapshot.data!.docs;
-          return ListView.builder(
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
-              final teacherName = data['teacherName'] ?? 'معلم غير معروف';
+      // استخراج الفصول والمواد من الجدول الفعلي مباشرة (Phase 2)
+      Set<String> uniqueAssignments = {};
+      List<Map<String, String>> assignments = [];
+      Set<String> subjectsFound = {}; // لتحديث حقول المواد في حساب المعلم
 
-              return Card(
-                margin: const EdgeInsets.all(8),
-                child: ListTile(
-                  leading: const Icon(Icons.table_chart, color: Colors.cyan),
-                  title: Text(teacherName, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                  onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(
-                        appBar: AppBar(title: Text('جدول $teacherName', style: const TextStyle(fontFamily: 'Cairo'))),
-                        body: ScheduleViewer(scheduleData: data['phase2Data'])
-                    )));
-                  },
-                ),
-              );
-            },
-          );
+      final List<String> days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+      for (String day in days) {
+        List periods = phase2[day] ?? [];
+        for (var slot in periods) {
+          if (slot['type'] == 'حصة') {
+            String grade = slot['grade']?.toString().trim() ?? '';
+            String className = slot['class']?.toString().trim() ?? '';
+            String subject = slot['subject']?.toString().trim() ?? '';
+            String stage = slot['stage']?.toString().trim() ?? '';
+
+            // معالجة ذكية: إذا كان الجدول قديماً ولا يحتوي على "المرحلة"، نكتشفها من "الصف"
+            if (stage.isEmpty && grade.isNotEmpty) {
+              if (grade.contains('المتوسط')) {
+                stage = 'المرحلة المتوسطة';
+              } else if (grade.contains('الثانوي')) {
+                stage = 'المرحلة الثانوية';
+              } else {
+                stage = 'المرحلة الابتدائية';
+              }
+            }
+
+            if (stage.isNotEmpty && grade.isNotEmpty && className.isNotEmpty && subject.isNotEmpty) {
+              subjectsFound.add(subject);
+              String key = '$stage|$grade|$className|$subject';
+              if (!uniqueAssignments.contains(key)) {
+                uniqueAssignments.add(key);
+                assignments.add({
+                  'stage': stage,
+                  'grade': grade,
+                  'class': className,
+                  'subject': subject,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      if (assignments.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('الجدول الفعلي لـ ($teacherName) لا يحتوي على أي حصص مسندة.', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.orange),
+        );
+        return;
+      }
+
+      final structure = {
+        'المرحلة الابتدائية': {
+          'field': 'stage1',
+          'grades': {
+            'الصف الأول': {'field': 'grade1', 'classField': 'class1'},
+            'الصف الثاني': {'field': 'grade2', 'classField': 'class2'},
+            'الصف الثالث': {'field': 'grade3', 'classField': 'class3'},
+            'الصف الرابع': {'field': 'grade4', 'classField': 'class4'},
+            'الصف الخامس': {'field': 'grade5', 'classField': 'class5'},
+            'الصف السادس': {'field': 'grade6', 'classField': 'class6'},
+          }
         },
+        'المرحلة المتوسطة': {
+          'field': 'stage2',
+          'grades': {
+            'الصف الأول المتوسط': {'field': 'grade11', 'classField': 'class11'},
+            'الصف الثاني المتوسط': {'field': 'grade22', 'classField': 'class22'},
+            'الصف الثالث المتوسط': {'field': 'grade33', 'classField': 'class33'},
+          }
+        },
+        'المرحلة الثانوية': {
+          'field': 'stage3',
+          'grades': {
+            'الصف الأول الثانوي': {'field': 'grade111', 'classField': 'class111'},
+            'الصف الثاني الثانوي': {'field': 'grade222', 'classField': 'class222'},
+            'الصف الثالث الثانوي': {'field': 'grade333', 'classField': 'class333'},
+          }
+        },
+      };
+
+      Map<String, dynamic> updates = {};
+      List<String> fieldsToReset = [
+        'stage1', 'stage2', 'stage3',
+        'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6',
+        'grade11', 'grade22', 'grade33',
+        'grade111', 'grade222', 'grade333',
+        'class1', 'class2', 'class3', 'class4', 'class5', 'class6',
+        'class11', 'class22', 'class33',
+        'class111', 'class222', 'class333'
+      ];
+
+      for (var f in fieldsToReset) {
+        updates[f] = FieldValue.delete();
+      }
+
+      // مسح مواد المعلم القديمة لتحديثها بالمواد الفعلية من الجدول
+      final Map<String, String> subjToKey = {
+        'رياضيات': 'profession1', 'لغتي': 'profession2', 'إسلاميات': 'profession3',
+        'علوم': 'profession4', 'نشاط': 'profession5', 'انجليزي': 'profession6',
+        'اجتماعيات': 'profession7', 'فنية': 'profession8', 'حياتية': 'profession9',
+        'بدنية': 'profession10', 'رقمية': 'profession11', 'تفكير': 'profession12',
+        'قرآن': 'profession14', 'تجويد': 'profession15', 'توحيد': 'profession16',
+        'فقه': 'profession17', 'حديث': 'profession18', 'تفسير': 'profession19',
+        'أخرى': 'profession20', 'روبوت': 'profession21', 'قيم وسلوك': 'profession22',
+      };
+
+      for (var v in subjToKey.values) {
+        updates[v] = FieldValue.delete();
+      }
+
+      // إسناد المواد المكتشفة في الجدول إلى حساب المعلم
+      for (String subj in subjectsFound) {
+        if (subjToKey.containsKey(subj)) {
+          updates[subjToKey[subj]!] = subj;
+        }
+      }
+
+      Map<String, List<String>> classUpdates = {};
+
+      for (var item in assignments) {
+        final stage = item['stage'];
+        final grade = item['grade'];
+        String className = item['class'].toString().trim();
+        if (int.tryParse(className) != null) className = "الفصل $className";
+        final subject = item['subject'];
+
+        final stageInfo = structure[stage];
+        if (stageInfo != null) {
+          updates[stageInfo['field'] as String] = stage;
+          final gradeInfo = (stageInfo['grades'] as Map)[grade];
+          if (gradeInfo != null) {
+            updates[gradeInfo['field'] as String] = grade;
+            String classField = gradeInfo['classField'] as String;
+            String newPair = "$className=$subject";
+            classUpdates.putIfAbsent(classField, () => []).add(newPair);
+          }
+        }
+      }
+
+      classUpdates.forEach((key, list) {
+        updates[key] = list.toSet().join(', ');
+      });
+
+      await FirebaseFirestore.instance.collection('users').doc(teacherId).update(updates);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تمت مزامنة صلاحيات ($teacherName) وتفعيل وصوله للفصول بنجاح ✅', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('حدث خطأ أثناء المزامنة: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _syncAllApprovedSchedules(BuildContext context, List<QueryDocumentSnapshot> docs) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('مزامنة جماعية للجداول', style: TextStyle(fontFamily: 'Cairo')),
+        content: Text('هل تريد مزامنة كافة الجداول المعتمدة (${docs.length} جدول) مع حسابات المعلمين لمنحهم صلاحيات الوصول فوراً؟', style: const TextStyle(fontFamily: 'Cairo')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('نعم، زامن الكل الآن', style: TextStyle(fontFamily: 'Cairo')),
+          ),
+        ],
       ),
     );
-  }
-}
 
-class AdminClassPermissionsPage extends StatelessWidget {
-  const AdminClassPermissionsPage({super.key});
+    if (confirm != true) return;
+
+    int successCount = 0;
+    for (var doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      await _syncSingleTeacher(context, doc.id, data);
+      successCount++;
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('اكتملت المزامنة الجماعية! تم تحديث $successCount جدولاً بنجاح ✅', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('صلاحيات وصول الفصل للمعلمين', style: TextStyle(fontFamily: 'Cairo')),
-        backgroundColor: Colors.redAccent.shade700,
+        title: const Text('الجداول المعتمدة', style: TextStyle(fontFamily: 'Cairo')),
+        backgroundColor: Colors.cyan.shade800,
+        foregroundColor: Colors.white,
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').where('profession', isNotEqualTo: 'admin').snapshots(),
+        stream: FirebaseFirestore.instance.collection('teacher_schedules').where('status', isEqualTo: 'approved').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const Center(child: Text('لا يوجد معلمين على النظام.', style: TextStyle(fontFamily: 'Cairo')));
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text('لا توجد جداول معتمدة حالياً.', style: TextStyle(fontFamily: 'Cairo')));
+          }
 
-          final teachers = snapshot.data!.docs.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return data['profession'] != 'gest';
-          }).toList();
+          final docs = snapshot.data!.docs;
 
-          return ListView.builder(
-            itemCount: teachers.length,
-            padding: const EdgeInsets.all(12),
-            itemBuilder: (context, index) {
-              final doc = teachers[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final teacherName = data['name'] ?? 'معلم';
-              final teacherId = doc.id;
+          return Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                color: Colors.cyan.shade50,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('إجمالي الجداول المعتمدة: ${docs.length}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.cyan.shade900, fontFamily: 'Cairo')),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+                      icon: const Icon(Icons.sync, size: 16),
+                      label: const Text('مزامنة الكل مع الصلاحيات', style: TextStyle(fontSize: 12, fontFamily: 'Cairo')),
+                      onPressed: () => _syncAllApprovedSchedules(context, docs),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: docs.length,
+                  padding: const EdgeInsets.all(8),
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+                    final teacherName = data['teacherName'] ?? 'معلم غير معروف';
+                    final teacherId = docs[index].id;
+                    final p1 = data['phase1Data'] as Map<String, dynamic>?;
+                    final stage = p1?['stage'] ?? '';
 
-              List<String> assignedGradesClasses = [];
-              final classFields = ['class1', 'class2', 'class3', 'class4', 'class5', 'class6', 'class11', 'class22', 'class33', 'class111', 'class222', 'class333'];
-              for (var field in classFields) {
-                if (data[field] != null && data[field].toString().isNotEmpty && data[field] != '0') {
-                  assignedGradesClasses.add("${field.replaceAll('class', 'صف/فصل ')}: ${data[field]}");
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.cyan.shade100,
+                          child: const Icon(Icons.table_chart, color: Colors.cyan),
+                        ),
+                        title: Text(teacherName, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                        subtitle: Text(stage.isNotEmpty ? 'المرحلة: $stage' : 'جدول معتمد', style: const TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.teal.shade50,
+                                foregroundColor: Colors.teal.shade800,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                side: BorderSide(color: Colors.teal.shade200),
+                              ),
+                              icon: const Icon(Icons.sync, size: 14),
+                              label: const Text('مزامنة الصلاحيات', style: TextStyle(fontSize: 11, fontFamily: 'Cairo')),
+                              onPressed: () => _syncSingleTeacher(context, teacherId, data),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.visibility, color: Colors.blueGrey),
+                              tooltip: 'عرض تفاصيل الجدول',
+                              onPressed: () {
+                                Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(
+                                  appBar: AppBar(title: Text('جدول $teacherName', style: const TextStyle(fontFamily: 'Cairo'))),
+                                  body: ScheduleViewer(scheduleData: data['phase2Data'] ?? {}),
+                                )));
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------
+
+class AdminClassPermissionsPage extends StatelessWidget {
+  const AdminClassPermissionsPage({super.key});
+
+  // دالة المزامنة الفردية المباشرة (الموجودة مسبقاً)
+  Future<void> _syncDirectPermissions(BuildContext context, String docId, String teacherName) async {
+    try {
+      final schedDoc = await FirebaseFirestore.instance.collection('teacher_schedules').doc(docId).get();
+      if (!schedDoc.exists || schedDoc.data() == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تعذر العثور على وثيقة الجدول.', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      final sData = schedDoc.data()!;
+      final phase2 = sData['phase2Data'] as Map<String, dynamic>? ?? {};
+
+      // البحث عن الـ UID الفعلي للمعلم سواء كان معرف الوثيقة أو مسجلاً داخلها
+      String targetUid = sData['teacherId']?.toString().trim() ?? docId;
+
+      Set<String> uniqueAssignments = {};
+      List<Map<String, String>> assignments = [];
+      Set<String> subjectsFound = {};
+
+      final List<String> days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+      for (String day in days) {
+        List periods = phase2[day] ?? [];
+        for (var slot in periods) {
+          if (slot['type'] == 'حصة') {
+            String grade = slot['grade']?.toString().trim() ?? '';
+            String className = slot['class']?.toString().trim() ?? '';
+            String subject = slot['subject']?.toString().trim() ?? '';
+            String stage = slot['stage']?.toString().trim() ?? '';
+
+            if (stage.isEmpty && grade.isNotEmpty) {
+              if (grade.contains('المتوسط')) {
+                stage = 'المرحلة المتوسطة';
+              } else if (grade.contains('الثانوي')) {
+                stage = 'المرحلة الثانوية';
+              } else {
+                stage = 'المرحلة الابتدائية';
+              }
+            }
+
+            if (stage.isNotEmpty && grade.isNotEmpty && className.isNotEmpty && subject.isNotEmpty) {
+              subjectsFound.add(subject);
+              String key = '$stage|$grade|$className|$subject';
+              if (!uniqueAssignments.contains(key)) {
+                uniqueAssignments.add(key);
+                assignments.add({
+                  'stage': stage,
+                  'grade': grade,
+                  'class': className,
+                  'subject': subject,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      if (assignments.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('الجدول لـ ($teacherName) لا يحتوي على حصص.', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.orange),
+        );
+        return;
+      }
+
+      final structure = {
+        'المرحلة الابتدائية': {
+          'field': 'stage1',
+          'grades': {
+            'الصف الأول': {'field': 'grade1', 'classField': 'class1'},
+            'الصف الثاني': {'field': 'grade2', 'classField': 'class2'},
+            'الصف الثالث': {'field': 'grade3', 'classField': 'class3'},
+            'الصف الرابع': {'field': 'grade4', 'classField': 'class4'},
+            'الصف الخامس': {'field': 'grade5', 'classField': 'class5'},
+            'الصف السادس': {'field': 'grade6', 'classField': 'class6'},
+          }
+        },
+        'المرحلة المتوسطة': {
+          'field': 'stage2',
+          'grades': {
+            'الصف الأول المتوسط': {'field': 'grade11', 'classField': 'class11'},
+            'الصف الثاني المتوسط': {'field': 'grade22', 'classField': 'class22'},
+            'الصف الثالث المتوسط': {'field': 'grade33', 'classField': 'class33'},
+          }
+        },
+        'المرحلة الثانوية': {
+          'field': 'stage3',
+          'grades': {
+            'الصف الأول الثانوي': {'field': 'grade111', 'classField': 'class111'},
+            'الصف الثاني الثانوي': {'field': 'grade222', 'classField': 'class222'},
+            'الصف الثالث الثانوي': {'field': 'grade333', 'classField': 'class333'},
+          }
+        },
+      };
+
+      Map<String, dynamic> updates = {};
+      List<String> fieldsToReset = [
+        'stage1', 'stage2', 'stage3',
+        'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6',
+        'grade11', 'grade22', 'grade33',
+        'grade111', 'grade222', 'grade333',
+        'class1', 'class2', 'class3', 'class4', 'class5', 'class6',
+        'class11', 'class22', 'class33',
+        'class111', 'class222', 'class333'
+      ];
+      for (var f in fieldsToReset) {
+        updates[f] = FieldValue.delete();
+      }
+
+      final Map<String, String> subjToKey = {
+        'رياضيات': 'profession1', 'لغتي': 'profession2', 'إسلاميات': 'profession3',
+        'علوم': 'profession4', 'نشاط': 'profession5', 'انجليزي': 'profession6',
+        'اجتماعيات': 'profession7', 'فنية': 'profession8', 'حياتية': 'profession9',
+        'بدنية': 'profession10', 'رقمية': 'profession11', 'تفكير': 'profession12',
+        'قرآن': 'profession14', 'تجويد': 'profession15', 'توحيد': 'profession16',
+        'فقه': 'profession17', 'حديث': 'profession18', 'تفسير': 'profession19',
+        'أخرى': 'profession20', 'روبوت': 'profession21', 'قيم وسلوك': 'profession22',
+      };
+
+      for (var v in subjToKey.values) {
+        updates[v] = FieldValue.delete();
+      }
+
+      for (String subj in subjectsFound) {
+        if (subjToKey.containsKey(subj)) {
+          updates[subjToKey[subj]!] = subj;
+        }
+      }
+
+      Map<String, List<String>> classUpdates = {};
+
+      for (var item in assignments) {
+        final stage = item['stage'];
+        final grade = item['grade'];
+        String className = item['class'].toString().trim();
+        if (int.tryParse(className) != null) className = "الفصل $className";
+        final subject = item['subject'];
+
+        final stageInfo = structure[stage];
+        if (stageInfo != null) {
+          updates[stageInfo['field'] as String] = stage;
+          final gradeInfo = (stageInfo['grades'] as Map)[grade];
+          if (gradeInfo != null) {
+            updates[gradeInfo['field'] as String] = grade;
+            String classField = gradeInfo['classField'] as String;
+            String newPair = "$className=$subject";
+            classUpdates.putIfAbsent(classField, () => []).add(newPair);
+          }
+        }
+      }
+
+      classUpdates.forEach((key, list) {
+        updates[key] = list.toSet().join(', ');
+      });
+
+      // كتابة الصلاحيات في جدول users لضمان فتح الصلاحيات
+      await FirebaseFirestore.instance.collection('users').doc(targetUid).set(updates, SetOptions(merge: true));
+      if (targetUid != docId) {
+        await FirebaseFirestore.instance.collection('users').doc(docId).set(updates, SetOptions(merge: true)).catchError((_){});
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تمت مزامنة (${assignments.length}) فصول مع حساب ($teacherName) بنجاح! ✅', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ أثناء المزامنة: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  // دالة لجلب كافة الجداول المعتمدة ومزامنتها إجبارياً
+  Future<void> _fetchAllApprovedAndSync(BuildContext context, List<QueryDocumentSnapshot> schedDocs) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.sync_problem, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('إصلاح المزامنة الشاملة', style: TextStyle(fontFamily: 'Cairo', fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'هل تريد جلب الصلاحيات من جميع الجداول المعتمدة وتطبيقها إجبارياً على حسابات المعلمين؟ (يحل مشكلة عدم ظهور الفصول للمعلم).',
+          style: TextStyle(fontFamily: 'Cairo', height: 1.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('نعم، جلب ومزامنة الكل', style: TextStyle(fontFamily: 'Cairo')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    int successCount = 0;
+    for (var doc in schedDocs) {
+      final data = doc.data() as Map<String, dynamic>;
+      bool success = await _syncTeacherDataSilent(doc.id, data);
+      if (success) successCount++;
+    }
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('اكتملت العملية! تم جلب وتحديث صلاحيات $successCount معلم من الجداول المعتمدة ✅', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+      );
+    }
+  }
+
+  // دالة صامتة لمعالجة المزامنة في الخلفية بدون النوافذ المنبثقة
+  Future<bool> _syncTeacherDataSilent(String docId, Map<String, dynamic> sData) async {
+    try {
+      final phase2 = sData['phase2Data'] as Map<String, dynamic>? ?? {};
+      String targetUid = sData['teacherId']?.toString().trim() ?? docId;
+
+      Set<String> uniqueAssignments = {};
+      List<Map<String, String>> assignments = [];
+      Set<String> subjectsFound = {};
+
+      final List<String> days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+      for (String day in days) {
+        List periods = phase2[day] ?? [];
+        for (var slot in periods) {
+          if (slot['type'] == 'حصة') {
+            String grade = slot['grade']?.toString().trim() ?? '';
+            String className = slot['class']?.toString().trim() ?? '';
+            String subject = slot['subject']?.toString().trim() ?? '';
+            String stage = slot['stage']?.toString().trim() ?? '';
+
+            if (stage.isEmpty && grade.isNotEmpty) {
+              if (grade.contains('المتوسط')) {
+                stage = 'المرحلة المتوسطة';
+              } else if (grade.contains('الثانوي')) {
+                stage = 'المرحلة الثانوية';
+              } else {
+                stage = 'المرحلة الابتدائية';
+              }
+            }
+
+            if (stage.isNotEmpty && grade.isNotEmpty && className.isNotEmpty && subject.isNotEmpty) {
+              subjectsFound.add(subject);
+              String key = '$stage|$grade|$className|$subject';
+              if (!uniqueAssignments.contains(key)) {
+                uniqueAssignments.add(key);
+                assignments.add({
+                  'stage': stage,
+                  'grade': grade,
+                  'class': className,
+                  'subject': subject,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      if (assignments.isEmpty) return false;
+
+      final structure = {
+        'المرحلة الابتدائية': {
+          'field': 'stage1',
+          'grades': {
+            'الصف الأول': {'field': 'grade1', 'classField': 'class1'},
+            'الصف الثاني': {'field': 'grade2', 'classField': 'class2'},
+            'الصف الثالث': {'field': 'grade3', 'classField': 'class3'},
+            'الصف الرابع': {'field': 'grade4', 'classField': 'class4'},
+            'الصف الخامس': {'field': 'grade5', 'classField': 'class5'},
+            'الصف السادس': {'field': 'grade6', 'classField': 'class6'},
+          }
+        },
+        'المرحلة المتوسطة': {
+          'field': 'stage2',
+          'grades': {
+            'الصف الأول المتوسط': {'field': 'grade11', 'classField': 'class11'},
+            'الصف الثاني المتوسط': {'field': 'grade22', 'classField': 'class22'},
+            'الصف الثالث المتوسط': {'field': 'grade33', 'classField': 'class33'},
+          }
+        },
+        'المرحلة الثانوية': {
+          'field': 'stage3',
+          'grades': {
+            'الصف الأول الثانوي': {'field': 'grade111', 'classField': 'class111'},
+            'الصف الثاني الثانوي': {'field': 'grade222', 'classField': 'class222'},
+            'الصف الثالث الثانوي': {'field': 'grade333', 'classField': 'class333'},
+          }
+        },
+      };
+
+      Map<String, dynamic> updates = {};
+      List<String> fieldsToReset = [
+        'stage1', 'stage2', 'stage3',
+        'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6',
+        'grade11', 'grade22', 'grade33',
+        'grade111', 'grade222', 'grade333',
+        'class1', 'class2', 'class3', 'class4', 'class5', 'class6',
+        'class11', 'class22', 'class33',
+        'class111', 'class222', 'class333'
+      ];
+      for (var f in fieldsToReset) {
+        updates[f] = FieldValue.delete();
+      }
+
+      final Map<String, String> subjToKey = {
+        'رياضيات': 'profession1', 'لغتي': 'profession2', 'إسلاميات': 'profession3',
+        'علوم': 'profession4', 'نشاط': 'profession5', 'انجليزي': 'profession6',
+        'اجتماعيات': 'profession7', 'فنية': 'profession8', 'حياتية': 'profession9',
+        'بدنية': 'profession10', 'رقمية': 'profession11', 'تفكير': 'profession12',
+        'قرآن': 'profession14', 'تجويد': 'profession15', 'توحيد': 'profession16',
+        'فقه': 'profession17', 'حديث': 'profession18', 'تفسير': 'profession19',
+        'أخرى': 'profession20', 'روبوت': 'profession21', 'قيم وسلوك': 'profession22',
+      };
+
+      for (var v in subjToKey.values) {
+        updates[v] = FieldValue.delete();
+      }
+
+      for (String subj in subjectsFound) {
+        if (subjToKey.containsKey(subj)) {
+          updates[subjToKey[subj]!] = subj;
+        }
+      }
+
+      Map<String, List<String>> classUpdates = {};
+
+      for (var item in assignments) {
+        final stage = item['stage'];
+        final grade = item['grade'];
+        String className = item['class'].toString().trim();
+        if (int.tryParse(className) != null) className = "الفصل $className";
+        final subject = item['subject'];
+
+        final stageInfo = structure[stage];
+        if (stageInfo != null) {
+          updates[stageInfo['field'] as String] = stage;
+          final gradeInfo = (stageInfo['grades'] as Map)[grade];
+          if (gradeInfo != null) {
+            updates[gradeInfo['field'] as String] = grade;
+            String classField = gradeInfo['classField'] as String;
+            String newPair = "$className=$subject";
+            classUpdates.putIfAbsent(classField, () => []).add(newPair);
+          }
+        }
+      }
+
+      classUpdates.forEach((key, list) {
+        updates[key] = list.toSet().join(', ');
+      });
+
+      await FirebaseFirestore.instance.collection('users').doc(targetUid).set(updates, SetOptions(merge: true));
+      if (targetUid != docId) {
+        await FirebaseFirestore.instance.collection('users').doc(docId).set(updates, SetOptions(merge: true)).catchError((_){});
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('صلاحيات وصول الفصل', style: TextStyle(fontFamily: 'Cairo')),
+        backgroundColor: Colors.redAccent.shade700,
+        foregroundColor: Colors.white,
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('users').where('profession', isNotEqualTo: 'gest').snapshots(),
+        builder: (context, userSnap) {
+          if (userSnap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+          // جلب كل الجداول المعتمدة
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('teacher_schedules').where('status', isEqualTo: 'approved').snapshots(),
+            builder: (context, schedSnap) {
+              if (schedSnap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+
+              final userDocs = userSnap.hasData ? userSnap.data!.docs : <QueryDocumentSnapshot>[];
+              final schedDocs = schedSnap.hasData ? schedSnap.data!.docs : <QueryDocumentSnapshot>[];
+
+              // بناء خريطة الجداول بالـ DocID وبـ teacherId
+              Map<String, Map<String, dynamic>> schedulesMap = {};
+              for (var s in schedDocs) {
+                final d = s.data() as Map<String, dynamic>;
+                schedulesMap[s.id] = d;
+                if (d['teacherId'] != null) {
+                  schedulesMap[d['teacherId'].toString()] = d;
                 }
               }
 
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                child: Padding(
-                  padding: const EdgeInsets.all(14.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(teacherName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87, fontFamily: 'Cairo')),
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                            icon: const Icon(Icons.block, size: 16),
-                            label: const Text('إلغاء الوصول للكل (PIN)', style: TextStyle(fontSize: 12, fontFamily: 'Cairo')),
-                            onPressed: () async {
-                              List<String> fieldsToReset = [
-                                'stage1', 'stage2', 'stage3',
-                                'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6',
-                                'grade11', 'grade22', 'grade33',
-                                'grade111', 'grade222', 'grade333',
-                                'class1', 'class2', 'class3', 'class4', 'class5', 'class6',
-                                'class11', 'class22', 'class33',
-                                'class111', 'class222', 'class333'
-                              ];
-                              Map<String, dynamic> updates = {};
-                              for (var f in fieldsToReset) {
-                                updates[f] = FieldValue.delete();
-                              }
-                              await FirebaseFirestore.instance.collection('users').doc(teacherId).update(updates);
-                              await FirebaseFirestore.instance.collection('teacher_schedules').doc(teacherId).delete().catchError((_){});
+              // بناء قائمة بكل المعلمين
+              Map<String, Map<String, dynamic>> combinedTeachers = {};
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('تم سحب وإلغاء صلاحية الوصول لكافة الفصول للمعلم $teacherName بنجاح.', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
-                              );
-                            },
+              for (var u in userDocs) {
+                final d = u.data() as Map<String, dynamic>;
+                combinedTeachers[u.id] = {
+                  'id': u.id,
+                  'name': d['name'] ?? 'مستخدم',
+                  'profession': d['profession'] ?? 'teacher',
+                  'userData': d,
+                };
+              }
+
+              for (var s in schedDocs) {
+                final d = s.data() as Map<String, dynamic>;
+                String uid = d['teacherId']?.toString() ?? s.id;
+                if (!combinedTeachers.containsKey(uid)) {
+                  combinedTeachers[uid] = {
+                    'id': uid,
+                    'name': d['teacherName'] ?? 'معلم',
+                    'profession': 'teacher',
+                    'userData': <String, dynamic>{},
+                  };
+                }
+              }
+
+              final teacherList = combinedTeachers.values.toList();
+
+              return Column(
+                children: [
+                  // --- شريط جلب الجداول المعتمدة ---
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    color: Colors.orange.shade50,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.cloud_download, color: Colors.orange, size: 24),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'في حال فشل المزامنة، استخدم هذا الزر لجلب الصلاحيات إجبارياً من الجداول المعتمدة.',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange, fontFamily: 'Cairo'),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      if (assignedGradesClasses.isEmpty)
-                        const Text('لا يمتلك هذا المعلم صلاحية وصول لأي فصول حالياً.', style: TextStyle(color: Colors.grey, fontSize: 13, fontFamily: 'Cairo'))
-                      else ...[
-                        const Text('الفصول والمسندات المفتوحة حالياً للرصد:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey, fontFamily: 'Cairo')),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: assignedGradesClasses.map((item) => Chip(
-                            label: Text(item, style: const TextStyle(fontSize: 11, fontFamily: 'Cairo')),
-                            backgroundColor: Colors.grey.shade100,
-                          )).toList(),
-                        )
+                        ),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, elevation: 0),
+                          icon: const Icon(Icons.download, size: 16),
+                          label: const Text('جلب من المعتمدة', style: TextStyle(fontSize: 11, fontFamily: 'Cairo')),
+                          onPressed: () => _fetchAllApprovedAndSync(context, schedDocs),
+                        ),
                       ],
-                    ],
+                    ),
                   ),
-                ),
+
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: teacherList.length,
+                      padding: const EdgeInsets.all(12),
+                      itemBuilder: (context, index) {
+                        final teacher = teacherList[index];
+                        final String teacherId = teacher['id'];
+                        final String teacherName = teacher['name'];
+                        final String profession = teacher['profession'];
+                        final bool isAdmin = profession == 'admin';
+                        final userData = teacher['userData'] as Map<String, dynamic>;
+
+                        final schedData = schedulesMap[teacherId];
+                        final bool hasApprovedSchedule = schedData != null;
+
+                        Set<String> assignedGradesClasses = {};
+
+                        if (hasApprovedSchedule) {
+                          final phase2 = schedData['phase2Data'] as Map<String, dynamic>? ?? {};
+                          final List<String> days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+                          for (String day in days) {
+                            List periods = phase2[day] ?? [];
+                            for (var slot in periods) {
+                              if (slot['type'] == 'حصة') {
+                                final grade = slot['grade']?.toString().trim() ?? '';
+                                final className = slot['class']?.toString().trim() ?? '';
+                                final subject = slot['subject']?.toString().trim() ?? '';
+                                if (grade.isNotEmpty && className.isNotEmpty && subject.isNotEmpty) {
+                                  assignedGradesClasses.add("$grade ($className) - $subject");
+                                }
+                              }
+                            }
+                          }
+                        }
+
+                        if (assignedGradesClasses.isEmpty) {
+                          final classFields = ['class1', 'class2', 'class3', 'class4', 'class5', 'class6', 'class11', 'class22', 'class33', 'class111', 'class222', 'class333'];
+                          for (var field in classFields) {
+                            if (userData[field] != null && userData[field].toString().isNotEmpty && userData[field] != '0') {
+                              assignedGradesClasses.add("${field.replaceAll('class', 'صف/فصل ')}: ${userData[field]}");
+                            }
+                          }
+                        }
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        teacherName + (isAdmin ? ' (إدارة)' : ''),
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black, fontFamily: 'Cairo'),
+                                      ),
+                                    ),
+                                    if (hasApprovedSchedule)
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 4.0),
+                                        child: ElevatedButton.icon(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.teal.shade700,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                                            minimumSize: const Size(0, 32),
+                                          ),
+                                          icon: const Icon(Icons.sync, size: 14),
+                                          label: const Text('جلب ومزامنة', style: TextStyle(fontSize: 11, fontFamily: 'Cairo')),
+                                          onPressed: () => _syncDirectPermissions(context, teacherId, teacherName),
+                                        ),
+                                      ),
+                                    if (isAdmin)
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 4.0),
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.orange.shade700,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                                            minimumSize: const Size(0, 32),
+                                          ),
+                                          onPressed: () async {
+                                            final confirm = await showDialog<bool>(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title: const Text('تأكيد سحب الإدارة', style: TextStyle(fontFamily: 'Cairo')),
+                                                content: Text('هل أنت متأكد من سحب صلاحيات الإدارة (الأدمن) من $teacherName وتحويله إلى معلم عادي؟', style: const TextStyle(fontFamily: 'Cairo')),
+                                                actions: [
+                                                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo'))),
+                                                  ElevatedButton(
+                                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white),
+                                                    onPressed: () => Navigator.pop(ctx, true),
+                                                    child: const Text('نعم، تأكيد', style: TextStyle(fontFamily: 'Cairo')),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                            if (confirm == true) {
+                                              await FirebaseFirestore.instance.collection('users').doc(teacherId).update({'profession': 'teacher'});
+                                              if (context.mounted) {
+                                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم تحويل $teacherName إلى معلم عادي بنجاح.', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green));
+                                              }
+                                            }
+                                          },
+                                          child: const Text('إلغاء أدمن', style: TextStyle(fontSize: 11, fontFamily: 'Cairo')),
+                                        ),
+                                      ),
+                                    ElevatedButton.icon(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                                        minimumSize: const Size(0, 32),
+                                      ),
+                                      icon: const Icon(Icons.block, size: 14),
+                                      label: const Text('إلغاء وصول', style: TextStyle(fontSize: 11, fontFamily: 'Cairo')),
+                                      onPressed: () async {
+                                        List<String> fieldsToReset = [
+                                          'stage1', 'stage2', 'stage3',
+                                          'grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6',
+                                          'grade11', 'grade22', 'grade33',
+                                          'grade111', 'grade222', 'grade333',
+                                          'class1', 'class2', 'class3', 'class4', 'class5', 'class6',
+                                          'class11', 'class22', 'class33',
+                                          'class111', 'class222', 'class333'
+                                        ];
+                                        Map<String, dynamic> updates = {};
+                                        for (var f in fieldsToReset) {
+                                          updates[f] = FieldValue.delete();
+                                        }
+                                        await FirebaseFirestore.instance.collection('users').doc(teacherId).update(updates);
+                                        await FirebaseFirestore.instance.collection('teacher_schedules').doc(teacherId).delete().catchError((_){});
+
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('تم سحب وإلغاء صلاحية الوصول لكافة الفصول للمستخدم $teacherName بنجاح.', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
+                                          );
+                                        }
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                if (assignedGradesClasses.isEmpty)
+                                  const Text('لا يمتلك صلاحية وصول لأي فصول حالياً.', style: TextStyle(color: Colors.black87, fontSize: 13, fontFamily: 'Cairo'))
+                                else ...[
+                                  Row(
+                                    children: [
+                                      const Text('الفصول والمسندات المفتوحة حالياً للرصد:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black, fontFamily: 'Cairo')),
+                                      const SizedBox(width: 6),
+                                      if (hasApprovedSchedule)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade200)),
+                                          child: const Text('جدول معتمد ✅', style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: assignedGradesClasses.map((item) => Chip(
+                                      label: Text(item, style: const TextStyle(fontSize: 11, color: Colors.black, fontFamily: 'Cairo')),
+                                      backgroundColor: Colors.grey.shade200,
+                                    )).toList(),
+                                  )
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           );
@@ -2890,7 +3701,6 @@ class AdminClassPermissionsPage extends StatelessWidget {
     );
   }
 }
-
 class ScheduleViewer extends StatelessWidget {
   final Map<dynamic, dynamic> scheduleData;
   const ScheduleViewer({super.key, required this.scheduleData});
@@ -4630,6 +5440,210 @@ class _VisitEvaluationFormPageState extends State<VisitEvaluationFormPage> {
             Text(label, style: TextStyle(color: isSelected ? Colors.teal.shade900 : Colors.black87, fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontFamily: 'Cairo')),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class AdminSchoolSchedulePage extends StatelessWidget {
+  const AdminSchoolSchedulePage({super.key});
+
+  // دالة تحويل الصف والفصل إلى اختصار جمالي (مثال: 1ب/2)
+  String _getShortClassDisplay(String grade, String cls) {
+    String g = '';
+    if (grade.contains('الأول الابتدائي') || grade == 'الصف الأول') g = '1ب';
+    else if (grade.contains('الثاني الابتدائي') || grade == 'الصف الثاني') g = '2ب';
+    else if (grade.contains('الثالث الابتدائي') || grade == 'الصف الثالث') g = '3ب';
+    else if (grade.contains('الرابع الابتدائي') || grade == 'الصف الرابع') g = '4ب';
+    else if (grade.contains('الخامس الابتدائي') || grade == 'الصف الخامس') g = '5ب';
+    else if (grade.contains('السادس الابتدائي') || grade == 'الصف السادس') g = '6ب';
+    else if (grade.contains('الأول المتوسط')) g = '1م';
+    else if (grade.contains('الثاني المتوسط')) g = '2م';
+    else if (grade.contains('الثالث المتوسط')) g = '3م';
+    else if (grade.contains('الأول الثانوي')) g = '1ث';
+    else if (grade.contains('الثاني الثانوي')) g = '2ث';
+    else if (grade.contains('الثالث الثانوي')) g = '3ث';
+    else g = grade;
+
+    String c = cls.replaceAll('الفصل ', '').trim();
+    return '$g/$c';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<String> days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+
+    return Scaffold(
+      backgroundColor: Colors.grey.shade100,
+      appBar: AppBar(
+        title: const Text('جداول الفصول الدراسية', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.blue.shade900,
+        foregroundColor: Colors.white,
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('teacher_schedules').where('status', isEqualTo: 'approved').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text('لا توجد جداول معتمدة لعرضها.', style: TextStyle(fontFamily: 'Cairo')));
+          }
+
+          // تجميع البيانات بناءً على الفصول (فصل فصل)
+          // Map Structure: ClassKey -> Day -> PeriodIndex (0-6) -> Cell Content
+          Map<String, Map<String, Map<int, String>>> classesSchedule = {};
+
+          for (var doc in snapshot.data!.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final teacherName = data['teacherName'] ?? 'معلم';
+            final phase2 = data['phase2Data'] as Map<String, dynamic>? ?? {};
+
+            for (var day in days) {
+              List periods = phase2[day] ?? [];
+              for (int i = 0; i < 7; i++) {
+                if (i < periods.length) {
+                  var slot = periods[i];
+                  if (slot['type'] == 'حصة') {
+                    final grade = slot['grade'] ?? '';
+                    final className = slot['class'] ?? '';
+                    final subject = slot['subject'] ?? '';
+
+                    if (grade.isNotEmpty && className.isNotEmpty) {
+                      String fullClassKey = '$grade - $className';
+                      String shortClass = _getShortClassDisplay(grade, className);
+
+                      classesSchedule.putIfAbsent(fullClassKey, () => {});
+                      classesSchedule[fullClassKey]!.putIfAbsent(day, () => {});
+
+                      // تجهيز محتوى الخلية (المادة، المعلم، والاختصار الجمالي)
+                      classesSchedule[fullClassKey]![day]![i] = '$subject\nأ. $teacherName\n[$shortClass]';
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          if (classesSchedule.isEmpty) {
+            return const Center(child: Text('لا توجد إسنادات فعلية داخل الجداول.', style: TextStyle(fontFamily: 'Cairo')));
+          }
+
+          // ترتيب الفصول أبجدياً لسهولة التصفح
+          List<String> sortedClassKeys = classesSchedule.keys.toList();
+          sortedClassKeys.sort();
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: sortedClassKeys.length,
+            itemBuilder: (context, index) {
+              String classKey = sortedClassKeys[index];
+              var dayMap = classesSchedule[classKey]!;
+
+              // بناء أعمدة الجدول (اليوم + 7 حصص)
+              List<DataColumn> tableColumns = [
+                const DataColumn(label: Text('اليوم', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'Cairo'))),
+              ];
+              for (int i = 1; i <= 7; i++) {
+                tableColumns.add(
+                  DataColumn(
+                    label: Text('الحصة $i', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontFamily: 'Cairo')),
+                  ),
+                );
+              }
+
+              // بناء صفوف الجدول (5 أيام)
+              List<DataRow> tableRows = days.map((day) {
+                List<DataCell> cells = [
+                  DataCell(
+                    Text(day, style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 12)),
+                  ),
+                ];
+
+                for (int i = 0; i < 7; i++) {
+                  String cellData = dayMap[day]?[i] ?? '-';
+                  bool isEmpty = cellData == '-';
+
+                  cells.add(
+                    DataCell(
+                      Container(
+                        constraints: const BoxConstraints(minWidth: 85, minHeight: 50),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                        margin: const EdgeInsets.symmetric(vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isEmpty ? Colors.transparent : Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(6),
+                          border: isEmpty ? null : Border.all(color: Colors.blue.shade100),
+                        ),
+                        child: Center(
+                          child: Text(
+                            cellData,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: isEmpty ? FontWeight.normal : FontWeight.bold,
+                              color: isEmpty ? Colors.grey.shade400 : Colors.black87,
+                              fontFamily: 'Cairo',
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return DataRow(cells: cells);
+              }).toList();
+
+              return Card(
+                elevation: 4,
+                margin: const EdgeInsets.only(bottom: 24),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // رأس بطاقة الفصل
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade900,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.class_rounded, color: Colors.amber, size: 24),
+                          const SizedBox(width: 10),
+                          Text(
+                            classKey,
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // جدول الحصص
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: DataTable(
+                          headingRowColor: MaterialStateProperty.all(Colors.blue.shade800),
+                          dataRowMaxHeight: 85,
+                          dataRowMinHeight: 60,
+                          headingRowHeight: 45,
+                          columnSpacing: 12,
+                          horizontalMargin: 12,
+                          border: TableBorder.all(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8)),
+                          columns: tableColumns,
+                          rows: tableRows,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
