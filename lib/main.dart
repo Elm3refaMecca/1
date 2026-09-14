@@ -78,20 +78,27 @@ class Subject {
   Subject({required this.name, required this.icon});
 }
 
+// ==========================================
+// 2. الجزء المعدل بالكامل
+// ==========================================
 class TestResultDetail {
   final String testName;
   final num grade;
   final double maxGrade;
   final List<String> specificNotes;
+  final String? answerSheetUrl;
+  final String? teacherName;
 
   TestResultDetail({
     required this.testName,
     required this.grade,
     required this.maxGrade,
     required this.specificNotes,
+    this.answerSheetUrl,
+    this.teacherName,
   });
 }
-
+// --- ما بعده ---
 class TeacherContactInfo {
   final String name;
   final String? phone;
@@ -423,7 +430,9 @@ class _StudentResultsViewState extends State<StudentResultsView> {
         for (var doc in archivesSnap.docs) {
           _archivedDataCache[doc.id] = doc.data();
         }
-
+// ==========================================
+// 1. ما قبله مباشرة (نهاية _fetchArchivedYears)
+// ==========================================
         if (mounted) {
           setState(() {
             _availableYears.addAll(years);
@@ -435,15 +444,18 @@ class _StudentResultsViewState extends State<StudentResultsView> {
     }
   }
 
+// ==========================================
+// 2. الجزء المعدل بالكامل (_fetchTeachers)
+// ==========================================
   Future<void> _fetchTeachers() async {
     try {
       final String studentStage = widget.studentData['stages'] ?? '';
       final String studentGrade = widget.studentData['grades'] ?? '';
       final String studentClass = widget.studentData['classes'] ?? '';
 
+      // جلب جميع المستندات من users بدون شرط فلترة حتى نضمن جلب المعلم حتى لو كان profession فارغاً
       final teachersSnapshot = await FirebaseFirestore.instance
           .collection('users')
-          .where('profession', isNotEqualTo: 'admin')
           .get();
 
       final structure = {
@@ -475,9 +487,15 @@ class _StudentResultsViewState extends State<StudentResultsView> {
 
       for (var doc in teachersSnapshot.docs) {
         final data = doc.data();
-        final String tName = data['name'] ?? 'معلم المادة';
+        if (data['profession'] == 'admin' || data['profession'] == 'gest') continue;
+
+        String tName = (data['name'] ?? data['Name'] ?? '').toString().trim();
+        if (tName.isEmpty) continue;
+        tName = tName.replaceAll(RegExp(r'^أ\s*[:\-]?\s*'), '').trim();
+
         final String? tPhone = data['phone'];
 
+        // 1. المطابقة عبر الهيكل الأساسي (المراحل والصفوف)
         if (structure.containsKey(studentStage)) {
           final stageMap = structure[studentStage]!;
           final gradesMap = stageMap['grades'] as Map<String, dynamic>;
@@ -494,10 +512,12 @@ class _StudentResultsViewState extends State<StudentResultsView> {
               for (var assignment in assignments) {
                 final parts = assignment.split('=');
                 if (parts.length == 2) {
-                  final String cls = parts[0].trim();
+                  String cls = parts[0].trim();
                   final String subj = parts[1].trim();
 
-                  if (cls == studentClass) {
+                  if (int.tryParse(cls) != null) cls = 'الفصل $cls';
+
+                  if (cls == studentClass || cls == studentClass.replaceAll('الفصل ', '')) {
                     _subjectTeachers[subj] = TeacherContactInfo(
                       name: tName,
                       phone: tPhone,
@@ -510,13 +530,32 @@ class _StudentResultsViewState extends State<StudentResultsView> {
             }
           }
         }
+
+        // 2. المطابقة التكميلية عبر حقول التخصصات (profession1 .. profession22)
+        for (int i = 1; i <= 22; i++) {
+          final pVal = data['profession$i'];
+          if (pVal != null && pVal.toString().trim().isNotEmpty) {
+            final subjName = pVal.toString().trim();
+            _subjectTeachers.putIfAbsent(
+              subjName,
+                  () => TeacherContactInfo(
+                name: tName,
+                phone: tPhone,
+                availableTime: "طوال أيام الأسبوع الدراسي",
+                isFound: true,
+              ),
+            );
+          }
+        }
       }
       if (mounted) setState(() {});
     } catch (e) {
       debugPrint("Error fetching teachers: $e");
     }
   }
-
+// ==========================================
+// 1. ما قبله مباشرة (نهاية _getTermFromKey)
+// ==========================================
   int _getTermFromKey(String key) {
     if (key.startsWith('t2_')) return 2;
     if (key.startsWith('e4') || key.startsWith('e5') || key.startsWith('e6')) return 2;
@@ -524,11 +563,13 @@ class _StudentResultsViewState extends State<StudentResultsView> {
     return 1;
   }
 
+// ==========================================
+// 2. الجزء المعدل بالكامل (_buildSubjectAnalyses و _analyzeSubjectGrades)
+// ==========================================
   Map<String, List<AnalysisResult>> _buildSubjectAnalyses(int targetTerm) {
     final Map<String, Map<String, Map<String, dynamic>>> subjectGroupedData = {};
     String studentGrade = _displayData['grades'] ?? widget.studentData['grades'] ?? 'عام';
 
-    // القراءة من الخريطة الأكاديمية المنظمة academic_records إذا توفرت
     final academicRecords = _displayData['academic_records'] as Map<String, dynamic>?;
 
     widget.allTestsMap.forEach((testKey, testInfo) {
@@ -536,10 +577,21 @@ class _StudentResultsViewState extends State<StudentResultsView> {
 
       num? score;
       dynamic evaluation;
+      String? answerSheetUrl;
+      String? actualTeacherName;
 
       final cleanKey = testKey.replaceAll(RegExp(r'profession\d+_?'), '').trim();
 
-      // 1. فحص الحقل المباشر بوثيقة الطالب أولاً
+      if (_displayData['sheet_$testKey'] != null) {
+        answerSheetUrl = _displayData['sheet_$testKey'];
+      }
+      if (_displayData['sheet_teacher_$testKey'] != null && _displayData['sheet_teacher_$testKey'].toString().isNotEmpty) {
+        actualTeacherName = _displayData['sheet_teacher_$testKey'];
+      } else if (_displayData['teacher_$testKey'] != null && _displayData['teacher_$testKey'].toString().isNotEmpty) {
+        actualTeacherName = _displayData['teacher_$testKey'];
+      }
+
+      // 1. فحص الحقل المباشر بوثيقة الطالب
       if (_displayData.containsKey(testKey) && _displayData[testKey] is num) {
         score = _displayData[testKey];
         if (_displayData.containsKey('eval_$testKey')) {
@@ -547,30 +599,56 @@ class _StudentResultsViewState extends State<StudentResultsView> {
         }
       }
 
-      // 2. فحص السجل المنظم academic_records (بالمفتاح النظيف أو الكامل)
-      if (score == null && academicRecords != null && academicRecords.containsKey(testInfo.subject)) {
+      // 2. فحص السجل المنظم academic_records
+      if (academicRecords != null && academicRecords.containsKey(testInfo.subject)) {
         final subjMap = academicRecords[testInfo.subject] as Map<String, dynamic>?;
         if (subjMap != null) {
           final testData = (subjMap[cleanKey] ?? subjMap[testKey]) as Map<String, dynamic>?;
-          if (testData != null && testData['score'] != null && testData['score'] is num) {
-            score = testData['score'];
-            evaluation = testData['evaluation'];
+          if (testData != null) {
+            if (score == null && testData['score'] != null && testData['score'] is num) {
+              score = testData['score'];
+              evaluation = testData['evaluation'];
+            }
+            if (testData['answerSheetUrl'] != null && testData['answerSheetUrl'].toString().isNotEmpty) {
+              answerSheetUrl = testData['answerSheetUrl'];
+            }
+            if (actualTeacherName == null) {
+              actualTeacherName = testData['uploaderTeacherName'] ?? testData['teacherName'];
+            }
           }
         }
       }
 
-      // 3. إدراج النتيجة داخل الخريطة التجميعية
+      // 3. التحقق الاحتياطي من خريطة معلمي المادة
+      if (actualTeacherName == null || actualTeacherName.isEmpty || actualTeacherName == 'غير مسجل') {
+        final fallbackTeacher = _subjectTeachers[testInfo.subject]?.name;
+        if (fallbackTeacher != null && fallbackTeacher.isNotEmpty) {
+          actualTeacherName = fallbackTeacher;
+        }
+      }
+
       if (score != null) {
         subjectGroupedData.putIfAbsent(testInfo.subject, () => {});
         subjectGroupedData[testInfo.subject]!.putIfAbsent(
             testInfo.testGroup,
-                () => {'grades': <String, num>{}, 'evaluations': <String, dynamic>{}}
+                () => {
+              'grades': <String, num>{},
+              'evaluations': <String, dynamic>{},
+              'sheets': <String, String>{},
+              'teachers': <String, String>{},
+            }
         );
 
         (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['grades'] as Map<String, num>)[testInfo.key] = score;
 
         if (evaluation != null) {
           (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['evaluations'] as Map<String, dynamic>)[testInfo.key] = evaluation;
+        }
+        if (answerSheetUrl != null) {
+          (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['sheets'] as Map<String, String>)[testInfo.key] = answerSheetUrl;
+        }
+        if (actualTeacherName != null) {
+          (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['teachers'] as Map<String, String>)[testInfo.key] = actualTeacherName;
         }
       }
     });
@@ -582,6 +660,8 @@ class _StudentResultsViewState extends State<StudentResultsView> {
       groups.forEach((groupNameKey, data) {
         final gradesMap = data['grades'] as Map<String, num>;
         final evaluationsMap = data['evaluations'] as Map<String, dynamic>;
+        final sheetsMap = (data['sheets'] as Map<String, String>?) ?? {};
+        final teachersMap = (data['teachers'] as Map<String, String>?) ?? {};
 
         String displayGroupName = groupNameKey;
         double maxG = 20.0;
@@ -596,6 +676,8 @@ class _StudentResultsViewState extends State<StudentResultsView> {
             grade: studentGrade,
             testResults: gradesMap,
             evaluations: evaluationsMap,
+            sheetsMap: sheetsMap,
+            teachersMap: teachersMap,
             maxGrade: maxG,
           ));
         }
@@ -635,6 +717,8 @@ class _StudentResultsViewState extends State<StudentResultsView> {
     required String grade,
     required Map<String, num> testResults,
     required Map<String, dynamic> evaluations,
+    required Map<String, String> sheetsMap,
+    required Map<String, String> teachersMap,
     required double maxGrade,
   }) {
     final sortedTests = testResults.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
@@ -646,6 +730,9 @@ class _StudentResultsViewState extends State<StudentResultsView> {
 
     for (var entry in sortedTests) {
       List<String> specificNotes = [];
+      String? sheetUrl = sheetsMap[entry.key];
+      String? teacherName = teachersMap[entry.key];
+
       if (evaluations.containsKey(entry.key)) {
         final evalData = evaluations[entry.key];
         if (evalData is Map) {
@@ -662,6 +749,12 @@ class _StudentResultsViewState extends State<StudentResultsView> {
             else if (sev == 'متوسطة' && maxSeverity != 'مرتفعة') maxSeverity = 'متوسطة';
             else if (sev == 'منخفضة' && maxSeverity == 'غير محدد') maxSeverity = 'منخفضة';
           }
+          if (sheetUrl == null && evalData['answerSheetUrl'] != null) {
+            sheetUrl = evalData['answerSheetUrl'];
+          }
+          if (teacherName == null && evalData['teacherName'] != null) {
+            teacherName = evalData['teacherName'];
+          }
         }
       }
       final testInfo = widget.allTestsMap[entry.key];
@@ -670,6 +763,8 @@ class _StudentResultsViewState extends State<StudentResultsView> {
         grade: entry.value,
         maxGrade: (testInfo?.key.contains('profession13') == true || testInfo?.key.contains('nafes') == true) ? 10.0 : 20.0,
         specificNotes: specificNotes,
+        answerSheetUrl: sheetUrl,
+        teacherName: teacherName,
       ));
     }
 
@@ -765,8 +860,10 @@ class _StudentResultsViewState extends State<StudentResultsView> {
     );
   }
 
-  Widget _buildYearSelector() {
-    if (_availableYears.length <= 1) return const SizedBox.shrink();
+// ==========================================
+// 3. ما بعده مباشرة (بداية _buildYearSelector)
+// ==========================================
+  Widget _buildYearSelector() {    if (_availableYears.length <= 1) return const SizedBox.shrink();
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -890,6 +987,9 @@ class _StudentResultsViewState extends State<StudentResultsView> {
     );
   }
 
+// ==========================================
+// 2. الجزء الكامل المعدل (استبدل هذا المقطع بالكامل)
+// ==========================================
   Widget _buildTermView(int term, Map<String, List<AnalysisResult>> analyses, List<OverallSubjectMetric> metrics) {
     if (analyses.isEmpty) {
       return Center(
@@ -1031,6 +1131,212 @@ class DetailedSubjectCard extends StatelessWidget {
     }
   }
 
+  /// دالة تحميل ورقة الإجابة
+  Future<void> _downloadImage(BuildContext context, String imageUrl, String testTitle) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('جاري بدء تحميل ورقة الإجابة...', style: TextStyle(fontFamily: 'Cairo')),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      final fileName = 'ورقة_إجابة_${testTitle.replaceAll(' ', '_')}.jpg';
+
+      if (kIsWeb) {
+        final anchor = html.AnchorElement(href: imageUrl)
+          ..target = '_blank'
+          ..download = fileName;
+        html.document.body?.append(anchor);
+        anchor.click();
+        anchor.remove();
+      } else {
+        final response = await http.get(Uri.parse(imageUrl));
+        final bytes = response.bodyBytes;
+        final dir = await getApplicationDocumentsDirectory();
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsBytes(bytes);
+        await OpenFilex.open(file.path);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('فشل التحميل: $e', style: const TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+// --- الجزء المعدل بالكامل ---
+  /// نافذة عرض ورقة الإجابة بملء الشاشة مع التكبير/التصغير والتحميل والإغلاق
+  void _showAnswerSheetViewer(BuildContext context, String imageUrl, String testName, String? teacherName) {
+    showGeneralDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.92),
+      barrierDismissible: true,
+      barrierLabel: 'إغلاق',
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        final transformationController = TransformationController();
+
+        return Material(
+          color: Colors.transparent,
+          child: SafeArea(
+            child: Stack(
+              children: [
+                // الصورة التفاعلية مع دعم التكبير والتبعيد والسحب
+                Positioned.fill(
+                  child: Center(
+                    child: InteractiveViewer(
+                      transformationController: transformationController,
+                      minScale: 0.5,
+                      maxScale: 5.0,
+                      boundaryMargin: const EdgeInsets.all(60),
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (ctx, child, progress) {
+                          if (progress == null) return child;
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 3,
+                            ),
+                          );
+                        },
+                        errorBuilder: (ctx, error, stackTrace) => const Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.broken_image_rounded, size: 70, color: Colors.white54),
+                              SizedBox(height: 12),
+                              Text(
+                                'تعذر تحميل ورقة الإجابة',
+                                style: TextStyle(color: Colors.white70, fontFamily: 'Cairo', fontSize: 16),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // الشريط العلوي للأزرار
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  right: 16,
+                  child: Row(
+                    children: [
+                      // زر الإغلاق
+                      IconButton(
+                        style: IconButton.styleFrom(backgroundColor: Colors.black45),
+                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                        tooltip: 'إغلاق',
+                        onPressed: () => Navigator.pop(dialogContext),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'ورقة إجابة: $testName',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'Cairo',
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // زر إعادة الضبط للحجم الطبيعي
+                      IconButton(
+                        style: IconButton.styleFrom(backgroundColor: Colors.black45),
+                        icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 24),
+                        tooltip: 'الحجم الافتراضي',
+                        onPressed: () {
+                          transformationController.value = Matrix4.identity();
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      // زر التنزيل والتحميل
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade700,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        ),
+                        icon: const Icon(Icons.download_rounded, size: 18),
+                        label: const Text('تحميل', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                        onPressed: () => _downloadImage(dialogContext, imageUrl, testName),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // شريط تلميحي سفلي مع اسم المعلم
+                Positioned(
+                  bottom: 20,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (teacherName != null && teacherName.isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.indigo.shade800.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.indigo.shade400),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.person, color: Colors.white, size: 18),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'مُرسلة من: ${teacherName == 'معلم المادة' || teacherName == 'غير مسجل' ? teacherName : 'أ. $teacherName'}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.zoom_in, color: Colors.white70, size: 16),
+                              SizedBox(width: 6),
+                              Text(
+                                'يمكنك استخدام إصبعين للتقريب والتبعيد أو السحب للتحريك',
+                                style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: 'Cairo'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final statusColor = analysis.percentage >= 0.85 ? Colors.green : (analysis.percentage >= 0.6 ? Colors.blue : Colors.red);
@@ -1091,10 +1397,23 @@ class DetailedSubjectCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+// ==========================================
+// 1. ما قبله مباشرة
+// ==========================================
                 const Text("📝 سجل الدرجات والملاحظات:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Cairo')),
                 const SizedBox(height: 10),
 
+// ==========================================
+// 2. الكتلة الكاملة المعدلة
+// ==========================================
                 ...analysis.detailedTestResults.map((detail) {
+                  final bool hasAnswerSheet = detail.answerSheetUrl != null && detail.answerSheetUrl!.isNotEmpty;
+                  final String teacherDisplayName = (detail.teacherName != null && detail.teacherName!.isNotEmpty)
+                      ? detail.teacherName!
+                      : (teacherInfo?.name != null && teacherInfo!.name.isNotEmpty)
+                      ? teacherInfo!.name
+                      : 'معلم المادة المعتمد';
+
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(12),
@@ -1110,6 +1429,9 @@ class DetailedSubjectCard extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(detail.testName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
+// ==========================================
+// 1. ما قبله مباشرة
+// ==========================================
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
@@ -1117,14 +1439,118 @@ class DetailedSubjectCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(color: Colors.grey.shade300),
                               ),
-                              child: Text("${detail.grade} / ${detail.maxGrade.toInt()}", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
+                              child: Text(
+                                detail.grade == -1 ? "غائب" : "${detail.grade} / ${detail.maxGrade.toInt()}",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  color: detail.grade == -1 ? Colors.red.shade700 : Colors.black87,
+                                  fontFamily: 'Cairo',
+                                ),
+                              ),
                             ),
                           ],
                         ),
+
+// ==========================================
+// 2. الجزء المعدل بالكامل (زر الورقة + اسم المعلم الموثق)
+// ==========================================
+                        if (hasAnswerSheet) ...[
+                          const SizedBox(height: 8),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Builder(
+                              builder: (context) {
+                                // جلب اسم المعلم مع توفير قيمة بديلة ذكية في حال كان السجل قديماً
+                                String rawTeacherName = detail.teacherName ?? teacherInfo?.name ?? 'معلم المادة';
+
+                                // تنظيف الاسم من أي إضافات عشوائية (مثل "أ:" أو "أ." أو "أ ")
+                                String cleanTeacherName = rawTeacherName.replaceAll(RegExp(r'^أ\s*[:\-.]?\s*'), '').trim();
+
+                                return Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    InkWell(
+                                      onTap: () => _showAnswerSheetViewer(
+                                        context,
+                                        detail.answerSheetUrl!,
+                                        detail.testName,
+                                        cleanTeacherName,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: Colors.indigo.shade50,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.indigo.shade200),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.photo_size_select_actual_outlined, size: 16, color: Colors.indigo.shade800),
+                                            const SizedBox(width: 6),
+                                            const Text(
+                                              'عرض ورقة الإجابة المرصودة (تكبير وتحميل)',
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF1A237E),
+                                                fontFamily: 'Cairo',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    // شريط اسم المعلم أسفل الزر مباشرة كما يظهر في الصورة
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.indigo.shade600,
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text(
+                                            'مُرسلة من المعلم: ',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                              fontFamily: 'Cairo',
+                                            ),
+                                          ),
+                                          Text(
+                                            'أ. $cleanTeacherName',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w900,
+                                              color: Colors.white,
+                                              fontFamily: 'Cairo',
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          const Icon(Icons.person, size: 14, color: Colors.white),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+
+                        // ==========================================
+// 3. ما بعده مباشرة
+// ==========================================
                         if (detail.specificNotes.isNotEmpty) ...[
                           const SizedBox(height: 8),
-                          const Divider(height: 1),
-                          const SizedBox(height: 8),
+                          const Divider(height: 1),                          const SizedBox(height: 8),
                           ...detail.specificNotes.map((note) => Padding(
                             padding: const EdgeInsets.only(bottom: 4.0),
                             child: Row(
@@ -1136,12 +1562,15 @@ class DetailedSubjectCard extends StatelessWidget {
                               ],
                             ),
                           )),
-                        ]
+                        ],
                       ],
                     ),
                   );
                 }),
 
+// ==========================================
+// 3. ما بعده مباشرة
+// ==========================================
                 const SizedBox(height: 20),
 
                 if (analysis.predictedNextGrade != null)
@@ -1331,7 +1760,6 @@ class DetailedSubjectCard extends StatelessWidget {
     ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.1, end: 0);
   }
 }
-
 // ===========================================================================
 // TEACHER EXCELLENCE AWARD HUB & PAGES
 // ===========================================================================

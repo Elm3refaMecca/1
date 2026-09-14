@@ -825,7 +825,7 @@ class __TestTileState extends State<_TestTile> {
 }
 
 // ===========================================================================
-// منظومة الرصد السريع المباشر ومسح أوراق الإجابة ضوئياً (Fast Grading & Scanner)
+// منظومة الرصد السريع المباشر وتصوير ورقة الإجابة للويب (GradeEntryPage)
 // ===========================================================================
 
 class GradeEntryPage extends StatefulWidget {
@@ -861,7 +861,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   final Map<String, int> _likes = {};
   final Map<String, int> _dislikes = {};
 
-  // حالات مسح ورفع أوراق الإجابة
+  // حالات تصوير ورفع أوراق الإجابة
   final Map<String, bool> _isScanningMap = {};
   final Map<String, String> _answerSheetUrls = {};
 
@@ -1022,7 +1022,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         likes[studentId] = studentData['totalLikes'] ?? 0;
         dislikes[studentId] = studentData['totalDislikes'] ?? 0;
 
-        // 1. القراءة من الخريطة المجمعة السريعة إذا وجدت
+        // 1. الفحص من academic_records
         final academicRecords = studentData['academic_records'] as Map<String, dynamic>?;
         if (academicRecords != null && academicRecords.containsKey(widget.subject)) {
           final subjRecord = academicRecords[widget.subject] as Map<String, dynamic>?;
@@ -1039,7 +1039,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           }
         }
 
-        // 2. القراءة من الـ sub-collection كمرجع أساسي
+        // 2. الفحص من grades_records sub-collection
         final gradeSnap = await _getGradeDocRef(studentId).get();
         if (gradeSnap.exists && gradeSnap.data() != null) {
           final gData = gradeSnap.data() as Map<String, dynamic>;
@@ -1051,7 +1051,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           return;
         }
 
-        // 3. Fallback للقراءة المباشرة من الحقل لضمان عدم ضياع ما تم رصده مسبقاً
+        // 3. Fallback للقراءة المباشرة
         grades[studentId] = studentData[widget.testFieldKey];
         evaluations[studentId] = studentData['eval_${widget.testFieldKey}'];
         if (studentData['sheet_${widget.testFieldKey}'] != null) {
@@ -1191,25 +1191,50 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           }
         });
       }
+// ==========================================
+// 1. ما قبله مباشرة
+// ==========================================
     } catch (e) {
       debugPrint("Error saving grade: $e");
     }
   }
 
-  /// مسح ورقة الإجابة ضوئياً ورفعها لـ Firebase Storage
+// ==========================================
+// 2. الكتلة الكاملة المعدلة للكاميرا الحية وتوثيق اسم المعلم
+// ==========================================
   Future<void> _scanAndUploadAnswerSheet(String studentId) async {
     try {
-      List<String>? pictures = await CunningDocumentScanner.getPictures();
-      if (pictures == null || pictures.isEmpty) return;
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+      );
+
+      if (image == null) return;
 
       setState(() => _isScanningMap[studentId] = true);
 
-      final File file = File(pictures.first);
+      final Uint8List fileBytes = await image.readAsBytes();
+
+// ==========================================
+// 2. الجزء المعدل بالكامل (إلزام جلب اسم المعلم الحالي وحفظه)
+// ==========================================
+      // جلب الاسم الدقيق والصريح للمعلم الذي التقط الصورة حالياً
+      final currentUser = FirebaseAuth.instance.currentUser;
+      String currentTeacherName = 'المعلم';
+      if (currentUser != null) {
+        final tDoc = await _firestore.collection('users').doc(currentUser.uid).get();
+        if (tDoc.exists && tDoc.data() != null) {
+          currentTeacherName = (tDoc.data()?['name'] ?? tDoc.data()?['Name'] ?? 'المعلم').toString().trim();
+          currentTeacherName = currentTeacherName.replaceAll(RegExp(r'^أ\s*[:\-]?\s*'), '').trim();
+        }
+      }
+
       final storagePath = 'answer_sheets/${widget.testFieldKey}/$studentId.jpg';
       final storageRef = FirebaseStorage.instance.ref().child(storagePath);
 
-      final uploadTask = await storageRef.putFile(
-        file,
+      final uploadTask = await storageRef.putData(
+        fileBytes,
         SettableMetadata(contentType: 'image/jpeg'),
       );
       final downloadUrl = await uploadTask.ref.getDownloadURL();
@@ -1220,16 +1245,19 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       final studentRef = _firestore.collection('students').doc(studentId);
       batch.set(studentRef, {
         'sheet_${widget.testFieldKey}': downloadUrl,
+        'sheet_teacher_${widget.testFieldKey}': currentTeacherName,
+        'teacher_${widget.testFieldKey}': currentTeacherName,
         'academic_records.${widget.subject}.$cleanTestKey.answerSheetUrl': downloadUrl,
+        'academic_records.${widget.subject}.$cleanTestKey.uploaderTeacherName': currentTeacherName,
       }, SetOptions(merge: true));
 
       final gradeRef = _getGradeDocRef(studentId);
       batch.set(gradeRef, {
         'answerSheetUrl': downloadUrl,
+        'uploaderTeacherName': currentTeacherName,
       }, SetOptions(merge: true));
 
       await batch.commit();
-
       if (mounted) {
         setState(() {
           _answerSheetUrls[studentId] = downloadUrl;
@@ -1237,7 +1265,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('تم مسح ورقة الإجابة ورفعها بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')),
+            content: Text('تم تصوير ورقة الإجابة وتوثيق اسم المعلم بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')),
             backgroundColor: Colors.green,
           ),
         );
@@ -1247,7 +1275,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         setState(() => _isScanningMap[studentId] = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('فشل المسح أو الرفع: $e', style: const TextStyle(fontFamily: 'Cairo')),
+            content: Text('فشل التصوير أو الرفع: $e', style: const TextStyle(fontFamily: 'Cairo')),
             backgroundColor: Colors.red,
           ),
         );
@@ -1255,8 +1283,10 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  Widget _buildInlineGradingTrailing(String studentId) {
-    final bool isFlashing = _savedFlashMap[studentId] == true;
+// ==========================================
+// 3. ما بعده مباشرة
+// ==========================================
+  Widget _buildInlineGradingTrailing(String studentId) {    final bool isFlashing = _savedFlashMap[studentId] == true;
     final bool isUploading = _isScanningMap[studentId] == true;
     final bool hasSheet = _answerSheetUrls[studentId] != null;
     final controller = _controllers[studentId];
@@ -1304,7 +1334,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           ),
         ),
         const SizedBox(width: 6),
-        // زر الكاميرا لمسح ورقة الإجابة
+        // زر الكاميرا لتصوير ورقة الإجابة
         SizedBox(
           width: 36,
           height: 36,
@@ -1320,7 +1350,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
               color: hasSheet ? Colors.green : Colors.grey.shade600,
               size: 22,
             ),
-            tooltip: hasSheet ? 'تم إرفاق ورقة الإجابة' : 'مسح ورقة الإجابة ضوئياً',
+            tooltip: hasSheet ? 'تم إرفاق ورقة الإجابة' : 'تصوير ورقة الإجابة',
             onPressed: () => _scanAndUploadAnswerSheet(studentId),
           ),
         ),
@@ -1895,6 +1925,10 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     );
   }
 }
+
+// ===========================================================================
+// بداية كلاس OnlineStudentsPage التالية في الملف
+// ===========================================================================
 
 class OnlineStudentsPage extends StatelessWidget {
   const OnlineStudentsPage({super.key});
