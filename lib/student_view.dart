@@ -242,6 +242,46 @@ class _StudentViewPageState extends State<StudentViewPage>
     }
   }
 
+  /// دمج الدرجات من السجل المنظم الجديد (grades_record) مع الحقول الفردية لضمان قراءة كاملة
+  Map<String, dynamic> _normalizeStudentGrades(Map<String, dynamic> rawData) {
+    final Map<String, dynamic> normalized = Map<String, dynamic>.from(rawData);
+
+    if (rawData.containsKey('grades_record') && rawData['grades_record'] is Map) {
+      final gradesRecord = rawData['grades_record'] as Map<String, dynamic>;
+
+      gradesRecord.forEach((subject, testsMap) {
+        if (testsMap is Map) {
+          testsMap.forEach((testKey, testDetails) {
+            num? score;
+            Map<String, dynamic>? eval;
+
+            if (testDetails is Map) {
+              score = testDetails['score'] as num?;
+              if (testDetails['eval'] is Map) {
+                eval = Map<String, dynamic>.from(testDetails['eval']);
+              }
+            } else if (testDetails is num) {
+              score = testDetails;
+            }
+
+            if (score != null) {
+              for (var entry in _allTestsMap.entries) {
+                if (entry.value.subject == subject && entry.key.startsWith(testKey.toString())) {
+                  normalized[entry.key] = score;
+                  if (eval != null) {
+                    normalized['eval_${entry.key}'] = eval;
+                  }
+                  break;
+                }
+              }
+            }
+          });
+        }
+      });
+    }
+    return normalized;
+  }
+
   Future<void> _fetchStudentData() async {
     final studentDocumentId = _isTeacherView
         ? widget.studentId
@@ -259,8 +299,9 @@ class _StudentViewPageState extends State<StudentViewPage>
         .snapshots()
         .listen((docSnapshot) {
       if (mounted && docSnapshot.exists) {
+        final raw = docSnapshot.data() as Map<String, dynamic>? ?? {};
         setState(() {
-          _studentData = docSnapshot.data();
+          _studentData = _normalizeStudentGrades(raw);
           _studentDocId = docSnapshot.id;
           _isLoading = false;
         });
@@ -1235,14 +1276,13 @@ class _StudentViewPageState extends State<StudentViewPage>
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-// استبدل هذا الجزء داخل البيلدر الخاص بـ StreamBuilder
+
         final docs = snapshot.data!.docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
-
-          // التعديل الحاسم: الشكوى لا تظهر لولي الأمر إلا إذا كانت موجهة له صراحة (وليس للإدارة أو الموجه أو غير محددة)
           final targetRole = data['targetRole']?.toString().trim();
-          if (targetRole != 'ولي الأمر') return false;
-
+          if (targetRole != null && targetRole.isNotEmpty && targetRole != 'ولي الأمر') {
+            return false;
+          }
           return data['type'] == 'dislike' || data.containsKey('teacherNote');
         }).toList();
 
@@ -1570,7 +1610,7 @@ class _StudentViewPageState extends State<StudentViewPage>
 }
 
 // ===========================================================================
-// وحدة سجل الحضور والدروس الفائتة الأكاديمي المربوطة بالسبورة الذكية والتحضير
+// وحدة سجل الحضور والدروس الفائتة الأكاديمي
 // ===========================================================================
 
 class StudentAttendanceGridPage extends StatelessWidget {
@@ -1645,7 +1685,6 @@ class StudentAttendanceGridPage extends StatelessWidget {
                 _buildAttendanceHeader(studentData['name'] ?? 'الطالب'),
                 const SizedBox(height: 16),
 
-                // ملخص إحصائي شامل وبسيط
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -3103,6 +3142,10 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> {
   }
 }
 
+// ===========================================================================
+// صفحة الشهادات والتقدير والتحليل التراكمي المحدثة
+// ===========================================================================
+
 class StudentCertificatesPage extends StatefulWidget {
   final Map<String, dynamic> studentData;
   final String studentId;
@@ -3159,64 +3202,106 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
     }
   }
 
+  /// حساب نسبة الترم بدقة عبر دمج السجل المنظم الجديد والحقول القياسية
   double _calculateTermPercentage(Map<String, dynamic> data, int term) {
-    final Map<String, String> standardSubjects = {
-      'profession1': 'رياضيات',
-      'profession2': 'لغتي',
-      'profession3': 'إسلاميات',
-      'profession4': 'علوم',
-      'profession5': 'نشاط',
-      'profession6': 'انجليزي',
-      'profession7': 'اجتماعيات',
-      'profession8': 'فنية',
-      'profession9': 'حياتية',
-      'profession10': 'بدنية',
-      'profession11': 'رقمية',
-      'profession12': 'تفكير',
-      'profession14': 'قرآن',
-      'profession15': 'تجويد',
-      'profession16': 'توحيد',
-      'profession17': 'فقه',
-      'profession18': 'حديث',
-      'profession19': 'تفسير',
-      'profession20': 'أخرى',
-      'profession21': 'روبوت',
-      'profession22': 'قيم وسلوك',
-    };
-
     List<double> subjectPercents = [];
 
-    standardSubjects.forEach((profKey, subjName) {
-      List<num> grades = [];
-      int startIdx = term == 1 ? 1 : 4;
-      int endIdx = term == 1 ? 3 : 6;
-      for (int i = startIdx; i <= endIdx; i++) {
-        String key = 'e$i$profKey';
-        if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
-      }
-      int eStart = term == 1 ? 14 : 17;
-      int eEnd = term == 1 ? 16 : 19;
-      for (int i = eStart; i <= eEnd; i++) {
-        String key = 'e$i$profKey';
-        if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
-      }
+    // 1. القراءة من السجل المنظم الجديد إذا كان متوفراً
+    if (data.containsKey('grades_record') && data['grades_record'] is Map) {
+      final records = data['grades_record'] as Map<String, dynamic>;
+      records.forEach((subject, testsMap) {
+        if (testsMap is Map) {
+          List<num> validGrades = [];
+          double maxPossible = 20.0;
 
-      if (grades.isNotEmpty) {
-        double avg = grades.reduce((a, b) => a + b) / grades.length;
-        subjectPercents.add((avg / 20) * 100);
-      }
-    });
+          testsMap.forEach((testKey, testInfo) {
+            String keyStr = testKey.toString();
+            bool isTerm1 = keyStr.startsWith('e1') || keyStr.startsWith('e2') || keyStr.startsWith('e3') ||
+                keyStr.startsWith('e14') || keyStr.startsWith('e15') || keyStr.startsWith('e16');
+            bool isTerm2 = keyStr.startsWith('t2_') || keyStr.startsWith('e4') || keyStr.startsWith('e5') ||
+                keyStr.startsWith('e6') || keyStr.startsWith('e17') || keyStr.startsWith('e18') || keyStr.startsWith('e19');
 
-    final List<String> nafesKeys = ['math', 'lughati', 'science'];
-    for (String n in nafesKeys) {
-      List<num> grades = [];
-      for (int i = 1; i <= 12; i++) {
-        String key = term == 1 ? 'e${i}profession13_$n' : 't2_e${i}profession13_$n';
-        if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
-      }
-      if (grades.isNotEmpty) {
-        double avg = grades.reduce((a, b) => a + b) / grades.length;
-        subjectPercents.add((avg / 10) * 100);
+            if ((term == 1 && isTerm1) || (term == 2 && isTerm2)) {
+              num? score;
+              if (testInfo is Map) {
+                score = testInfo['score'] as num?;
+                if (testInfo['max'] != null) maxPossible = (testInfo['max'] as num).toDouble();
+              } else if (testInfo is num) {
+                score = testInfo;
+              }
+
+              if (score != null && score >= 0) {
+                validGrades.add(score);
+              }
+            }
+          });
+
+          if (validGrades.isNotEmpty) {
+            double avg = validGrades.reduce((a, b) => a + b) / validGrades.length;
+            subjectPercents.add((avg / maxPossible) * 100);
+          }
+        }
+      });
+    }
+
+    // 2. إذا لم نجد نتائج في السجل المنظم، نعتمد على المفاتيح القياسية
+    if (subjectPercents.isEmpty) {
+      final Map<String, String> standardSubjects = {
+        'profession1': 'رياضيات',
+        'profession2': 'لغتي',
+        'profession3': 'إسلاميات',
+        'profession4': 'علوم',
+        'profession5': 'نشاط',
+        'profession6': 'انجليزي',
+        'profession7': 'اجتماعيات',
+        'profession8': 'فنية',
+        'profession9': 'حياتية',
+        'profession10': 'بدنية',
+        'profession11': 'رقمية',
+        'profession12': 'تفكير',
+        'profession14': 'قرآن',
+        'profession15': 'تجويد',
+        'profession16': 'توحيد',
+        'profession17': 'فقه',
+        'profession18': 'حديث',
+        'profession19': 'تفسير',
+        'profession20': 'أخرى',
+        'profession21': 'روبوت',
+        'profession22': 'قيم وسلوك',
+      };
+
+      standardSubjects.forEach((profKey, subjName) {
+        List<num> grades = [];
+        int startIdx = term == 1 ? 1 : 4;
+        int endIdx = term == 1 ? 3 : 6;
+        for (int i = startIdx; i <= endIdx; i++) {
+          String key = 'e$i$profKey';
+          if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
+        }
+        int eStart = term == 1 ? 14 : 17;
+        int eEnd = term == 1 ? 16 : 19;
+        for (int i = eStart; i <= eEnd; i++) {
+          String key = 'e$i$profKey';
+          if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
+        }
+
+        if (grades.isNotEmpty) {
+          double avg = grades.reduce((a, b) => a + b) / grades.length;
+          subjectPercents.add((avg / 20) * 100);
+        }
+      });
+
+      final List<String> nafesKeys = ['math', 'lughati', 'science'];
+      for (String n in nafesKeys) {
+        List<num> grades = [];
+        for (int i = 1; i <= 12; i++) {
+          String key = term == 1 ? 'e${i}profession13_$n' : 't2_e${i}profession13_$n';
+          if (data[key] != null && data[key] is num && data[key] >= 0) grades.add(data[key]);
+        }
+        if (grades.isNotEmpty) {
+          double avg = grades.reduce((a, b) => a + b) / grades.length;
+          subjectPercents.add((avg / 10) * 100);
+        }
       }
     }
 
@@ -3229,30 +3314,69 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
     double myPercent = _calculateTermPercentage(data, term);
     if (myPercent == 0.0) return {'percent': 0.0, 'rank': -1, 'subjects': [], 'likes': 0, 'maxLikes': 0};
 
-    final Map<String, String> standardSubjects = {
-      'profession1': 'رياضيات', 'profession2': 'لغتي', 'profession3': 'إسلاميات',
-      'profession4': 'علوم', 'profession6': 'انجليزي', 'profession7': 'اجتماعيات',
-      'profession8': 'فنية', 'profession10': 'بدنية', 'profession11': 'رقمية', 'profession12': 'تفكير',
-      'profession20': 'أخرى', 'profession21': 'روبوت', 'profession22': 'قيم وسلوك',
-    };
-
     List<Map<String, dynamic>> subjectGrades = [];
 
-    standardSubjects.forEach((profKey, subjName) {
-      List<num> grades = [];
-      int startIdx = term == 1 ? 1 : 4;
-      int endIdx = term == 1 ? 3 : 6;
-      for (int i = startIdx; i <= endIdx; i++) {
-        String key = 'e$i$profKey';
-        if (data[key] != null && data[key] is num && data[key] >= 0) {
-          grades.add(data[key]);
+    // استخراج تفاصيل كل مادة بدقة متناهية
+    if (data.containsKey('grades_record') && data['grades_record'] is Map) {
+      final records = data['grades_record'] as Map<String, dynamic>;
+      records.forEach((subject, testsMap) {
+        if (testsMap is Map) {
+          List<num> grades = [];
+          double maxPossible = 20.0;
+          testsMap.forEach((testKey, testInfo) {
+            String keyStr = testKey.toString();
+            bool isTerm1 = keyStr.startsWith('e1') || keyStr.startsWith('e2') || keyStr.startsWith('e3') ||
+                keyStr.startsWith('e14') || keyStr.startsWith('e15') || keyStr.startsWith('e16');
+            bool isTerm2 = keyStr.startsWith('t2_') || keyStr.startsWith('e4') || keyStr.startsWith('e5') ||
+                keyStr.startsWith('e6') || keyStr.startsWith('e17') || keyStr.startsWith('e18') || keyStr.startsWith('e19');
+
+            if ((term == 1 && isTerm1) || (term == 2 && isTerm2)) {
+              num? score;
+              if (testInfo is Map) {
+                score = testInfo['score'] as num?;
+                if (testInfo['max'] != null) maxPossible = (testInfo['max'] as num).toDouble();
+              } else if (testInfo is num) {
+                score = testInfo;
+              }
+              if (score != null && score >= 0) grades.add(score);
+            }
+          });
+
+          if (grades.isNotEmpty) {
+            double avg = grades.reduce((a, b) => a + b) / grades.length;
+            subjectGrades.add({
+              'name': subject,
+              'percent': ((avg / maxPossible) * 100).clamp(0, 100),
+            });
+          }
         }
-      }
-      if (grades.isNotEmpty) {
-        double avg = grades.reduce((a, b) => a + b) / grades.length;
-        subjectGrades.add({'name': subjName, 'percent': ((avg / 20) * 100).clamp(0, 100)});
-      }
-    });
+      });
+    }
+
+    if (subjectGrades.isEmpty) {
+      final Map<String, String> standardSubjects = {
+        'profession1': 'رياضيات', 'profession2': 'لغتي', 'profession3': 'إسلاميات',
+        'profession4': 'علوم', 'profession6': 'انجليزي', 'profession7': 'اجتماعيات',
+        'profession8': 'فنية', 'profession10': 'بدنية', 'profession11': 'رقمية', 'profession12': 'تفكير',
+        'profession20': 'أخرى', 'profession21': 'روبوت', 'profession22': 'قيم وسلوك',
+      };
+
+      standardSubjects.forEach((profKey, subjName) {
+        List<num> grades = [];
+        int startIdx = term == 1 ? 1 : 4;
+        int endIdx = term == 1 ? 3 : 6;
+        for (int i = startIdx; i <= endIdx; i++) {
+          String key = 'e$i$profKey';
+          if (data[key] != null && data[key] is num && data[key] >= 0) {
+            grades.add(data[key]);
+          }
+        }
+        if (grades.isNotEmpty) {
+          double avg = grades.reduce((a, b) => a + b) / grades.length;
+          subjectGrades.add({'name': subjName, 'percent': ((avg / 20) * 100).clamp(0, 100)});
+        }
+      });
+    }
 
     int myLikes = data['totalLikes'] ?? data['likes'] ?? 0;
     int rank = -1;
@@ -3702,6 +3826,10 @@ class _StudentCertificatesPageState extends State<StudentCertificatesPage> {
     );
   }
 }
+
+// ===========================================================================
+// قاعة الشرف وسجل الانضباط المدرسي
+// ===========================================================================
 
 class NobleStudentDashboard extends StatefulWidget {
   final String studentId;
@@ -4440,6 +4568,10 @@ class _WeeklyHonorsPageState extends State<WeeklyHonorsPage> {
     );
   }
 }
+
+// ===========================================================================
+// طلب الانصراف المبكر
+// ===========================================================================
 
 class StudentDismissalPage extends StatefulWidget {
   final String studentId;

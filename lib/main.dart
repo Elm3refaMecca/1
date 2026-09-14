@@ -528,18 +528,49 @@ class _StudentResultsViewState extends State<StudentResultsView> {
     final Map<String, Map<String, Map<String, dynamic>>> subjectGroupedData = {};
     String studentGrade = _displayData['grades'] ?? widget.studentData['grades'] ?? 'عام';
 
-    _displayData.forEach((key, value) {
-      if (value is num && widget.allTestsMap.containsKey(key)) {
-        if (_getTermFromKey(key) == targetTerm) {
-          final testInfo = widget.allTestsMap[key]!;
-          subjectGroupedData.putIfAbsent(testInfo.subject, () => {});
-          subjectGroupedData[testInfo.subject]!.putIfAbsent(testInfo.testGroup, () => {'grades': <String, num>{}, 'evaluations': <String, dynamic>{}});
-          (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['grades'] as Map<String, num>)[testInfo.key] = value;
+    // القراءة من الخريطة الأكاديمية المنظمة academic_records إذا توفرت
+    final academicRecords = _displayData['academic_records'] as Map<String, dynamic>?;
 
-          final evalKey = 'eval_${testInfo.key}';
-          if (_displayData.containsKey(evalKey) && _displayData[evalKey] != null) {
-            (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['evaluations'] as Map<String, dynamic>)[testInfo.key] = _displayData[evalKey];
+    widget.allTestsMap.forEach((testKey, testInfo) {
+      if (_getTermFromKey(testKey) != targetTerm) return;
+
+      num? score;
+      dynamic evaluation;
+
+      final cleanKey = testKey.replaceAll(RegExp(r'profession\d+_?'), '').trim();
+
+      // 1. فحص الحقل المباشر بوثيقة الطالب أولاً
+      if (_displayData.containsKey(testKey) && _displayData[testKey] is num) {
+        score = _displayData[testKey];
+        if (_displayData.containsKey('eval_$testKey')) {
+          evaluation = _displayData['eval_$testKey'];
+        }
+      }
+
+      // 2. فحص السجل المنظم academic_records (بالمفتاح النظيف أو الكامل)
+      if (score == null && academicRecords != null && academicRecords.containsKey(testInfo.subject)) {
+        final subjMap = academicRecords[testInfo.subject] as Map<String, dynamic>?;
+        if (subjMap != null) {
+          final testData = (subjMap[cleanKey] ?? subjMap[testKey]) as Map<String, dynamic>?;
+          if (testData != null && testData['score'] != null && testData['score'] is num) {
+            score = testData['score'];
+            evaluation = testData['evaluation'];
           }
+        }
+      }
+
+      // 3. إدراج النتيجة داخل الخريطة التجميعية
+      if (score != null) {
+        subjectGroupedData.putIfAbsent(testInfo.subject, () => {});
+        subjectGroupedData[testInfo.subject]!.putIfAbsent(
+            testInfo.testGroup,
+                () => {'grades': <String, num>{}, 'evaluations': <String, dynamic>{}}
+        );
+
+        (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['grades'] as Map<String, num>)[testInfo.key] = score;
+
+        if (evaluation != null) {
+          (subjectGroupedData[testInfo.subject]![testInfo.testGroup]!['evaluations'] as Map<String, dynamic>)[testInfo.key] = evaluation;
         }
       }
     });

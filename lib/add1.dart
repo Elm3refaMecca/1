@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cunning_document_scanner/cunning_document_scanner.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -730,11 +732,6 @@ class __TestTileState extends State<_TestTile> {
     _listenToLockStatus();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   void _listenToLockStatus() {
     _firestore
         .collection('test_status')
@@ -783,8 +780,8 @@ class __TestTileState extends State<_TestTile> {
   @override
   Widget build(BuildContext context) {
     if (_isLocked == null) {
-      return Card(
-        child: const ListTile(
+      return const Card(
+        child: ListTile(
           title: Text('جارِ التحميل...', style: TextStyle(fontFamily: 'Cairo')),
         ),
       );
@@ -828,7 +825,7 @@ class __TestTileState extends State<_TestTile> {
 }
 
 // ===========================================================================
-// نظام الرصد المحمي ومصحح المفاتيح التلقائي (Auto-Recovery Grade Entry)
+// منظومة الرصد السريع المباشر ومسح أوراق الإجابة ضوئياً (Fast Grading & Scanner)
 // ===========================================================================
 
 class GradeEntryPage extends StatefulWidget {
@@ -860,9 +857,18 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
   bool _isLoading = true;
   List<DocumentSnapshot> _students = [];
   Map<String, dynamic> _grades = {};
-  Map<String, dynamic> _evaluations = {};
+  final Map<String, dynamic> _evaluations = {};
   final Map<String, int> _likes = {};
   final Map<String, int> _dislikes = {};
+
+  // حالات مسح ورفع أوراق الإجابة
+  final Map<String, bool> _isScanningMap = {};
+  final Map<String, String> _answerSheetUrls = {};
+
+  // وحدات التحكم بالحقول النصية وحالات الوميض الأخضر
+  final Map<String, TextEditingController> _controllers = {};
+  final Map<String, FocusNode> _focusNodes = {};
+  final Map<String, bool> _savedFlashMap = {};
 
   final Map<String, List<String>> _positiveBehaviors = {
     'القيم والأخلاق (Character)': [
@@ -938,39 +944,45 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     _fetchStudentsAndGrades();
   }
 
-  /// دالة استخراج مفتاح الاختبار (مثل e1, e2, e14)
-  String _extractTestPrefix(String key) {
-    final match = RegExp(r'^(t2_)?e\d+').firstMatch(key);
-    return match != null ? match.group(0)! : '';
+  @override
+  void dispose() {
+    for (var controller in _controllers.values) {
+      controller.dispose();
+    }
+    for (var node in _focusNodes.values) {
+      node.dispose();
+    }
+    super.dispose();
   }
 
-  /// فحص ذكي للبحث عن الدرجات المحفوظة بمفاتيح قديمة واستعادتها
-  dynamic _resolveGradeWithFallback(Map<String, dynamic>? data, String targetKey) {
-    if (data == null) return null;
-
-    // 1. إذا كانت الدرجة موجودة في المفتاح المعتمد
-    if (data.containsKey(targetKey) && data[targetKey] != null) {
-      return data[targetKey];
-    }
-
-    // 2. إذا لم توجد، نبحث في المفاتيح المحتملة القديمة (e1profession1 ... e1profession22)
-    final prefix = _extractTestPrefix(targetKey);
-    if (prefix.isNotEmpty && !targetKey.contains('nafes')) {
-      for (int i = 1; i <= 22; i++) {
-        final legacyKey = '${prefix}profession$i';
-        if (data.containsKey(legacyKey) && data[legacyKey] != null) {
-          // وجدنا الدرجة في حقل قديم للمعلم! نعيدها ونعتمدها
-          return data[legacyKey];
-        }
-      }
-    }
-    return null;
+  /// تنظيف وتوحيد معرف الاختبار المستقل
+  String _getCanonicalTestIdentifier() {
+    return widget.testFieldKey
+        .replaceAll(RegExp(r'profession\d+_?'), '')
+        .trim();
   }
 
+  /// مسار المستند الهيكلي المستقل
+  DocumentReference _getGradeDocRef(String studentId) {
+    final cleanId = _getCanonicalTestIdentifier();
+    final docId = '${widget.subject}_$cleanId';
+    return _firestore
+        .collection('students')
+        .doc(studentId)
+        .collection('grades_records')
+        .doc(docId);
+  }
+
+  String _formatGradeDisplay(dynamic score) {
+    if (score == null) return '';
+    if (score == -1) return 'غائب';
+    return score.toString();
+  }
+
+  /// جلب درجات الفصل بالكامل بشكل متوازٍ وسريع
   Future<void> _fetchStudentsAndGrades() async {
     setState(() => _isLoading = true);
     try {
-      // إجبار الجلب من السيرفر مباشرة لكسر الـ Cache القديم في المتصفح
       QuerySnapshot querySnapshot;
       try {
         querySnapshot = await _firestore
@@ -978,9 +990,8 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
             .where('stages', isEqualTo: widget.stage)
             .where('grades', isEqualTo: widget.grade)
             .where('classes', isEqualTo: widget.className)
-            .get(const GetOptions(source: Source.server));
+            .get(const GetOptions(source: Source.serverAndCache));
       } catch (_) {
-        // في حال انقطاع الشبكة يتم الجلب من الكاش كخطة بديلة
         querySnapshot = await _firestore
             .collection('students')
             .where('stages', isEqualTo: widget.stage)
@@ -1000,29 +1011,78 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       final evaluations = <String, dynamic>{};
       final likes = <String, int>{};
       final dislikes = <String, int>{};
+      final sheetUrls = <String, String>{};
 
-      for (var studentDoc in students) {
-        final data = studentDoc.data() as Map<String, dynamic>?;
+      final cleanTestKey = _getCanonicalTestIdentifier();
+
+      await Future.wait(students.map((studentDoc) async {
         final studentId = studentDoc.id;
+        final studentData = studentDoc.data() as Map<String, dynamic>? ?? {};
 
-        // تطبيق الاستعادة الذكية للدرجة
-        grades[studentId] = _resolveGradeWithFallback(data, widget.testFieldKey);
+        likes[studentId] = studentData['totalLikes'] ?? 0;
+        dislikes[studentId] = studentData['totalDislikes'] ?? 0;
 
-        if (data != null && data.containsKey('eval_${widget.testFieldKey}')) {
-          evaluations[studentId] = data['eval_${widget.testFieldKey}'];
+        // 1. القراءة من الخريطة المجمعة السريعة إذا وجدت
+        final academicRecords = studentData['academic_records'] as Map<String, dynamic>?;
+        if (academicRecords != null && academicRecords.containsKey(widget.subject)) {
+          final subjRecord = academicRecords[widget.subject] as Map<String, dynamic>?;
+          if (subjRecord != null && subjRecord.containsKey(cleanTestKey)) {
+            final testData = subjRecord[cleanTestKey] as Map<String, dynamic>?;
+            if (testData != null) {
+              grades[studentId] = testData['score'];
+              evaluations[studentId] = testData['evaluation'];
+              if (testData['answerSheetUrl'] != null) {
+                sheetUrls[studentId] = testData['answerSheetUrl'];
+              }
+              return;
+            }
+          }
         }
 
-        likes[studentId] = data?['totalLikes'] ?? 0;
-        dislikes[studentId] = data?['totalDislikes'] ?? 0;
+        // 2. القراءة من الـ sub-collection كمرجع أساسي
+        final gradeSnap = await _getGradeDocRef(studentId).get();
+        if (gradeSnap.exists && gradeSnap.data() != null) {
+          final gData = gradeSnap.data() as Map<String, dynamic>;
+          grades[studentId] = gData['score'];
+          evaluations[studentId] = gData['evaluation'];
+          if (gData['answerSheetUrl'] != null) {
+            sheetUrls[studentId] = gData['answerSheetUrl'];
+          }
+          return;
+        }
+
+        // 3. Fallback للقراءة المباشرة من الحقل لضمان عدم ضياع ما تم رصده مسبقاً
+        grades[studentId] = studentData[widget.testFieldKey];
+        evaluations[studentId] = studentData['eval_${widget.testFieldKey}'];
+        if (studentData['sheet_${widget.testFieldKey}'] != null) {
+          sheetUrls[studentId] = studentData['sheet_${widget.testFieldKey}'];
+        }
+      }));
+
+      for (var student in students) {
+        final sId = student.id;
+        final currentVal = grades[sId];
+        final ctrl = TextEditingController(text: _formatGradeDisplay(currentVal));
+        final fNode = FocusNode();
+
+        fNode.addListener(() {
+          if (!fNode.hasFocus) {
+            _handleInputSubmit(sId, ctrl.text.trim());
+          }
+        });
+
+        _controllers[sId] = ctrl;
+        _focusNodes[sId] = fNode;
       }
 
       if (mounted) {
         setState(() {
           _students = students;
           _grades = grades;
-          _evaluations = evaluations;
+          _evaluations.addAll(evaluations);
           _likes.addAll(likes);
           _dislikes.addAll(dislikes);
+          _answerSheetUrls.addAll(sheetUrls);
           _isLoading = false;
         });
       }
@@ -1034,6 +1094,238 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         );
       }
     }
+  }
+
+  void _handleInputSubmit(String studentId, String value) {
+    if (value.isEmpty) return;
+    if (value == 'غائب') return;
+
+    num? parsed = num.tryParse(value);
+    if (parsed == null) return;
+
+    // حالة 0 = غياب (تحويل تلقائي إلى -1 وإظهار "غائب")
+    if (parsed == 0) {
+      _saveGrade(studentId, -1, null);
+      _controllers[studentId]?.text = 'غائب';
+    } else {
+      final bool isNafes = widget.testFieldKey.contains('profession13') || widget.testFieldKey.contains('nafes');
+      final double maxGrade = isNafes ? 10.0 : 20.0;
+      if (parsed > maxGrade) {
+        parsed = maxGrade;
+        _controllers[studentId]?.text = maxGrade.toInt().toString();
+      }
+      _saveGrade(studentId, parsed, null);
+    }
+  }
+
+  /// دالة الحفظ الذرية السريعة والمانعة لتشتت الدرجات مع وميض الإشعار الأخضر
+  Future<void> _saveGrade(String studentId, num grade, Map<String, dynamic>? evalData) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      String teacherName = 'معلم المادة';
+      if (user != null) {
+        final tDoc = await _firestore.collection('users').doc(user.uid).get();
+        teacherName = tDoc.data()?['name'] ?? 'معلم المادة';
+      }
+
+      final cleanTestKey = _getCanonicalTestIdentifier();
+      final bool isNafes = widget.testFieldKey.contains('profession13') || widget.testFieldKey.contains('nafes');
+      final double maxGrade = isNafes ? 10.0 : 20.0;
+
+      final batch = _firestore.batch();
+      final studentRef = _firestore.collection('students').doc(studentId);
+
+      Map<String, dynamic> studentUpdates = {
+        widget.testFieldKey: grade,
+        if (evalData != null) 'eval_${widget.testFieldKey}': evalData,
+        'lastGradeUpdate': FieldValue.serverTimestamp(),
+        'academic_records.${widget.subject}.$cleanTestKey': {
+          'score': grade,
+          'maxGrade': maxGrade,
+          'testName': widget.testName,
+          'testFieldKey': widget.testFieldKey,
+          'evaluation': evalData,
+          if (_answerSheetUrls[studentId] != null) 'answerSheetUrl': _answerSheetUrls[studentId],
+          'updatedAt': DateTime.now().toIso8601String(),
+        }
+      };
+
+      batch.set(studentRef, studentUpdates, SetOptions(merge: true));
+
+      final gradeRef = _getGradeDocRef(studentId);
+      batch.set(gradeRef, {
+        'score': grade,
+        'maxGrade': maxGrade,
+        'subject': widget.subject,
+        'testKey': cleanTestKey,
+        'testFieldKey': widget.testFieldKey,
+        'testName': widget.testName,
+        'evaluation': evalData,
+        'teacherName': teacherName,
+        if (_answerSheetUrls[studentId] != null) 'answerSheetUrl': _answerSheetUrls[studentId],
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      await batch.commit();
+
+      if (mounted) {
+        setState(() {
+          _grades[studentId] = grade;
+          _savedFlashMap[studentId] = true;
+        });
+
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تمت المزامنة واعتماد الدرجة بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: Colors.green,
+            duration: Duration(milliseconds: 1500),
+          ),
+        );
+
+        Future.delayed(const Duration(milliseconds: 900), () {
+          if (mounted) {
+            setState(() {
+              _savedFlashMap[studentId] = false;
+            });
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Error saving grade: $e");
+    }
+  }
+
+  /// مسح ورقة الإجابة ضوئياً ورفعها لـ Firebase Storage
+  Future<void> _scanAndUploadAnswerSheet(String studentId) async {
+    try {
+      List<String>? pictures = await CunningDocumentScanner.getPictures();
+      if (pictures == null || pictures.isEmpty) return;
+
+      setState(() => _isScanningMap[studentId] = true);
+
+      final File file = File(pictures.first);
+      final storagePath = 'answer_sheets/${widget.testFieldKey}/$studentId.jpg';
+      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+
+      final uploadTask = await storageRef.putFile(
+        file,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+      final downloadUrl = await uploadTask.ref.getDownloadURL();
+
+      final cleanTestKey = _getCanonicalTestIdentifier();
+      final batch = _firestore.batch();
+
+      final studentRef = _firestore.collection('students').doc(studentId);
+      batch.set(studentRef, {
+        'sheet_${widget.testFieldKey}': downloadUrl,
+        'academic_records.${widget.subject}.$cleanTestKey.answerSheetUrl': downloadUrl,
+      }, SetOptions(merge: true));
+
+      final gradeRef = _getGradeDocRef(studentId);
+      batch.set(gradeRef, {
+        'answerSheetUrl': downloadUrl,
+      }, SetOptions(merge: true));
+
+      await batch.commit();
+
+      if (mounted) {
+        setState(() {
+          _answerSheetUrls[studentId] = downloadUrl;
+          _isScanningMap[studentId] = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم مسح ورقة الإجابة ورفعها بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isScanningMap[studentId] = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('فشل المسح أو الرفع: $e', style: const TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildInlineGradingTrailing(String studentId) {
+    final bool isFlashing = _savedFlashMap[studentId] == true;
+    final bool isUploading = _isScanningMap[studentId] == true;
+    final bool hasSheet = _answerSheetUrls[studentId] != null;
+    final controller = _controllers[studentId];
+    final focusNode = _focusNodes[studentId];
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // الحقل المباشر لإدخال الدرجات
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          width: 70,
+          height: 38,
+          decoration: BoxDecoration(
+            color: isFlashing ? Colors.green.shade50 : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: isFlashing ? Colors.green : Colors.grey.shade300,
+              width: isFlashing ? 2 : 1,
+            ),
+          ),
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            textAlign: TextAlign.center,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: TextStyle(
+              fontFamily: 'Cairo',
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: controller?.text == 'غائب' ? Colors.red.shade700 : Colors.black87,
+            ),
+            decoration: const InputDecoration(
+              isDense: true,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.symmetric(vertical: 8),
+              hintText: 'الدرجة',
+              hintStyle: TextStyle(fontSize: 11, color: Colors.grey, fontFamily: 'Cairo'),
+            ),
+            onSubmitted: (val) {
+              _handleInputSubmit(studentId, val.trim());
+            },
+          ),
+        ),
+        const SizedBox(width: 6),
+        // زر الكاميرا لمسح ورقة الإجابة
+        SizedBox(
+          width: 36,
+          height: 36,
+          child: isUploading
+              ? const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+              : IconButton(
+            padding: EdgeInsets.zero,
+            icon: Icon(
+              hasSheet ? Icons.check_circle_rounded : Icons.camera_alt_rounded,
+              color: hasSheet ? Colors.green : Colors.grey.shade600,
+              size: 22,
+            ),
+            tooltip: hasSheet ? 'تم إرفاق ورقة الإجابة' : 'مسح ورقة الإجابة ضوئياً',
+            onPressed: () => _scanAndUploadAnswerSheet(studentId),
+          ),
+        ),
+      ],
+    );
   }
 
   void _showBehaviorLogSheet(String studentId, String studentName, String type) {
@@ -1076,7 +1368,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
                                 itemBuilder: (context, index) {
                                   final doc = docs[index];
                                   final data = doc.data() as Map<String, dynamic>;
-
                                   final bool canDelete = data['teacherId'] == FirebaseAuth.instance.currentUser?.uid;
 
                                   return Card(
@@ -1155,7 +1446,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ أثناء الحذف: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red));
     }
   }
-
 
   Future<Map<String, String>?> _showBehaviorSelectionDialog({required bool isLike}) async {
     final Map<String, List<String>> dataSource = isLike ? _positiveBehaviors : _negativeBehaviors;
@@ -1438,179 +1728,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  Future<void> _saveGrade(String studentId, num grade, Map<String, dynamic>? evalData) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      String teacherName = 'معلم المادة';
-      if (user != null) {
-        final tDoc = await _firestore.collection('users').doc(user.uid).get();
-        teacherName = tDoc.data()?['name'] ?? 'معلم المادة';
-      }
-
-      final studentRef = _firestore.collection('students').doc(studentId);
-      final notifRef = studentRef.collection('notifications').doc();
-
-      // إعداد البيانات المراد حفظها في المفتاح القياسي الجديد
-      Map<String, dynamic> updates = {
-        widget.testFieldKey: grade,
-        'lastGradeUpdate': FieldValue.serverTimestamp(),
-      };
-      if (evalData != null) {
-        updates['eval_${widget.testFieldKey}'] = evalData;
-      }
-
-      // 🔥 الحل الجذري: حلقة تنظيف تمسح أي مفاتيح قديمة لنفس الاختبار لمنع الدرجات الوهمية
-      final prefix = _extractTestPrefix(widget.testFieldKey);
-      if (prefix.isNotEmpty && !widget.testFieldKey.contains('nafes')) {
-        for (int i = 1; i <= 22; i++) {
-          final legacyKey = '${prefix}profession$i';
-          if (legacyKey != widget.testFieldKey) {
-            updates[legacyKey] = FieldValue.delete();
-            updates['eval_$legacyKey'] = FieldValue.delete();
-          }
-        }
-      }
-
-      // تنفيذ عملية الحفظ والتنظيف ككتلة واحدة (Transaction)
-      await _firestore.runTransaction((transaction) async {
-        transaction.set(studentRef, updates, SetOptions(merge: true));
-
-        if (grade != -1) {
-          transaction.set(notifRef, {
-            'title': '📝 رصد درجة جديدة',
-            'message': 'قام أ. $teacherName برصد درجة لك في اختبار: ${widget.testName} لمادة ${widget.subject}.',
-            'type': 'grade',
-            'timestamp': FieldValue.serverTimestamp(),
-            'isRead': false,
-          });
-        }
-      });
-
-      setState(() {
-        _grades[studentId] = grade;
-        if (evalData != null) _evaluations[studentId] = evalData;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة وتصحيح مسارها بنجاح ✅', style: const TextStyle(fontFamily: 'Cairo')),
-            backgroundColor: grade == -1 ? Colors.blueGrey : Colors.green,
-            duration: const Duration(seconds: 1),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل حفظ الدرجة: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-  Future<void> _deleteGrade(String studentId) async {
-    try {
-      final prefix = _extractTestPrefix(widget.testFieldKey);
-      Map<String, dynamic> deletes = {
-        widget.testFieldKey: FieldValue.delete(),
-        'eval_${widget.testFieldKey}': FieldValue.delete(),
-      };
-
-      // تنظيف أي مفاتيح فرعية قديمة لنفس الاختبار لضمان عدم عودتها
-      if (prefix.isNotEmpty && !widget.testFieldKey.contains('nafes')) {
-        for (int i = 1; i <= 22; i++) {
-          deletes['${prefix}profession$i'] = FieldValue.delete();
-        }
-      }
-
-      final studentRef = _firestore.collection('students').doc(studentId);
-      await studentRef.update(deletes);
-
-      if (mounted) {
-        setState(() {
-          _grades[studentId] = null;
-          _evaluations[studentId] = null;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم حذف الدرجة نهائياً', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.blueAccent),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل الحذف: $e', style: const TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  Widget _buildGradeChip({required dynamic currentGrade, required VoidCallback onTap}) {
-    String text;
-    Color backgroundColor;
-    Color textColor;
-    Color borderColor;
-
-    if (currentGrade == -1) {
-      text = 'غائب';
-      backgroundColor = Colors.grey.shade200;
-      textColor = Colors.grey.shade700;
-      borderColor = Colors.grey.shade400;
-    } else if (currentGrade != null) {
-      text = currentGrade.toString();
-      backgroundColor = Colors.green.shade50;
-      textColor = Colors.green.shade800;
-      borderColor = Colors.green.shade300;
-    } else {
-      text = 'رصد';
-      backgroundColor = Colors.orange.shade50;
-      textColor = Colors.orange.shade800;
-      borderColor = Colors.orange.shade300;
-    }
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 65,
-        height: 32,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: borderColor),
-        ),
-        child: Center(
-          child: Text(text, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
-        ),
-      ),
-    );
-  }
-
-  void _showGradeEntryDialog({
-    required String studentId,
-    required String studentName,
-    required dynamic currentGrade,
-    required double maxGrade,
-    required double passingGrade,
-  }) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return _GradeEntryDialog(
-          studentId: studentId,
-          studentName: studentName,
-          currentGrade: currentGrade,
-          currentEvaluation: _evaluations[studentId],
-          maxGrade: maxGrade,
-          passingGrade: passingGrade,
-          subjectName: widget.subject,
-          onSaveGrade: _saveGrade,
-          onDeleteGrade: _deleteGrade,
-        );
-      },
-    );
-  }
-
   void _showBulkActionSheet() {
     showModalBottomSheet(
       context: context,
@@ -1651,10 +1768,6 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isNafes = widget.testFieldKey.contains('profession13') || widget.testFieldKey.contains('nafes');
-    final double maxGrade = isNafes ? 10.0 : 20.0;
-    final double passingGrade = isNafes ? 5.0 : 10.0;
-
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.testName, style: const TextStyle(fontFamily: 'Cairo')),
@@ -1695,31 +1808,31 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           final studentDoc = _students[index];
           final studentId = studentDoc.id;
           final studentData = studentDoc.data() as Map<String, dynamic>;
-
           String studentName = studentData['name'] ?? 'اسم غير معروف';
-          if (studentName.length > 20) {
-            studentName = '${studentName.substring(0, 20)}..';
-          }
 
-          final currentGrade = _grades[studentId];
           final likeCount = _likes[studentId] ?? 0;
           final dislikeCount = _dislikes[studentId] ?? 0;
 
           return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
             leading: CircleAvatar(
               backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
               child: Text('${index + 1}', style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
             ),
             title: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Flexible(
+                Expanded(
                   child: Text(
                     studentName,
                     style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
+                        height: 1.3,
                         fontFamily: 'Cairo'
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (widget.isBehaviorMode) ...[
@@ -1774,453 +1887,11 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
             )
                 : null,
             trailing: !widget.isBehaviorMode
-                ? _buildGradeChip(
-              currentGrade: currentGrade,
-              onTap: () {
-                _showGradeEntryDialog(
-                  studentId: studentId,
-                  studentName: studentName,
-                  currentGrade: currentGrade,
-                  maxGrade: maxGrade,
-                  passingGrade: passingGrade,
-                );
-              },
-            )
+                ? _buildInlineGradingTrailing(studentId)
                 : null,
           );
         },
       ),
-    );
-  }
-}
-
-class _GradeEntryDialog extends StatefulWidget {
-  final String studentId;
-  final String studentName;
-  final dynamic currentGrade;
-  final Map<String, dynamic>? currentEvaluation;
-  final double maxGrade;
-  final double passingGrade;
-  final String subjectName;
-  final Future<void> Function(String studentId, num grade, Map<String, dynamic>? evaluationData) onSaveGrade;
-  final Future<void> Function(String studentId) onDeleteGrade;
-
-  const _GradeEntryDialog({
-    required this.studentId,
-    required this.studentName,
-    required this.currentGrade,
-    this.currentEvaluation,
-    required this.maxGrade,
-    required this.passingGrade,
-    required this.subjectName,
-    required this.onSaveGrade,
-    required this.onDeleteGrade,
-  });
-
-  @override
-  State<_GradeEntryDialog> createState() => _GradeEntryDialogState();
-}
-
-class _GradeEntryDialogState extends State<_GradeEntryDialog> {
-  late TextEditingController _gradeController;
-  final _formKey = GlobalKey<FormState>();
-  bool _isSaving = false;
-
-  List<String> _selectedWeaknesses = [];
-  String? _severityLevel;
-
-  final Map<String, List<String>> _subjectCriteria = {
-    'لغتي': [
-      'التمييز بين أقسام الكلمة',
-      'التمييز بين الجملة المثبتة والمنفية',
-      'التمييز بين اللام الشمسية والقمرية',
-      'تمييز الموقع الإعرابي للكلمة',
-      'الأساليب واستخدام علامات الترقيم',
-      'التمييز بين علامات الإعراب الأصلية والفرعية',
-      'التمييز بين أقسام الفعل من حيث الزمن',
-      'التمييز بين الجملة الاسمية والفعلية',
-      'تمييز الأفعال الخمسة',
-      'الرسم الإملائي',
-      'مهارات القراءة والاستيعاب',
-    ],
-    'رياضيات': [
-      'حفظ جدول الضرب',
-      'إتقان العمليات الحسابية الأربع (جمع، طرح، ضرب، قسمة)',
-      'فهم واستخدام الكسور',
-      'استيعاب المفاهيم الهندسية والقياس',
-      'حل المسائل اللفظية',
-      'ترتيب ومقارنة الأعداد',
-      'تحليل البيانات والتمثيل البياني',
-      'القيمة المنزلية للأعداد',
-    ],
-    'علوم': [
-      'استيعاب المفاهيم العلمية الأساسية',
-      'تطبيق خطوات المنهج العلمي',
-      'التمييز بين الكائنات الحية واحتياجاتها',
-      'فهم حالات المادة وخصائصها',
-      'التعرف على الظواهر الطبيعية (الكون، الأرض)',
-      'حفظ المصطلحات العلمية',
-      'الربط بين السبب والنتيجة',
-      'الطاقة والقوى والحركة',
-    ],
-    'انجليزي': [
-      'مهارة الاستماع (Listening Skills)',
-      'مهارة التحدث (Speaking Skills)',
-      'مهارة القراءة (Reading Skills)',
-      'مهارة الكتابة (Writing Skills)',
-      'القواعد (Grammar)',
-      'المفردات (Vocabulary)',
-      'النطق الصحيح (Pronunciation)',
-      'المشاركة والتفاعل (Participation)',
-    ],
-    'روبوت': [
-      'الربط الهندسي وتركيب القطع الميكانيكية',
-      'استيعاب مبادئ البرمجة والمنطق البرمجي',
-      'حل المشكلات وتجربة النماذج',
-      'العمل ضمن الفريق الهندسي',
-      'فهم وتوظيف الحساسات والمحركات',
-    ],
-    'قيم وسلوك': [
-      'الانضباط الصفي والالتزام بالتعليمات',
-      'الاحترام والتعاون مع الزملاء والمعلمين',
-      'المحافظة على النظافة والممتلكات',
-      'الصدق والأمانة وتحمل المسؤولية',
-      'المبادرة والإيجابية والمظهر العام',
-    ],
-  };
-
-  List<String> get _currentCriteriaList {
-    if (widget.subjectName.contains('لغتي')) return _subjectCriteria['لغتي']!;
-    if (widget.subjectName.contains('رياضيات')) return _subjectCriteria['رياضيات']!;
-    if (widget.subjectName.contains('علوم')) return _subjectCriteria['علوم']!;
-    if (widget.subjectName.contains('انجليزي') || widget.subjectName.contains('نجليزي')) return _subjectCriteria['انجليزي']!;
-    if (widget.subjectName.contains('روبوت')) return _subjectCriteria['روبوت']!;
-    if (widget.subjectName.contains('قيم') || widget.subjectName.contains('سلوك')) return _subjectCriteria['قيم وسلوك']!;
-    return ['ضعف عام في الاستيعاب', 'عدم المشاركة الصفية', 'نقص في حل الواجبات', 'صعوبة في الفهم'];
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _gradeController = TextEditingController(
-      text: (widget.currentGrade != null && widget.currentGrade != -1)
-          ? widget.currentGrade.toString()
-          : '',
-    );
-
-    if (widget.currentEvaluation != null) {
-      if (widget.currentEvaluation!['selected_points'] != null) {
-        _selectedWeaknesses = List<String>.from(widget.currentEvaluation!['selected_points']);
-      }
-      _severityLevel = widget.currentEvaluation!['severity'];
-    }
-  }
-
-  @override
-  void dispose() {
-    _gradeController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _showAssessmentSelectionDialog() async {
-    final List<String> criteria = _currentCriteriaList;
-
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('تقييم جوانب القصور', style: TextStyle(fontFamily: 'Cairo')),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('اختر نقاط الضعف:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontFamily: 'Cairo')),
-                    const SizedBox(height: 8),
-                    ...criteria.map((criterion) {
-                      return CheckboxListTile(
-                        title: Text(criterion, style: const TextStyle(fontSize: 14, fontFamily: 'Cairo')),
-                        value:   _selectedWeaknesses.contains(criterion),
-                        dense: true,
-                        onChanged: (bool? value) {
-                          setDialogState(() {
-                            if (value == true) {
-                              _selectedWeaknesses.add(criterion);
-                            } else {
-                              _selectedWeaknesses.remove(criterion);
-                            }
-                          });
-                          this.setState(() {});
-                        },
-                      );
-                    }).toList(),
-                    const Divider(),
-                    const Text('درجة القصور (اختياري):', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontFamily: 'Cairo')),
-                    DropdownButton<String>(
-                      isExpanded: true,
-                      value: _severityLevel,
-                      hint: const Text("اختر المستوى", style: TextStyle(fontFamily: 'Cairo')),
-                      items: ['منخفضة', 'متوسطة', 'مرتفعة'].map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value, style: const TextStyle(fontFamily: 'Cairo')),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        setDialogState(() {
-                          _severityLevel = val;
-                        });
-                        this.setState(() {});
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('تم', style: TextStyle(fontFamily: 'Cairo')),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> _handleConfirm() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_isSaving) return;
-    setState(() => _isSaving = true);
-
-    final text = _gradeController.text.trim();
-
-    try {
-      final grade = num.tryParse(text);
-      if (grade == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('الرجاء إدخال رقم صحيح', style: TextStyle(fontFamily: 'Cairo')),
-                backgroundColor: Colors.red),
-          );
-        }
-        return;
-      }
-
-      if (grade < widget.passingGrade) {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('⚠️ تحذير', style: TextStyle(fontFamily: 'Cairo')),
-            content: Text(
-                'الدرجة المدخلة أقل من درجة النجاح (${widget.passingGrade}). هل أنت متأكد من رصدها؟', style: const TextStyle(fontFamily: 'Cairo')),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo')),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red),
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('تأكيد الرصد', style: TextStyle(fontFamily: 'Cairo')),
-              ),
-            ],
-          ),
-        );
-        if (confirmed != true) return;
-      }
-
-      Map<String, dynamic>? evalData;
-      if (_selectedWeaknesses.isNotEmpty) {
-        evalData = {
-          'selected_points': _selectedWeaknesses,
-          'severity': _severityLevel,
-          'timestamp': Timestamp.now(),
-        };
-      } else {
-        evalData = null;
-      }
-
-      await widget.onSaveGrade(widget.studentId, grade, evalData);
-      if (mounted) Navigator.pop(context);
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
-  }
-
-  Future<void> _handleSaveAbsent() async {
-    if (_isSaving) return;
-    setState(() => _isSaving = true);
-    try {
-      await widget.onSaveGrade(widget.studentId, -1, null);
-      if (mounted) Navigator.pop(context);
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
-  }
-
-  Future<void> _handleDelete() async {
-    if (_isSaving) return;
-    setState(() => _isSaving = true);
-    try {
-      await widget.onDeleteGrade(widget.studentId);
-      if (mounted) Navigator.pop(context);
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool hasEvaluation = _selectedWeaknesses.isNotEmpty;
-    final Color evalBoxColor = hasEvaluation ? Colors.green.shade100 : Colors.amber.shade100;
-    final Color evalBorderColor = hasEvaluation ? Colors.green : Colors.amber;
-
-    return AlertDialog(
-      title: null,
-      contentPadding: const EdgeInsets.fromLTRB(24.0, 20.0, 24.0, 0.0),
-      content: SingleChildScrollView(
-        child: _isSaving
-            ? const SizedBox(
-          height: 150,
-          child: Center(child: CircularProgressIndicator()),
-        )
-            : Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('الطالب: ${widget.studentName}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black54, fontSize: 16, fontFamily: 'Cairo')),
-              const SizedBox(height: 16),
-              Center(
-                child: SizedBox(
-                  width: 120,
-                  child: TextFormField(
-                    controller: _gradeController,
-                    autofocus: true,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-                      TextInputFormatter.withFunction((oldValue, newValue) {
-                        final num? value = num.tryParse(newValue.text);
-                        if (value != null && value > widget.maxGrade) {
-                          return oldValue;
-                        }
-                        return newValue;
-                      }),
-                    ],
-                    decoration: InputDecoration(
-                      labelText: 'الدرجة (من ${widget.maxGrade})',
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'أدخل درجة';
-                      }
-                      final grade = num.tryParse(value.trim());
-                      if (grade == null) {
-                        return 'رقم غير صالح';
-                      }
-                      if (grade < 0) {
-                        return 'لا يمكن أن تكون سالبة';
-                      }
-                      if (grade > widget.maxGrade) {
-                        return 'أعلى من ${widget.maxGrade}';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              InkWell(
-                onTap: _showAssessmentSelectionDialog,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: evalBoxColor,
-                    border: Border.all(color: evalBorderColor),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(hasEvaluation ? Icons.check_circle : Icons.rate_review, color: Colors.black54, size: 20),
-                          const SizedBox(width: 8),
-                          const Text(
-                            "تقييم جوانب القصور",
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, fontFamily: 'Cairo'),
-                          ),
-                        ],
-                      ),
-                      if (hasEvaluation) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          "${_selectedWeaknesses.length} نقاط محددة${_severityLevel != null ? ' - $_severityLevel' : ''}",
-                          style: const TextStyle(fontSize: 12, color: Colors.black87, fontFamily: 'Cairo'),
-                        ),
-                      ]
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: <Widget>[
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8.0, right: 8.0, left: 8.0),
-          child: Wrap(
-            spacing: 8.0,
-            runSpacing: 4.0,
-            alignment: WrapAlignment.end,
-            children: [
-              TextButton(
-                onPressed: _isSaving ? null : () => Navigator.pop(context),
-                child: const Text('إغلاق', style: TextStyle(color: Colors.grey, fontFamily: 'Cairo')),
-              ),
-              if (widget.currentGrade != null)
-                TextButton(
-                  onPressed: _isSaving ? null : _handleDelete,
-                  child: const Text('حذف', style: TextStyle(color: Colors.red, fontFamily: 'Cairo')),
-                ),
-              OutlinedButton(
-                onPressed: _isSaving ? null : _handleSaveAbsent,
-                child: const Text('غائب', style: TextStyle(fontFamily: 'Cairo')),
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.blueGrey),
-              ),
-              ElevatedButton(
-                onPressed: _isSaving ? null : _handleConfirm,
-                child: const Text('تأكيد', style: TextStyle(fontFamily: 'Cairo')),
-              ),
-            ],
-          ),
-        )
-      ],
-      actionsAlignment: MainAxisAlignment.end,
     );
   }
 }
@@ -2254,7 +1925,6 @@ class OnlineStudentsPage extends StatelessWidget {
   }
 
   String _formatTotalActiveTime(int? totalSeconds, bool isOnline) {
-
     if (isOnline && (totalSeconds == null || totalSeconds == 0)) {
       return 'نشط الآن (أقل من دقيقة)';
     }
@@ -2309,14 +1979,12 @@ class OnlineStudentsPage extends StatelessWidget {
     return parts.take(2).join(' و ');
   }
 
-
   bool _isCurrentlyOnline(Timestamp? timestamp) {
     if (timestamp == null) return false;
     final lastSeen = timestamp.toDate();
     final difference = DateTime.now().difference(lastSeen);
     return difference.inSeconds < 70;
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -2511,7 +2179,6 @@ class _StudentProfilePageState extends State<StudentProfilePage> {
   final User? _user = FirebaseAuth.instance.currentUser;
   Map<String, dynamic>? _studentData;
   bool _isLoading = true;
-  bool _isUploading = false;
 
   @override
   void initState() {
@@ -2838,7 +2505,6 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
   final Map<String, int> _likes = {};
   final Map<String, int> _dislikes = {};
 
-
   @override
   void initState() {
     super.initState();
@@ -3086,7 +2752,7 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
                   tooltip: 'إعجاب (سلوك نبيل)',
                 ),
                 IconButton(
-                  icon: const Icon(Icons.thumb_down, color: Colors.red, size: 28),
+                  icon: const Icon(Icons.thumb_down, color: Colors.red),
                   onPressed: () => _addBehaviorReportNoble(studentId, studentName, 'dislike'),
                   tooltip: 'ملاحظة (سلوك شغب)',
                 ),
@@ -3096,7 +2762,6 @@ class _NobleStudentPageState extends State<NobleStudentPage> {
         },
       ),
     );
-
   }
 }
 
@@ -3144,7 +2809,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     if (image == null) return;
 
     final int fileSize = await image.length();
-    // ✅ الحد الأقصى 40 ميجا
     if (fileSize > 40 * 1024 * 1024) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3164,11 +2828,9 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
       String categoryName = _categories.firstWhere((cat) => cat['id'] == categoryId, orElse: () => {'label': categoryId})['label'];
       final String caption = '📁 ملف إنجاز جديد\n👤 معرف الطالب: $_studentId\n📂 القسم: $categoryName';
 
-      // ✅ 1. الرفع لتيليجرام فقط وجلب المعرف المميز (file_id)
       String? fileId = await TelegramStorage.uploadDocument(fileBytes, fileName, caption);
 
       if (fileId != null) {
-        // ✅ 2. حفظ الـ fileId في قاعدة بيانات فايرستور
         await FirebaseFirestore.instance.collection('portfolio_items').add({
           'studentId': _studentId,
           'category': categoryId,
@@ -3215,7 +2877,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     if (!confirm) return;
 
     try {
-      // ✅ حذف السجل من قاعدة البيانات فقط (الملف يبقى في تيليجرام كأرشيف)
       await FirebaseFirestore.instance.collection('portfolio_items').doc(docId).delete();
 
       if (!mounted) return;
@@ -3341,7 +3002,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
                         padding: const EdgeInsets.all(6.0),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
-                          // ✅ استخدام أداة تيليجرام الذكية لعرض الصورة
                           child: SmartTelegramImage(fileId: data['imageUrl'], fit: BoxFit.cover),
                         ),
                       ),
@@ -3389,7 +3049,6 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              // ✅ استخدام أداة تيليجرام الذكية للتكبير
               child: SmartTelegramImage(fileId: fileId, fit: BoxFit.contain),
             ),
             IconButton(
@@ -3405,6 +3064,7 @@ class _StudentPortfolioPageState extends State<StudentPortfolioPage> with Single
     );
   }
 }
+
 class TeacherPortfolioPage extends StatefulWidget {
   final bool isAdmin;
 

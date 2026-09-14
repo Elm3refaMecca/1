@@ -286,9 +286,6 @@ class QRSessionOverlay extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // الصفحة الرئيسية (Add2Page)
 // ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// الصفحة الرئيسية (Add2Page)
-// ---------------------------------------------------------------------------
 class Add2Page extends StatefulWidget {
   const Add2Page({super.key});
 
@@ -297,7 +294,6 @@ class Add2Page extends StatefulWidget {
 }
 
 class _Add2PageState extends State<Add2Page> {
-
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
   bool _isAdmin = false;
@@ -669,7 +665,6 @@ class _Add2PageState extends State<Add2Page> {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const TeacherScheduleFlowPage()));
                 },
               ),
-              // الزيارات الصفية
               _AnimatedGridButton(
                 title: 'الزيارات الصفية',
                 icon: Icons.co_present_rounded,
@@ -679,7 +674,6 @@ class _Add2PageState extends State<Add2Page> {
                 },
               ),
               if (_isAdmin) ...[
-                // تم إدراج زر "جدول المدرسة" هنا في مقدمة صلاحيات الأدمن بشكل سليم
                 _AnimatedGridButton(
                   title: 'جدول المدرسة',
                   icon: Icons.calendar_view_week_rounded,
@@ -849,6 +843,7 @@ class _Add2PageState extends State<Add2Page> {
     );
   }
 }
+
 class _AnimatedGridButton extends StatefulWidget {
   final String title;
   final IconData? icon;
@@ -1892,8 +1887,6 @@ class _TeacherSchedulePhase2State extends State<TeacherSchedulePhase2> {
 
   bool _isSubmitting = false;
   Map<String, bool> _labSubjects = {};
-  Map<String, bool> _teacherReportVisibility = {};
-
   bool _coreEditsUnlocked = false;
 
   Map<String, Map<int, Map<String, dynamic>>> _classBookings = {};
@@ -2764,10 +2757,9 @@ class AdminApprovedSchedulesPage extends StatelessWidget {
       final phase2 = schedData['phase2Data'] as Map<String, dynamic>? ?? {};
       final teacherName = schedData['teacherName'] ?? 'المعلم';
 
-      // استخراج الفصول والمواد من الجدول الفعلي مباشرة (Phase 2)
       Set<String> uniqueAssignments = {};
       List<Map<String, String>> assignments = [];
-      Set<String> subjectsFound = {}; // لتحديث حقول المواد في حساب المعلم
+      Set<String> subjectsFound = {};
 
       final List<String> days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
       for (String day in days) {
@@ -2779,7 +2771,6 @@ class AdminApprovedSchedulesPage extends StatelessWidget {
             String subject = slot['subject']?.toString().trim() ?? '';
             String stage = slot['stage']?.toString().trim() ?? '';
 
-            // معالجة ذكية: إذا كان الجدول قديماً ولا يحتوي على "المرحلة"، نكتشفها من "الصف"
             if (stage.isEmpty && grade.isNotEmpty) {
               if (grade.contains('المتوسط')) {
                 stage = 'المرحلة المتوسطة';
@@ -2859,7 +2850,6 @@ class AdminApprovedSchedulesPage extends StatelessWidget {
         updates[f] = FieldValue.delete();
       }
 
-      // مسح مواد المعلم القديمة لتحديثها بالمواد الفعلية من الجدول
       final Map<String, String> subjToKey = {
         'رياضيات': 'profession1', 'لغتي': 'profession2', 'إسلاميات': 'profession3',
         'علوم': 'profession4', 'نشاط': 'profession5', 'انجليزي': 'profession6',
@@ -2874,7 +2864,6 @@ class AdminApprovedSchedulesPage extends StatelessWidget {
         updates[v] = FieldValue.delete();
       }
 
-      // إسناد المواد المكتشفة في الجدول إلى حساب المعلم
       for (String subj in subjectsFound) {
         if (subjToKey.containsKey(subj)) {
           updates[subjToKey[subj]!] = subj;
@@ -3054,12 +3043,9 @@ class AdminApprovedSchedulesPage extends StatelessWidget {
   }
 }
 
-// -----------------------------------------------------------------------
-
 class AdminClassPermissionsPage extends StatelessWidget {
   const AdminClassPermissionsPage({super.key});
 
-  // دالة المزامنة الفردية المباشرة (الموجودة مسبقاً)
   Future<void> _syncDirectPermissions(BuildContext context, String docId, String teacherName) async {
     try {
       final schedDoc = await FirebaseFirestore.instance.collection('teacher_schedules').doc(docId).get();
@@ -3073,7 +3059,6 @@ class AdminClassPermissionsPage extends StatelessWidget {
       final sData = schedDoc.data()!;
       final phase2 = sData['phase2Data'] as Map<String, dynamic>? ?? {};
 
-      // البحث عن الـ UID الفعلي للمعلم سواء كان معرف الوثيقة أو مسجلاً داخلها
       String targetUid = sData['teacherId']?.toString().trim() ?? docId;
 
       Set<String> uniqueAssignments = {};
@@ -3214,7 +3199,6 @@ class AdminClassPermissionsPage extends StatelessWidget {
         updates[key] = list.toSet().join(', ');
       });
 
-      // كتابة الصلاحيات في جدول users لضمان فتح الصلاحيات
       await FirebaseFirestore.instance.collection('users').doc(targetUid).set(updates, SetOptions(merge: true));
       if (targetUid != docId) {
         await FirebaseFirestore.instance.collection('users').doc(docId).set(updates, SetOptions(merge: true)).catchError((_){});
@@ -3234,7 +3218,6 @@ class AdminClassPermissionsPage extends StatelessWidget {
     }
   }
 
-  // دالة لجلب كافة الجداول المعتمدة ومزامنتها إجبارياً
   Future<void> _fetchAllApprovedAndSync(BuildContext context, List<QueryDocumentSnapshot> schedDocs) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -3277,7 +3260,6 @@ class AdminClassPermissionsPage extends StatelessWidget {
     }
   }
 
-  // دالة صامتة لمعالجة المزامنة في الخلفية بدون النوافذ المنبثقة
   Future<bool> _syncTeacherDataSilent(String docId, Map<String, dynamic> sData) async {
     try {
       final phase2 = sData['phase2Data'] as Map<String, dynamic>? ?? {};
@@ -3439,7 +3421,6 @@ class AdminClassPermissionsPage extends StatelessWidget {
         builder: (context, userSnap) {
           if (userSnap.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
 
-          // جلب كل الجداول المعتمدة
           return StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance.collection('teacher_schedules').where('status', isEqualTo: 'approved').snapshots(),
             builder: (context, schedSnap) {
@@ -3448,7 +3429,6 @@ class AdminClassPermissionsPage extends StatelessWidget {
               final userDocs = userSnap.hasData ? userSnap.data!.docs : <QueryDocumentSnapshot>[];
               final schedDocs = schedSnap.hasData ? schedSnap.data!.docs : <QueryDocumentSnapshot>[];
 
-              // بناء خريطة الجداول بالـ DocID وبـ teacherId
               Map<String, Map<String, dynamic>> schedulesMap = {};
               for (var s in schedDocs) {
                 final d = s.data() as Map<String, dynamic>;
@@ -3458,7 +3438,6 @@ class AdminClassPermissionsPage extends StatelessWidget {
                 }
               }
 
-              // بناء قائمة بكل المعلمين
               Map<String, Map<String, dynamic>> combinedTeachers = {};
 
               for (var u in userDocs) {
@@ -3488,7 +3467,6 @@ class AdminClassPermissionsPage extends StatelessWidget {
 
               return Column(
                 children: [
-                  // --- شريط جلب الجداول المعتمدة ---
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     color: Colors.orange.shade50,
@@ -3701,6 +3679,7 @@ class AdminClassPermissionsPage extends StatelessWidget {
     );
   }
 }
+
 class ScheduleViewer extends StatelessWidget {
   final Map<dynamic, dynamic> scheduleData;
   const ScheduleViewer({super.key, required this.scheduleData});
@@ -3747,10 +3726,6 @@ class ScheduleViewer extends StatelessWidget {
     );
   }
 }
-
-// =========================================================================
-// الزيارات الصفية، الربط بالخطة التشغيلية، حجب/إظهار النتيجة، والجدول العرضي
-// =========================================================================
 
 const List<String> visitEvaluationQuestions = [
   "تنفذ المدرسة برامج وأنشطة؛ لتعزيز القيم الإسلامية والهوية الوطنية لدى المتعلمين.",
@@ -3880,7 +3855,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
   final Map<String, int> _dayIndexMap = {'الأحد': 0, 'الإثنين': 1, 'الثلاثاء': 2, 'الأربعاء': 3, 'الخميس': 4};
   final DateTime _firstWeekStart = DateTime(2026, 8, 30);
 
-  // إدارة الـ PIN لكل واجهة
   bool _isPinVerified = false;
   String _savedPin = '';
   String _pinOwnerId = '';
@@ -3913,7 +3887,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
       final userData = userDoc.data() ?? {};
       _isAdmin = (userData['profession'] == 'admin');
 
-      // المعلم العادي يتخطى شاشة القفل مباشرة للاطلاع على إسناداته فقط
       if (!_isAdmin || widget.visitType == 'جدول زياراتك الصفيه') {
         setState(() {
           _isPinVerified = true;
@@ -3928,7 +3901,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
       _savedPin = pinMap[_pinDocFieldKey]?.toString().trim() ?? '';
       _pinOwnerId = pinMap[_pinOwnerDocFieldKey]?.toString().trim() ?? '';
 
-      // إذا لم يكن هناك رقم سري بعد، يفتح تلقائياً للأدمن
       if (_savedPin.isEmpty) {
         setState(() => _isPinVerified = true);
       }
@@ -3947,7 +3919,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return false;
     final email = currentUser.email?.toLowerCase().trim() ?? '';
-    // المالك الذي وضع الرقم أو الحساب الرئيسي للمطور
     return _savedPin.isEmpty || _pinOwnerId.isEmpty || _pinOwnerId == currentUser.uid || email == 'mostafa.said@gmail.com';
   }
 
@@ -4618,7 +4589,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
 
   @override
   Widget build(BuildContext context) {
-    // التحقق من صلاحية قفل الواجهة على الأدمن دون المعلمين
     if (!_isCheckingPin && !_isPinVerified && _isAdmin && widget.visitType != 'جدول زياراتك الصفيه') {
       return Scaffold(
         appBar: AppBar(
@@ -4674,7 +4644,6 @@ class _VisitSchedulePageState extends State<VisitSchedulePage> {
         backgroundColor: Colors.teal.shade700,
         foregroundColor: Colors.white,
         actions: [
-          // إتاحة تعديل الرمز السري الحصري فقط للأدمن المالك
           if (_isAdmin && widget.visitType != 'جدول زياراتك الصفيه' && _canModifyPin)
             IconButton(
               icon: const Icon(Icons.pin),
@@ -5448,7 +5417,6 @@ class _VisitEvaluationFormPageState extends State<VisitEvaluationFormPage> {
 class AdminSchoolSchedulePage extends StatelessWidget {
   const AdminSchoolSchedulePage({super.key});
 
-  // دالة تحويل الصف والفصل إلى اختصار جمالي (مثال: 1ب/2)
   String _getShortClassDisplay(String grade, String cls) {
     String g = '';
     if (grade.contains('الأول الابتدائي') || grade == 'الصف الأول') g = '1ب';
@@ -5490,8 +5458,6 @@ class AdminSchoolSchedulePage extends StatelessWidget {
             return const Center(child: Text('لا توجد جداول معتمدة لعرضها.', style: TextStyle(fontFamily: 'Cairo')));
           }
 
-          // تجميع البيانات بناءً على الفصول (فصل فصل)
-          // Map Structure: ClassKey -> Day -> PeriodIndex (0-6) -> Cell Content
           Map<String, Map<String, Map<int, String>>> classesSchedule = {};
 
           for (var doc in snapshot.data!.docs) {
@@ -5516,7 +5482,6 @@ class AdminSchoolSchedulePage extends StatelessWidget {
                       classesSchedule.putIfAbsent(fullClassKey, () => {});
                       classesSchedule[fullClassKey]!.putIfAbsent(day, () => {});
 
-                      // تجهيز محتوى الخلية (المادة، المعلم، والاختصار الجمالي)
                       classesSchedule[fullClassKey]![day]![i] = '$subject\nأ. $teacherName\n[$shortClass]';
                     }
                   }
@@ -5529,7 +5494,6 @@ class AdminSchoolSchedulePage extends StatelessWidget {
             return const Center(child: Text('لا توجد إسنادات فعلية داخل الجداول.', style: TextStyle(fontFamily: 'Cairo')));
           }
 
-          // ترتيب الفصول أبجدياً لسهولة التصفح
           List<String> sortedClassKeys = classesSchedule.keys.toList();
           sortedClassKeys.sort();
 
@@ -5540,7 +5504,6 @@ class AdminSchoolSchedulePage extends StatelessWidget {
               String classKey = sortedClassKeys[index];
               var dayMap = classesSchedule[classKey]!;
 
-              // بناء أعمدة الجدول (اليوم + 7 حصص)
               List<DataColumn> tableColumns = [
                 const DataColumn(label: Text('اليوم', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'Cairo'))),
               ];
@@ -5552,7 +5515,6 @@ class AdminSchoolSchedulePage extends StatelessWidget {
                 );
               }
 
-              // بناء صفوف الجدول (5 أيام)
               List<DataRow> tableRows = days.map((day) {
                 List<DataCell> cells = [
                   DataCell(
@@ -5602,7 +5564,6 @@ class AdminSchoolSchedulePage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // رأس بطاقة الفصل
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
@@ -5620,7 +5581,6 @@ class AdminSchoolSchedulePage extends StatelessWidget {
                         ],
                       ),
                     ),
-                    // جدول الحصص
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Padding(
