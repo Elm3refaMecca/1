@@ -1118,16 +1118,12 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
-  /// دالة الحفظ الذرية السريعة والمانعة لتشتت الدرجات مع وميض الإشعار الأخضر
+// ==========================================
+// 2. الجزء المعدل بالكامل (إدراج إشعار الطالب مع الحفظ)
+// ==========================================
+// في ملف add1.dart داخل دالة _saveGrade:
   Future<void> _saveGrade(String studentId, num grade, Map<String, dynamic>? evalData) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      String teacherName = 'معلم المادة';
-      if (user != null) {
-        final tDoc = await _firestore.collection('users').doc(user.uid).get();
-        teacherName = tDoc.data()?['name'] ?? 'معلم المادة';
-      }
-
       final cleanTestKey = _getCanonicalTestIdentifier();
       final bool isNafes = widget.testFieldKey.contains('profession13') || widget.testFieldKey.contains('nafes');
       final double maxGrade = isNafes ? 10.0 : 20.0;
@@ -1135,6 +1131,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
       final batch = _firestore.batch();
       final studentRef = _firestore.collection('students').doc(studentId);
 
+      // 1. تحديث الدرجة في وثيقة الطالب
       Map<String, dynamic> studentUpdates = {
         widget.testFieldKey: grade,
         if (evalData != null) 'eval_${widget.testFieldKey}': evalData,
@@ -1145,13 +1142,12 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           'testName': widget.testName,
           'testFieldKey': widget.testFieldKey,
           'evaluation': evalData,
-          if (_answerSheetUrls[studentId] != null) 'answerSheetUrl': _answerSheetUrls[studentId],
           'updatedAt': DateTime.now().toIso8601String(),
         }
       };
-
       batch.set(studentRef, studentUpdates, SetOptions(merge: true));
 
+      // 2. تحديث سجل درجات الطالب المستقل
       final gradeRef = _getGradeDocRef(studentId);
       batch.set(gradeRef, {
         'score': grade,
@@ -1161,10 +1157,21 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         'testFieldKey': widget.testFieldKey,
         'testName': widget.testName,
         'evaluation': evalData,
-        'teacherName': teacherName,
-        if (_answerSheetUrls[studentId] != null) 'answerSheetUrl': _answerSheetUrls[studentId],
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+
+      // ❌ احذف هذا الجزء بالكامل حتى لا يذهب أي إشعار للطالب تسمعه السبورة:
+      /*
+    String gradeText = grade == -1 ? "تسجيلك كـ 'غائب'" : "رصد درجة ($grade من ${maxGrade.toInt()})";
+    final notificationRef = studentRef.collection('notifications').doc();
+    batch.set(notificationRef, {
+      'title': '📝 إشعار رصد درجة',
+      'message': 'تم $gradeText في اختبار (${widget.testName}) لمادة ${widget.subject} من قِبل أ. $teacherName.',
+      'type': 'grade',
+      'timestamp': FieldValue.serverTimestamp(),
+      'isRead': false,
+    });
+    */
 
       await batch.commit();
 
@@ -1177,7 +1184,7 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('تمت المزامنة واعتماد الدرجة بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')),
+            content: Text('تم حفظ الدرجة بنجاح ✅', style: TextStyle(fontFamily: 'Cairo')),
             backgroundColor: Colors.green,
             duration: Duration(milliseconds: 1500),
           ),
@@ -1191,16 +1198,11 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
           }
         });
       }
-// ==========================================
-// 1. ما قبله مباشرة
-// ==========================================
     } catch (e) {
       debugPrint("Error saving grade: $e");
     }
   }
-
-// ==========================================
-// 2. الكتلة الكاملة المعدلة للكاميرا الحية وتوثيق اسم المعلم
+// ==========================================// 2. الكتلة الكاملة المعدلة للكاميرا الحية وتوثيق اسم المعلم
 // ==========================================
   Future<void> _scanAndUploadAnswerSheet(String studentId) async {
     try {

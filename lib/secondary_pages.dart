@@ -955,53 +955,31 @@ class _GradeEntryPageState extends State<GradeEntryPage> {
     }
   }
 
+// في ملف secondary_pages.dart داخل دالة _saveGrade:
   Future<void> _saveGrade(String studentId, num grade) async {
     try {
-      // جلب اسم المعلم الراصد لإضافته في الإشعار
-      final user = FirebaseAuth.instance.currentUser;
-      String teacherName = 'المعلم';
-      if (user != null) {
-        final tDoc = await _firestore.collection('users').doc(user.uid).get();
-        if (tDoc.exists && tDoc.data() != null) {
-          teacherName = (tDoc.data()?['name'] ?? tDoc.data()?['Name'] ?? 'المعلم').toString().trim();
-          teacherName = teacherName.replaceAll(RegExp(r'^أ\s*[:\-]?\s*'), '').trim();
-        }
-      }
-
-      final bool isNafes = widget.testFieldKey.contains('profession13') || widget.testFieldKey.contains('nafes');
-      final double maxGrade = isNafes ? 10.0 : 20.0;
-
       final batch = _firestore.batch();
       final studentRef = _firestore.collection('students').doc(studentId);
-      final notificationRef = studentRef.collection('notifications').doc();
 
-      // 1. تحديث الدرجة في حساب الطالب
+      // 1. تحديث الدرجة فقط
       Map<String, dynamic> updates = {
         widget.testFieldKey: grade,
         'lastGradeUpdate': FieldValue.serverTimestamp(),
       };
       batch.set(studentRef, updates, SetOptions(merge: true));
 
-      // 2. إنشاء وإرسال الإشعار للطالب
-      String gradeText = grade == -1 ? "تسجيلك كـ 'غائب'" : "رصد درجة ($grade من ${maxGrade.toInt()})";
-      batch.set(notificationRef, {
-        'title': '📝 إشعار رصد درجة',
-        'message': 'تم $gradeText في اختبار (${widget.testName}) لمادة ${widget.subject} من قِبل أ. $teacherName.',
-        'type': 'grade',
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
+      // ❌ تم إيقاف إنشاء notificationRef لمنع نطق الدرجة على شاشات الفصول نهائياً
 
-      // تنفيذ العمليتين معاً (حفظ الدرجة + إرسال الإشعار)
       await batch.commit();
 
       setState(() => _grades[studentId] = grade);
 
-      if(mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب" وإرسال إشعار له' : 'تم حفظ الدرجة وإرسال إشعار للطالب بنجاح ✅', style: const TextStyle(fontFamily: 'Cairo')),
-              backgroundColor: grade == -1 ? Colors.blueGrey : Colors.green),
+            content: Text(grade == -1 ? 'تم تسجيل الطالب كـ "غائب"' : 'تم حفظ الدرجة بنجاح ✅', style: const TextStyle(fontFamily: 'Cairo')),
+            backgroundColor: grade == -1 ? Colors.blueGrey : Colors.green,
+          ),
         );
       }
     } catch (e) {

@@ -268,7 +268,89 @@ class _AddPageState extends State<AddPage> {
 
   String _userProfession = '';
   Timer? _sessionTimer;
-
+  void _showAcademicAchievementDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.analytics_rounded, color: Color(0xFF1565C0), size: 26),
+            SizedBox(width: 8),
+            Text(
+              'بوابة التحصيل الدراسي',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Cairo',
+                fontSize: 17,
+                color: Color(0xFF1565C0),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'اختر الإجراء الأكاديمي المطلوب لمتابعة مستوى الطلاب:',
+                style: TextStyle(fontSize: 12, color: Colors.blueGrey, fontFamily: 'Cairo'),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                elevation: 0,
+                color: Colors.blue.shade50,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: Colors.blue.shade200),
+                ),
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFF2962FF),
+                    child: Icon(Icons.edit_document, color: Colors.white, size: 20),
+                  ),
+                  title: const Text(
+                    'رصد الدرجات',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      fontFamily: 'Cairo',
+                      color: Color(0xFF0D47A1),
+                    ),
+                  ),
+                  subtitle: const Text(
+                    'رصد وتحديث درجات الاختبارات الدورية وتطبيقات نافس',
+                    style: TextStyle(fontSize: 11, fontFamily: 'Cairo'),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Color(0xFF0D47A1)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    // التوجيه لنفس شاشة الرصد الأصلية دون تغيير أي بارامترات
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GradeEntrySelectionPage(
+                          isBehaviorMode: false,
+                          isAdmin: _isAdmin,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إغلاق', style: TextStyle(fontFamily: 'Cairo', color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
+  }
   @override
   void initState() {
     super.initState();
@@ -1806,14 +1888,14 @@ class _AddPageState extends State<AddPage> {
                   },
                 ),
               _AnimatedGridButton(
-                title: 'رصد الدرجات',
-                icon: Icons.edit_document,
-                color: const Color(0xFF2962FF),
+                title: 'التحصيل الدراسي',
+                icon: Icons.analytics_outlined, // أو Icons.school_rounded
+                color: const Color(0xFF1565C0),
                 onTap: () {
                   if (isGuest) {
                     _showGuestError();
                   } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => GradeEntrySelectionPage(isBehaviorMode: false, isAdmin: _isAdmin)));
+                    _showAcademicAchievementDialog(); // استدعاء نافذة خدمات التحصيل
                   }
                 },
               ),

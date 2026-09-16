@@ -449,11 +449,14 @@ class _StudentResultsViewState extends State<StudentResultsView> {
 // ==========================================
   Future<void> _fetchTeachers() async {
     try {
-      final String studentStage = widget.studentData['stages'] ?? '';
-      final String studentGrade = widget.studentData['grades'] ?? '';
-      final String studentClass = widget.studentData['classes'] ?? '';
+      final String studentStage = (widget.studentData['stages'] ?? '').toString().trim();
+      final String studentGrade = (widget.studentData['grades'] ?? '').toString().trim();
+      final String studentClass = (widget.studentData['classes'] ?? '').toString().trim();
 
-      // جلب جميع المستندات من users بدون شرط فلترة حتى نضمن جلب المعلم حتى لو كان profession فارغاً
+      // تنظيف اسم الفصل للتحقق الدقيق (مثل "الفصل 1" أو "1")
+      final String cleanStudentClassNum = studentClass.replaceAll(RegExp(r'[^0-9]'), '');
+
+      // جلب المعلمين الفعليين
       final teachersSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .get();
@@ -495,7 +498,7 @@ class _StudentResultsViewState extends State<StudentResultsView> {
 
         final String? tPhone = data['phone'];
 
-        // 1. المطابقة عبر الهيكل الأساسي (المراحل والصفوف)
+        // الفحص الحصري: هل المعلم مسند له هذا الصف وهذا الفصل تحديداً؟
         if (structure.containsKey(studentStage)) {
           final stageMap = structure[studentStage]!;
           final gradesMap = stageMap['grades'] as Map<String, dynamic>;
@@ -505,19 +508,24 @@ class _StudentResultsViewState extends State<StudentResultsView> {
             final String gradeField = fields['gradeField']!;
             final String classField = fields['classField']!;
 
+            // التأكد من تدريسه لهذا الصف
             if (data[gradeField] != null && data[gradeField] != '0') {
-              final String classesString = data[classField] ?? '';
+              final String classesString = (data[classField] ?? '').toString();
               final List<String> assignments = classesString.split(',');
 
               for (var assignment in assignments) {
                 final parts = assignment.split('=');
                 if (parts.length == 2) {
-                  String cls = parts[0].trim();
+                  String assignedClass = parts[0].trim();
                   final String subj = parts[1].trim();
 
-                  if (int.tryParse(cls) != null) cls = 'الفصل $cls';
+                  final String cleanAssignedClassNum = assignedClass.replaceAll(RegExp(r'[^0-9]'), '');
 
-                  if (cls == studentClass || cls == studentClass.replaceAll('الفصل ', '')) {
+                  // المطابقة الحصرية برقم الفصل واسمه
+                  bool isSameClass = (assignedClass == studentClass) ||
+                      (cleanAssignedClassNum.isNotEmpty && cleanAssignedClassNum == cleanStudentClassNum);
+
+                  if (isSameClass && subj.isNotEmpty) {
                     _subjectTeachers[subj] = TeacherContactInfo(
                       name: tName,
                       phone: tPhone,
@@ -528,23 +536,6 @@ class _StudentResultsViewState extends State<StudentResultsView> {
                 }
               }
             }
-          }
-        }
-
-        // 2. المطابقة التكميلية عبر حقول التخصصات (profession1 .. profession22)
-        for (int i = 1; i <= 22; i++) {
-          final pVal = data['profession$i'];
-          if (pVal != null && pVal.toString().trim().isNotEmpty) {
-            final subjName = pVal.toString().trim();
-            _subjectTeachers.putIfAbsent(
-              subjName,
-                  () => TeacherContactInfo(
-                name: tName,
-                phone: tPhone,
-                availableTime: "طوال أيام الأسبوع الدراسي",
-                isFound: true,
-              ),
-            );
           }
         }
       }
